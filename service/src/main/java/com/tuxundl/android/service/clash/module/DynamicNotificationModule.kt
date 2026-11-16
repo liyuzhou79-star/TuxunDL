@@ -24,12 +24,17 @@ import java.util.concurrent.TimeUnit
 
 class DynamicNotificationModule(service: Service) : Module<Unit>(service) {
     private val builder = NotificationCompat.Builder(service, StaticNotificationModule.CHANNEL_ID)
-        .setSmallIcon(R.drawable.ic_logo_service)
+        .setSmallIcon(R.drawable.ic_logo_tuxundl)
         .setOngoing(true)
-        .setColor(service.getColorCompat(R.color.color_clash))
+        .setColor(service.getColorCompat(R.color.color_tuxundl))
         .setOnlyAlertOnce(true)
         .setShowWhen(false)
-        .setContentTitle("Not Selected")
+        .setContentTitle(
+            service.getString(
+                R.string.notification_title_running,
+                service.getString(R.string.notification_no_profile)
+            )
+        )
         .setForegroundServiceBehavior(NotificationCompat.FOREGROUND_SERVICE_IMMEDIATE)
         .setContentIntent(
             PendingIntent.getActivity(
@@ -55,13 +60,13 @@ class DynamicNotificationModule(service: Service) : Module<Unit>(service) {
         val notification = builder
             .setContentText(
                 service.getString(
-                    R.string.clash_notification_content,
+                    R.string.notification_traffic_now,
                     "$uploading/s", "$downloading/s"
                 )
             )
             .setSubText(
                 service.getString(
-                    R.string.clash_notification_content,
+                    R.string.notification_traffic_total,
                     uploaded, downloaded
                 )
             )
@@ -95,7 +100,13 @@ class DynamicNotificationModule(service: Service) : Module<Unit>(service) {
                     }
                 }
                 profileLoaded.onReceive {
-                    builder.setContentTitle(StatusProvider.currentProfile ?: "Not selected")
+                    builder.setContentTitle(
+                        service.getString(
+                            R.string.notification_title_running,
+                            StatusProvider.currentProfile
+                                ?: service.getString(R.string.notification_no_profile)
+                        )
+                    )
                 }
                 if (shouldUpdate) {
                     ticker.onReceive {

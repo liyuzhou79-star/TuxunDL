@@ -19,6 +19,7 @@ import androidx.core.graphics.drawable.IconCompat
 import com.tuxundl.android.common.constants.Intents
 import com.tuxundl.android.common.util.intent
 import com.tuxundl.android.common.util.ticker
+import com.tuxundl.android.core.Clash
 import com.tuxundl.android.design.MainDesign
 import com.tuxundl.android.design.model.DarkMode
 import com.tuxundl.android.ui.MainScreen
@@ -65,6 +66,24 @@ class MainActivity : BaseActivity<MainDesign>() {
                                 stopClashService()
                             else
                                 startClash()
+                        }
+                        is MainDesign.Request.SetMode -> {
+                            launch {
+                                uiState.snackbarHostState.showSnackbar(
+                                    message = getString(DesignR.string.mode_switch_tips),
+                                    duration = SnackbarDuration.Short,
+                                )
+                            }
+
+                            withClash {
+                                val o = queryOverride(Clash.OverrideSlot.Session)
+
+                                o.mode = it.mode
+
+                                patchOverride(Clash.OverrideSlot.Session, o)
+                            }
+
+                            uiState.mode = it.mode
                         }
                         MainDesign.Request.OpenProxy ->
                             startActivity(ProxyActivity::class.intent)
@@ -225,7 +244,7 @@ class MainActivity : BaseActivity<MainDesign>() {
         val toggle = ShortcutInfoCompat.Builder(this, "toggle_clash")
             .setShortLabel(getString(DesignR.string.shortcut_toggle_short))
             .setLongLabel(getString(DesignR.string.shortcut_toggle_long))
-            .setIcon(IconCompat.createWithResource(this, R.drawable.ic_toggle_all))
+            .setIcon(IconCompat.createWithResource(this, R.drawable.ic_shortcut_toggle))
             .setIntent(
                 Intent(Intents.ACTION_TOGGLE_CLASH)
                     .setClassName(this, ExternalControlActivity::class.java.name)
@@ -237,7 +256,7 @@ class MainActivity : BaseActivity<MainDesign>() {
         val start = ShortcutInfoCompat.Builder(this, "start_clash")
             .setShortLabel(getString(DesignR.string.shortcut_start_short))
             .setLongLabel(getString(DesignR.string.shortcut_start_long))
-            .setIcon(IconCompat.createWithResource(this, R.drawable.ic_toggle_on))
+            .setIcon(IconCompat.createWithResource(this, R.drawable.ic_shortcut_start))
             .setIntent(
                 Intent(Intents.ACTION_START_CLASH)
                     .setClassName(this, ExternalControlActivity::class.java.name)
@@ -249,7 +268,7 @@ class MainActivity : BaseActivity<MainDesign>() {
         val stop = ShortcutInfoCompat.Builder(this, "stop_clash")
             .setShortLabel(getString(DesignR.string.shortcut_stop_short))
             .setLongLabel(getString(DesignR.string.shortcut_stop_long))
-            .setIcon(IconCompat.createWithResource(this, R.drawable.ic_toggle_off))
+            .setIcon(IconCompat.createWithResource(this, R.drawable.ic_shortcut_stop))
             .setIntent(
                 Intent(Intents.ACTION_STOP_CLASH)
                     .setClassName(this, ExternalControlActivity::class.java.name)

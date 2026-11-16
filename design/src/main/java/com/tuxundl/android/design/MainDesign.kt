@@ -14,15 +14,18 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 
 class MainDesign(context: Context) : Design<MainDesign.Request>(context) {
-    enum class Request {
-        ToggleStatus,
-        OpenProxy,
-        OpenProfiles,
-        OpenProviders,
-        OpenLogs,
-        OpenSettings,
-        OpenHelp,
-        OpenAbout,
+    sealed class Request {
+        object ToggleStatus : Request()
+        object OpenProxy : Request()
+        object OpenProfiles : Request()
+        object OpenProviders : Request()
+        object OpenLogs : Request()
+        object OpenSettings : Request()
+        object OpenHelp : Request()
+        object OpenAbout : Request()
+
+        /** Switch the tunnel mode (session override), like ProxyDesign.PatchMode. */
+        data class SetMode(val mode: TunnelState.Mode) : Request()
     }
 
     private val binding = DesignMainBinding

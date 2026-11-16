@@ -1,6 +1,9 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <string name="clash_service_status_channel">Clash 狀態</string>
+    <string name="clash_service_status_channel">TuxunDL 狀態</string>
+    <string name="notification_title_running">TuxunDL 運行中 · %1$s</string>
+    <string name="notification_no_profile">未選擇設定檔</string>
+    <string name="notification_traffic_total">已用 ↑ %1$s  ↓ %2$s</string>
     <string name="running">正在運作</string>
     <string name="format_update_complete">更新 %s 成功</string>
     <string name="format_update_failure">"更新 %1$s: %2$s "</string>

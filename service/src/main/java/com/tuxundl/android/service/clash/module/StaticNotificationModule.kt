@@ -17,9 +17,9 @@ import kotlinx.coroutines.channels.Channel
 
 class StaticNotificationModule(service: Service) : Module<Unit>(service) {
     private val builder = NotificationCompat.Builder(service, CHANNEL_ID)
-        .setSmallIcon(R.drawable.ic_logo_service)
+        .setSmallIcon(R.drawable.ic_logo_tuxundl)
         .setOngoing(true)
-        .setColor(service.getColorCompat(R.color.color_clash))
+        .setColor(service.getColorCompat(R.color.color_tuxundl))
         .setOnlyAlertOnce(true)
         .setShowWhen(false)
         .setForegroundServiceBehavior(NotificationCompat.FOREGROUND_SERVICE_IMMEDIATE)
@@ -41,10 +41,13 @@ class StaticNotificationModule(service: Service) : Module<Unit>(service) {
         while (true) {
             loaded.receive()
 
-            val profileName = StatusProvider.currentProfile ?: "Not selected"
+            val profileName = StatusProvider.currentProfile
+                ?: service.getString(R.string.notification_no_profile)
 
             val notification = builder
-                .setContentTitle(profileName)
+                .setContentTitle(
+                    service.getString(R.string.notification_title_running, profileName)
+                )
                 .setContentText(service.getText(R.string.running))
                 .build()
 
@@ -67,9 +70,9 @@ class StaticNotificationModule(service: Service) : Module<Unit>(service) {
         fun notifyLoadingNotification(service: Service) {
             val notification =
                 NotificationCompat.Builder(service, CHANNEL_ID)
-                    .setSmallIcon(R.drawable.ic_logo_service)
+                    .setSmallIcon(R.drawable.ic_logo_tuxundl)
                     .setOngoing(true)
-                    .setColor(service.getColorCompat(R.color.color_clash))
+                    .setColor(service.getColorCompat(R.color.color_tuxundl))
                     .setOnlyAlertOnce(true)
                     .setShowWhen(false)
                     .setContentTitle(service.getText(R.string.loading))
