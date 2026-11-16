@@ -99,6 +99,11 @@ class MainActivity : BaseActivity<MainDesign>() {
     private suspend fun fetch() {
         uiState.clashRunning = clashRunning
 
+        uiState.showTraffic = uiStore.showTrafficCard
+        uiState.showProxy = uiStore.showProxyCard
+        uiState.showProfile = uiStore.showProfileCard
+        uiState.showProviders = uiStore.showProvidersCard
+
         val state = withClash {
             queryTunnelState()
         }
@@ -184,7 +189,7 @@ class MainActivity : BaseActivity<MainDesign>() {
         }
 
         setContent {
-            TuxunDLTheme(darkTheme = darkTheme) {
+            TuxunDLTheme(darkTheme = darkTheme, palette = uiStore.themePalette) {
                 Surface(color = MaterialTheme.colorScheme.background) {
                     MainScreen(
                         state = uiState,

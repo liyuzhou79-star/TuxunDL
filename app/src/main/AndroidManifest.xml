@@ -164,6 +164,11 @@
             android:exported="false"
             android:label="@string/app" />
         <activity
+            android:name=".AppearanceActivity"
+            android:configChanges="uiMode"
+            android:exported="false"
+            android:label="@string/appearance" />
+        <activity
             android:name=".OverrideSettingsActivity"
             android:configChanges="uiMode"
             android:exported="false"

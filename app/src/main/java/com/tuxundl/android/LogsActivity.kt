@@ -1,22 +1,31 @@
 package com.tuxundl.android
 
+import android.content.res.Configuration
+import android.os.Bundle
+import androidx.activity.compose.setContent
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Surface
 import com.tuxundl.android.common.util.intent
 import com.tuxundl.android.common.util.setFileName
 import com.tuxundl.android.design.LogsDesign
+import com.tuxundl.android.design.model.DarkMode
 import com.tuxundl.android.design.model.LogFile
+import com.tuxundl.android.ui.LogsScreen
+import com.tuxundl.android.ui.LogsUiState
+import com.tuxundl.android.ui.theme.TuxunDLTheme
 import com.tuxundl.android.util.logsDir
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.isActive
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.selects.select
 import kotlinx.coroutines.withContext
 
 class LogsActivity : BaseActivity<LogsDesign>() {
+    private val uiState = LogsUiState()
+    private val uiRequests = Channel<LogsDesign.Request>(Channel.UNLIMITED)
 
     override suspend fun main() {
-        val design = LogsDesign(this)
-
-        setContentDesign(design)
-
         while (isActive) {
             select<Unit> {
                 events.onReceive {
@@ -26,25 +35,19 @@ class LogsActivity : BaseActivity<LogsDesign>() {
                                 loadFiles()
                             }
 
-                            design.patchLogs(files)
+                            uiState.files = files
                         }
                         else -> Unit
                     }
                 }
-                design.requests.onReceive {
+                uiRequests.onReceive {
                     when (it) {
                         LogsDesign.Request.StartLogcat -> {
                             startActivity(LogcatActivity::class.intent)
                             finish()
                         }
                         LogsDesign.Request.DeleteAll -> {
-                            if (design.requestDeleteAll()) {
-                                withContext(Dispatchers.IO) {
-                                    deleteAllLogs()
-                                }
-
-                                events.trySend(Event.ActivityStart)
-                            }
+                            uiState.showDeleteAllConfirm = true
                         }
                         is LogsDesign.Request.OpenFile -> {
                             startActivity(LogcatActivity::class.intent.setFileName(it.file.fileName))
@@ -63,5 +66,37 @@ class LogsActivity : BaseActivity<LogsDesign>() {
 
     private fun deleteAllLogs() {
         logsDir.deleteRecursively()
+    }
+
+    override fun onCreate(savedInstanceState: Bundle?) {
+        super.onCreate(savedInstanceState)
+
+        val darkTheme = when (uiStore.darkMode) {
+            DarkMode.Auto -> resources.configuration.uiMode and
+                Configuration.UI_MODE_NIGHT_MASK == Configuration.UI_MODE_NIGHT_YES
+            DarkMode.ForceLight -> false
+            DarkMode.ForceDark -> true
+        }
+
+        setContent {
+            TuxunDLTheme(darkTheme = darkTheme, palette = uiStore.themePalette) {
+                Surface(color = MaterialTheme.colorScheme.background) {
+                    LogsScreen(
+                        state = uiState,
+                        onRequest = { request -> uiRequests.trySend(request) },
+                        onDeleteAllConfirmed = {
+                            launch {
+                                withContext(Dispatchers.IO) {
+                                    deleteAllLogs()
+                                }
+
+                                events.trySend(Event.ActivityStart)
+                            }
+                        },
+                        onBack = { finish() },
+                    )
+                }
+            }
+        }
     }
 }

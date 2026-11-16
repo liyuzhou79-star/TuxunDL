@@ -1,16 +1,30 @@
 package com.tuxundl.android
 
+import android.content.res.Configuration
 import android.database.Cursor
 import android.net.Uri
+import android.os.Bundle
 import android.provider.OpenableColumns
 import android.widget.Toast
+import androidx.activity.compose.setContent
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Surface
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.setValue
+import com.google.android.material.dialog.MaterialAlertDialogBuilder
 import com.tuxundl.android.core.Clash
+import com.tuxundl.android.core.model.ConfigurationOverride
 import com.tuxundl.android.design.MetaFeatureSettingsDesign
+import com.tuxundl.android.design.model.DarkMode
+import com.tuxundl.android.ui.MetaFeatureSettingsScreen
+import com.tuxundl.android.ui.OverrideUiState
+import com.tuxundl.android.ui.theme.TuxunDLTheme
 import com.tuxundl.android.util.clashDir
 import com.tuxundl.android.util.withClash
-import com.google.android.material.dialog.MaterialAlertDialogBuilder
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.selects.select
 import kotlinx.coroutines.withContext
@@ -18,10 +32,14 @@ import java.io.File
 import java.io.FileOutputStream
 import com.tuxundl.android.design.R
 
-
 class MetaFeatureSettingsActivity : BaseActivity<MetaFeatureSettingsDesign>() {
+    private val uiState = OverrideUiState()
+    private val uiRequests = Channel<MetaFeatureSettingsDesign.Request>(Channel.UNLIMITED)
+    private var configuration by mutableStateOf<ConfigurationOverride?>(null)
+
     override suspend fun main() {
         val configuration = withClash { queryOverride(Clash.OverrideSlot.Persist) }
+        this.configuration = configuration
 
         defer {
             withClash {
@@ -29,29 +47,15 @@ class MetaFeatureSettingsActivity : BaseActivity<MetaFeatureSettingsDesign>() {
             }
         }
 
-        val design = MetaFeatureSettingsDesign(
-            this,
-            configuration
-        )
-
-        setContentDesign(design)
-
         while (isActive) {
             select<Unit> {
                 events.onReceive {
 
                 }
-                design.requests.onReceive {
+                uiRequests.onReceive {
                     when (it) {
                         MetaFeatureSettingsDesign.Request.ResetOverride -> {
-                            if (design.requestResetConfirm()) {
-                                defer {
-                                    withClash {
-                                        clearOverride(Clash.OverrideSlot.Persist)
-                                    }
-                                }
-                                finish()
-                            }
+                            uiState.showResetConfirm = true
                         }
                         MetaFeatureSettingsDesign.Request.ImportGeoIp -> {
                             val uri = startActivityForResult(
@@ -83,6 +87,16 @@ class MetaFeatureSettingsActivity : BaseActivity<MetaFeatureSettingsDesign>() {
         }
     }
 
+    private fun resetOverride() {
+        defer {
+            withClash {
+                clearOverride(Clash.OverrideSlot.Persist)
+            }
+        }
+
+        finish()
+    }
+
     private val validDatabaseExtensions = listOf(
         ".metadb", ".db", ".dat", ".mmdb"
     )
@@ -95,7 +109,7 @@ class MetaFeatureSettingsActivity : BaseActivity<MetaFeatureSettingsDesign>() {
             if (it.moveToFirst()) {
                 val columnIndex = it.getColumnIndex(OpenableColumns.DISPLAY_NAME)
                 val displayName: String =
-                    if (columnIndex != -1) it.getString(columnIndex) else "";
+                    if (columnIndex != -1) it.getString(columnIndex) else ""
                 val ext = "." + displayName.substringAfterLast(".")
 
                 if (!validDatabaseExtensions.contains(ext)) {
@@ -120,7 +134,7 @@ class MetaFeatureSettingsActivity : BaseActivity<MetaFeatureSettingsDesign>() {
                 }
 
                 withContext(Dispatchers.IO) {
-                    val outputFile = File(clashDir, outputFileName);
+                    val outputFile = File(clashDir, outputFileName)
                     contentResolver.openInputStream(uri).use { ins ->
                         FileOutputStream(outputFile).use { outs ->
                             ins?.copyTo(outs)
@@ -133,5 +147,33 @@ class MetaFeatureSettingsActivity : BaseActivity<MetaFeatureSettingsDesign>() {
             }
         }
         Toast.makeText(this, R.string.geofile_import_failed, Toast.LENGTH_LONG).show()
+    }
+
+    override fun onCreate(savedInstanceState: Bundle?) {
+        super.onCreate(savedInstanceState)
+
+        val darkTheme = when (uiStore.darkMode) {
+            DarkMode.Auto -> resources.configuration.uiMode and
+                Configuration.UI_MODE_NIGHT_MASK == Configuration.UI_MODE_NIGHT_YES
+            DarkMode.ForceLight -> false
+            DarkMode.ForceDark -> true
+        }
+
+        setContent {
+            TuxunDLTheme(darkTheme = darkTheme, palette = uiStore.themePalette) {
+                Surface(color = MaterialTheme.colorScheme.background) {
+                    val config = configuration
+                    if (config != null) {
+                        MetaFeatureSettingsScreen(
+                            configuration = config,
+                            state = uiState,
+                            onRequest = { request -> uiRequests.trySend(request) },
+                            onResetConfirmed = { resetOverride() },
+                            onBack = { finish() },
+                        )
+                    }
+                }
+            }
+        }
     }
 }

@@ -3,10 +3,16 @@ package com.tuxundl.android
 import android.content.ComponentName
 import android.content.Context
 import android.content.ServiceConnection
+import android.content.res.Configuration
 import android.net.Uri
+import android.os.Bundle
 import android.os.IBinder
 import android.widget.Toast
+import androidx.activity.compose.setContent
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.SnackbarDuration
+import androidx.compose.material3.Surface
 import com.tuxundl.android.common.compat.startForegroundServiceCompat
 import com.tuxundl.android.common.log.Log
 import com.tuxundl.android.common.util.fileName
@@ -15,13 +21,16 @@ import com.tuxundl.android.common.util.ticker
 import com.tuxundl.android.core.model.LogMessage
 import com.tuxundl.android.design.LogcatDesign
 import com.tuxundl.android.design.dialog.withModelProgressBar
+import com.tuxundl.android.design.model.DarkMode
 import com.tuxundl.android.design.model.LogFile
-import com.tuxundl.android.design.ui.ToastDuration
-import com.tuxundl.android.design.util.showExceptionToast
 import com.tuxundl.android.log.LogcatFilter
 import com.tuxundl.android.log.LogcatReader
+import com.tuxundl.android.ui.LogcatScreen
+import com.tuxundl.android.ui.LogcatUiState
+import com.tuxundl.android.ui.theme.TuxunDLTheme
 import com.tuxundl.android.util.logsDir
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.selects.select
 import kotlinx.coroutines.withContext
@@ -32,6 +41,9 @@ import com.tuxundl.android.design.R
 
 class LogcatActivity : BaseActivity<LogcatDesign>() {
     private var conn: ServiceConnection? = null
+
+    private val uiState = LogcatUiState()
+    private val uiRequests = Channel<LogcatDesign.Request>(Channel.UNLIMITED)
 
     override suspend fun main() {
         val fileName = intent?.fileName
@@ -53,14 +65,11 @@ class LogcatActivity : BaseActivity<LogcatDesign>() {
             return showInvalid()
         }
 
-        val design = LogcatDesign(this, false)
-
-        setContentDesign(design)
-
-        design.patchMessages(messages, 0, messages.size)
+        uiState.streaming = false
+        uiState.messages = messages
 
         while (isActive) {
-            when (design.requests.receive()) {
+            when (uiRequests.receive()) {
                 LogcatDesign.Request.Delete -> {
                     withContext(Dispatchers.IO) {
                         logsDir.resolve(file.fileName).delete()
@@ -80,9 +89,15 @@ class LogcatActivity : BaseActivity<LogcatDesign>() {
                                 writeLogTo(messages, file, output)
                             }
 
-                            design.showToast(R.string.file_exported, ToastDuration.Long)
+                            uiState.snackbarHostState.showSnackbar(
+                                message = getString(R.string.file_exported),
+                                duration = SnackbarDuration.Long,
+                            )
                         } catch (e: Exception) {
-                            design.showExceptionToast(e)
+                            uiState.snackbarHostState.showSnackbar(
+                                message = e.message ?: "Unknown",
+                                duration = SnackbarDuration.Long,
+                            )
                         }
                     }
                 }
@@ -92,9 +107,7 @@ class LogcatActivity : BaseActivity<LogcatDesign>() {
     }
 
     private suspend fun mainStreaming() {
-        val design = LogcatDesign(this, true)
-
-        setContentDesign(design)
+        uiState.streaming = true
 
         startForegroundServiceCompat(LogcatService::class.intent)
 
@@ -108,7 +121,7 @@ class LogcatActivity : BaseActivity<LogcatDesign>() {
                 events.onReceive {
 
                 }
-                design.requests.onReceive {
+                uiRequests.onReceive {
                     when (it) {
                         LogcatDesign.Request.Close -> {
                             stopService(LogcatService::class.intent)
@@ -122,7 +135,7 @@ class LogcatActivity : BaseActivity<LogcatDesign>() {
                     ticker.onReceive {
                         val snapshot = logcat.snapshot(initial) ?: return@onReceive
 
-                        design.patchMessages(snapshot.messages, snapshot.removed, snapshot.appended)
+                        uiState.messages = snapshot.messages
 
                         initial = false
                     }
@@ -184,5 +197,28 @@ class LogcatActivity : BaseActivity<LogcatDesign>() {
 
     private fun showInvalid() {
         Toast.makeText(this, R.string.invalid_log_file, Toast.LENGTH_LONG).show()
+    }
+
+    override fun onCreate(savedInstanceState: Bundle?) {
+        super.onCreate(savedInstanceState)
+
+        val darkTheme = when (uiStore.darkMode) {
+            DarkMode.Auto -> resources.configuration.uiMode and
+                Configuration.UI_MODE_NIGHT_MASK == Configuration.UI_MODE_NIGHT_YES
+            DarkMode.ForceLight -> false
+            DarkMode.ForceDark -> true
+        }
+
+        setContent {
+            TuxunDLTheme(darkTheme = darkTheme, palette = uiStore.themePalette) {
+                Surface(color = MaterialTheme.colorScheme.background) {
+                    LogcatScreen(
+                        state = uiState,
+                        onRequest = { request -> uiRequests.trySend(request) },
+                        onBack = { finish() },
+                    )
+                }
+            }
+        }
     }
 }

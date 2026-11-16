@@ -3,18 +3,27 @@ package com.tuxundl.android
 import android.app.Activity
 import android.content.ComponentName
 import android.content.Intent
+import android.content.res.Configuration
 import android.net.Uri
+import android.os.Bundle
 import android.provider.Settings
+import androidx.activity.compose.setContent
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.SnackbarDuration
+import androidx.compose.material3.Surface
 import androidx.lifecycle.lifecycleScope
 import com.tuxundl.android.common.constants.Intents
 import com.tuxundl.android.common.util.intent
 import com.tuxundl.android.common.util.setUUID
 import com.tuxundl.android.design.NewProfileDesign
 import com.tuxundl.android.design.R
+import com.tuxundl.android.design.model.DarkMode
 import com.tuxundl.android.design.model.ProfileProvider
-import com.tuxundl.android.design.util.showExceptionToast
 import com.tuxundl.android.service.model.Profile
+import com.tuxundl.android.ui.NewProfileScreen
+import com.tuxundl.android.ui.NewProfileUiState
+import com.tuxundl.android.ui.theme.TuxunDLTheme
 import com.tuxundl.android.util.withProfile
 import io.github.g00fy2.quickie.QRResult
 import io.github.g00fy2.quickie.QRResult.QRError
@@ -23,6 +32,7 @@ import io.github.g00fy2.quickie.QRResult.QRSuccess
 import io.github.g00fy2.quickie.QRResult.QRUserCanceled
 import io.github.g00fy2.quickie.ScanQRCode
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.selects.select
@@ -33,21 +43,20 @@ class NewProfileActivity : BaseActivity<NewProfileDesign>() {
     private val self: NewProfileActivity
         get() = this
 
+    private val uiState = NewProfileUiState()
+    private val uiRequests = Channel<NewProfileDesign.Request>(Channel.UNLIMITED)
+
     private val scanLauncher = registerForActivityResult(ScanQRCode(), ::scanResultHandler)
 
     override suspend fun main() {
-        val design = NewProfileDesign(this)
-
-        design.patchProviders(queryProfileProviders())
-
-        setContentDesign(design)
+        uiState.providers = queryProfileProviders()
 
         while (isActive) {
             select<Unit> {
                 events.onReceive {
 
                 }
-                design.requests.onReceive {
+                uiRequests.onReceive {
                     when (it) {
                         is NewProfileDesign.Request.Create -> {
                             withProfile {
@@ -179,8 +188,14 @@ class NewProfileActivity : BaseActivity<NewProfileDesign>() {
                 }
 
                 QRUserCanceled -> {}
-                QRMissingPermission -> design?.showExceptionToast(getString(R.string.import_from_qr_no_permission))
-                is QRError -> design?.showExceptionToast(getString(R.string.import_from_qr_exception))
+                QRMissingPermission -> uiState.snackbarHostState.showSnackbar(
+                    message = getString(R.string.import_from_qr_no_permission),
+                    duration = SnackbarDuration.Long,
+                )
+                is QRError -> uiState.snackbarHostState.showSnackbar(
+                    message = getString(R.string.import_from_qr_exception),
+                    duration = SnackbarDuration.Long,
+                )
             }
         }
     }
@@ -197,4 +212,26 @@ class NewProfileActivity : BaseActivity<NewProfileDesign>() {
         }
     }
 
+    override fun onCreate(savedInstanceState: Bundle?) {
+        super.onCreate(savedInstanceState)
+
+        val darkTheme = when (uiStore.darkMode) {
+            DarkMode.Auto -> resources.configuration.uiMode and
+                Configuration.UI_MODE_NIGHT_MASK == Configuration.UI_MODE_NIGHT_YES
+            DarkMode.ForceLight -> false
+            DarkMode.ForceDark -> true
+        }
+
+        setContent {
+            TuxunDLTheme(darkTheme = darkTheme, palette = uiStore.themePalette) {
+                Surface(color = MaterialTheme.colorScheme.background) {
+                    NewProfileScreen(
+                        state = uiState,
+                        onRequest = { request -> uiRequests.trySend(request) },
+                        onBack = { finish() },
+                    )
+                }
+            }
+        }
+    }
 }

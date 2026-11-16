@@ -2,28 +2,28 @@ package com.tuxundl.android
 
 import android.content.ComponentName
 import android.content.pm.PackageManager
+import android.content.res.Configuration
+import android.os.Bundle
+import androidx.activity.compose.setContent
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Surface
 import com.tuxundl.android.common.util.componentName
 import com.tuxundl.android.design.AppSettingsDesign
 import com.tuxundl.android.design.model.Behavior
+import com.tuxundl.android.design.model.DarkMode
 import com.tuxundl.android.design.store.UiStore.Companion.mainActivityAlias
 import com.tuxundl.android.service.store.ServiceStore
+import com.tuxundl.android.ui.AppSettingsScreen
+import com.tuxundl.android.ui.theme.TuxunDLTheme
 import com.tuxundl.android.util.ApplicationObserver
+import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.selects.select
 
 class AppSettingsActivity : BaseActivity<AppSettingsDesign>(), Behavior {
+    private val uiRequests = Channel<AppSettingsDesign.Request>(Channel.UNLIMITED)
+
     override suspend fun main() {
-        val design = AppSettingsDesign(
-            this,
-            uiStore,
-            ServiceStore(this),
-            this,
-            clashRunning,
-            ::onHideIconChange,
-        )
-
-        setContentDesign(design)
-
         while (isActive) {
             select<Unit> {
                 events.onReceive {
@@ -33,7 +33,7 @@ class AppSettingsActivity : BaseActivity<AppSettingsDesign>(), Behavior {
                         else -> Unit
                     }
                 }
-                design.requests.onReceive {
+                uiRequests.onReceive {
                     ApplicationObserver.createdActivities.forEach {
                         it.recreate()
                     }
@@ -74,5 +74,36 @@ class AppSettingsActivity : BaseActivity<AppSettingsDesign>(), Behavior {
             newState,
             PackageManager.DONT_KILL_APP
         )
+    }
+
+    override fun onCreate(savedInstanceState: Bundle?) {
+        super.onCreate(savedInstanceState)
+
+        val darkTheme = when (uiStore.darkMode) {
+            DarkMode.Auto -> resources.configuration.uiMode and
+                Configuration.UI_MODE_NIGHT_MASK == Configuration.UI_MODE_NIGHT_YES
+            DarkMode.ForceLight -> false
+            DarkMode.ForceDark -> true
+        }
+
+        val running = clashRunning
+
+        setContent {
+            TuxunDLTheme(darkTheme = darkTheme, palette = uiStore.themePalette) {
+                Surface(color = MaterialTheme.colorScheme.background) {
+                    AppSettingsScreen(
+                        uiStore = uiStore,
+                        srvStore = ServiceStore(this),
+                        behavior = this,
+                        running = running,
+                        onRecreateAll = {
+                            uiRequests.trySend(AppSettingsDesign.Request.ReCreateAllActivities)
+                        },
+                        onHideIconChange = ::onHideIconChange,
+                        onBack = { finish() },
+                    )
+                }
+            }
+        }
     }
 }

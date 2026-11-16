@@ -192,7 +192,7 @@ class ProxyActivity : BaseActivity<ProxyDesign>() {
         }
 
         setContent {
-            TuxunDLTheme(darkTheme = darkTheme) {
+            TuxunDLTheme(darkTheme = darkTheme, palette = uiStore.themePalette) {
                 Surface(color = MaterialTheme.colorScheme.background) {
                     ProxyScreen(
                         state = uiState,

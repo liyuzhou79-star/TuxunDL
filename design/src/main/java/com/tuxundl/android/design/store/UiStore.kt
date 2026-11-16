@@ -8,6 +8,7 @@ import com.tuxundl.android.common.store.asStoreProvider
 import com.tuxundl.android.core.model.ProxySort
 import com.tuxundl.android.design.model.AppInfoSort
 import com.tuxundl.android.design.model.DarkMode
+import com.tuxundl.android.design.model.ThemePalette
 
 class UiStore(context: Context) {
     private val store = Store(
@@ -25,6 +26,32 @@ class UiStore(context: Context) {
         key = "dark_mode",
         defaultValue = DarkMode.Auto,
         values = DarkMode.values()
+    )
+
+    var themePalette: ThemePalette by store.enum(
+        key = "theme_palette",
+        defaultValue = ThemePalette.Default,
+        values = ThemePalette.values()
+    )
+
+    var showTrafficCard: Boolean by store.boolean(
+        key = "show_traffic_card",
+        defaultValue = true
+    )
+
+    var showProxyCard: Boolean by store.boolean(
+        key = "show_proxy_card",
+        defaultValue = true
+    )
+
+    var showProfileCard: Boolean by store.boolean(
+        key = "show_profile_card",
+        defaultValue = true
+    )
+
+    var showProvidersCard: Boolean by store.boolean(
+        key = "show_providers_card",
+        defaultValue = true
     )
 
     var hideAppIcon: Boolean by store.boolean(

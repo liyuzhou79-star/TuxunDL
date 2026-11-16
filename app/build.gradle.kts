@@ -32,6 +32,7 @@ dependencies {
     implementation(libs.androidx.recyclerview)
     implementation(libs.google.material)
     implementation(libs.quickie.bundled)
+    implementation(libs.zxing.core)
     implementation(libs.androidx.activity.ktx)
 
     implementation(platform(libs.androidx.compose.bom))

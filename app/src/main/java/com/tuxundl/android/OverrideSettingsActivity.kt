@@ -1,23 +1,33 @@
 package com.tuxundl.android
 
-import android.content.pm.PackageManager
-import com.tuxundl.android.common.compat.getDrawableCompat
-import com.tuxundl.android.common.constants.Metadata
+import android.content.res.Configuration
+import android.os.Bundle
+import androidx.activity.compose.setContent
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Surface
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.setValue
 import com.tuxundl.android.core.Clash
+import com.tuxundl.android.core.model.ConfigurationOverride
 import com.tuxundl.android.design.OverrideSettingsDesign
-import com.tuxundl.android.design.model.AppInfo
-import com.tuxundl.android.design.util.toAppInfo
-import com.tuxundl.android.service.store.ServiceStore
+import com.tuxundl.android.design.model.DarkMode
+import com.tuxundl.android.ui.OverrideSettingsScreen
+import com.tuxundl.android.ui.OverrideUiState
+import com.tuxundl.android.ui.theme.TuxunDLTheme
 import com.tuxundl.android.util.withClash
-import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.selects.select
-import kotlinx.coroutines.withContext
 
 class OverrideSettingsActivity : BaseActivity<OverrideSettingsDesign>() {
+    private val uiState = OverrideUiState()
+    private val uiRequests = Channel<OverrideSettingsDesign.Request>(Channel.UNLIMITED)
+    private var configuration by mutableStateOf<ConfigurationOverride?>(null)
+
     override suspend fun main() {
         val configuration = withClash { queryOverride(Clash.OverrideSlot.Persist) }
-        val service = ServiceStore(this)
+        this.configuration = configuration
 
         defer {
             withClash {
@@ -25,31 +35,54 @@ class OverrideSettingsActivity : BaseActivity<OverrideSettingsDesign>() {
             }
         }
 
-        val design = OverrideSettingsDesign(
-            this,
-            configuration
-        )
-
-        setContentDesign(design)
-
         while (isActive) {
             select<Unit> {
                 events.onReceive {
 
                 }
-                design.requests.onReceive {
+                uiRequests.onReceive {
                     when (it) {
                         OverrideSettingsDesign.Request.ResetOverride -> {
-                            if (design.requestResetConfirm()) {
-                                defer {
-                                    withClash {
-                                        clearOverride(Clash.OverrideSlot.Persist)
-                                    }
-                                }
-
-                                finish()
-                            }
+                            uiState.showResetConfirm = true
                         }
+                    }
+                }
+            }
+        }
+    }
+
+    private fun resetOverride() {
+        defer {
+            withClash {
+                clearOverride(Clash.OverrideSlot.Persist)
+            }
+        }
+
+        finish()
+    }
+
+    override fun onCreate(savedInstanceState: Bundle?) {
+        super.onCreate(savedInstanceState)
+
+        val darkTheme = when (uiStore.darkMode) {
+            DarkMode.Auto -> resources.configuration.uiMode and
+                Configuration.UI_MODE_NIGHT_MASK == Configuration.UI_MODE_NIGHT_YES
+            DarkMode.ForceLight -> false
+            DarkMode.ForceDark -> true
+        }
+
+        setContent {
+            TuxunDLTheme(darkTheme = darkTheme, palette = uiStore.themePalette) {
+                Surface(color = MaterialTheme.colorScheme.background) {
+                    val config = configuration
+                    if (config != null) {
+                        OverrideSettingsScreen(
+                            configuration = config,
+                            state = uiState,
+                            onRequest = { request -> uiRequests.trySend(request) },
+                            onResetConfirmed = { resetOverride() },
+                            onBack = { finish() },
+                        )
                     }
                 }
             }

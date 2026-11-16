@@ -2,41 +2,54 @@
 
 package com.tuxundl.android
 
-import android.Manifest
 import android.content.Intent
-import android.content.pm.PackageManager
+import android.content.res.Configuration
 import android.net.Uri
-import android.os.Build
+import android.os.Bundle
+import androidx.activity.compose.setContent
 import androidx.activity.result.contract.ActivityResultContracts
-import androidx.core.content.ContextCompat
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.SnackbarDuration
+import androidx.compose.material3.Surface
 import com.tuxundl.android.common.util.grantPermissions
 import com.tuxundl.android.common.util.ticker
 import com.tuxundl.android.common.util.uuid
 import com.tuxundl.android.design.FilesDesign
-import com.tuxundl.android.design.util.showExceptionToast
+import com.tuxundl.android.design.model.DarkMode
+import com.tuxundl.android.design.model.File
 import com.tuxundl.android.remote.FilesClient
 import com.tuxundl.android.service.model.Profile
+import com.tuxundl.android.ui.FilesScreen
+import com.tuxundl.android.ui.FilesUiState
+import com.tuxundl.android.ui.theme.TuxunDLTheme
 import com.tuxundl.android.util.fileName
 import com.tuxundl.android.util.withProfile
+import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.isActive
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.selects.select
-import java.util.*
+import java.util.Stack
 import java.util.concurrent.TimeUnit
 
 class FilesActivity : BaseActivity<FilesDesign>() {
+    private val uiState = FilesUiState()
+    private val uiRequests = Channel<FilesDesign.Request>(Channel.UNLIMITED)
+
+    private lateinit var client: FilesClient
+    private lateinit var root: String
+    private val stack = Stack<String>()
+
+    private var pendingImportUri: Uri? = null
+
     override suspend fun main() {
         val uuid = intent.uuid ?: return finish()
         val profile = withProfile { queryByUUID(uuid) } ?: return finish()
-        val root = uuid.toString()
+        root = uuid.toString()
 
-        val design = FilesDesign(this)
-        val client = FilesClient(this)
-        val stack = Stack<String>()
+        client = FilesClient(this)
 
-        design.configurationEditable = profile.type != Profile.Type.Url
-        design.fetch(client, stack, root)
-
-        setContentDesign(design)
+        uiState.configurationEditable = profile.type != Profile.Type.Url
+        fetch()
 
         val ticker = ticker(TimeUnit.MINUTES.toMillis(1))
 
@@ -45,12 +58,12 @@ class FilesActivity : BaseActivity<FilesDesign>() {
                 events.onReceive {
                     when (it) {
                         Event.ActivityStart, Event.ActivityStop -> {
-                            design.fetch(client, stack, root)
+                            fetch()
                         }
                         else -> Unit
                     }
                 }
-                design.requests.onReceive {
+                uiRequests.onReceive {
                     try {
                         when (it) {
                             FilesDesign.Request.PopStack -> {
@@ -76,9 +89,9 @@ class FilesActivity : BaseActivity<FilesDesign>() {
                                 client.deleteDocument(it.file.id)
                             }
                             is FilesDesign.Request.RenameFile -> {
-                                val newName = design.requestFileName(it.file.name)
-
-                                client.renameDocument(it.file.id, newName)
+                                // Handled by the Compose rename dialog instead:
+                                // it calls renameFile() after the user confirms.
+                                uiState.renameFile = it.file
                             }
                             is FilesDesign.Request.ImportFile -> {
                                 val uri: Uri? = startActivityForResult(
@@ -88,9 +101,8 @@ class FilesActivity : BaseActivity<FilesDesign>() {
 
                                 if (uri != null) {
                                     if (it.file == null) {
-                                        val name = design.requestFileName(uri.fileName ?: "File")
-
-                                        client.importDocument(stack.last(), uri, name)
+                                        pendingImportUri = uri
+                                        uiState.importNameDefault = uri.fileName ?: "File"
                                     } else {
                                         client.copyDocument(it.file!!.id, uri)
                                     }
@@ -108,25 +120,23 @@ class FilesActivity : BaseActivity<FilesDesign>() {
                             }
                         }
                     } catch (e: Exception) {
-                        design.showExceptionToast(e)
+                        showError(e)
                     }
 
-                    design.fetch(client, stack, root)
+                    fetch()
                 }
                 if (activityStarted) {
                     ticker.onReceive {
-                        design.updateElapsed()
+                        uiState.now = System.currentTimeMillis()
                     }
                 }
             }
         }
     }
 
-    override fun onBackPressed() {
-        design?.requests?.trySend(FilesDesign.Request.PopStack)
-    }
+    private suspend fun fetch() {
+        if (!::client.isInitialized || !::root.isInitialized) return
 
-    private suspend fun FilesDesign.fetch(client: FilesClient, stack: Stack<String>, root: String) {
         val documentId = stack.lastOrNull() ?: root
         val files = if (stack.empty()) {
             val list = client.list(documentId)
@@ -137,6 +147,70 @@ class FilesActivity : BaseActivity<FilesDesign>() {
             client.list(documentId)
         }
 
-        swapFiles(files, stack.empty())
+        uiState.files = files
+        uiState.currentInBaseDir = stack.empty()
+    }
+
+    private fun renameFile(file: File, newName: String) {
+        launch {
+            try {
+                client.renameDocument(file.id, newName)
+            } catch (e: Exception) {
+                showError(e)
+            }
+
+            fetch()
+        }
+    }
+
+    private fun importWithName(name: String) {
+        val uri = pendingImportUri ?: return
+        pendingImportUri = null
+
+        launch {
+            try {
+                client.importDocument(stack.last(), uri, name)
+            } catch (e: Exception) {
+                showError(e)
+            }
+
+            fetch()
+        }
+    }
+
+    private suspend fun showError(e: Exception) {
+        uiState.snackbarHostState.showSnackbar(
+            message = e.message ?: "Unknown",
+            duration = SnackbarDuration.Long,
+        )
+    }
+
+    override fun onBackPressed() {
+        uiRequests.trySend(FilesDesign.Request.PopStack)
+    }
+
+    override fun onCreate(savedInstanceState: Bundle?) {
+        super.onCreate(savedInstanceState)
+
+        val darkTheme = when (uiStore.darkMode) {
+            DarkMode.Auto -> resources.configuration.uiMode and
+                Configuration.UI_MODE_NIGHT_MASK == Configuration.UI_MODE_NIGHT_YES
+            DarkMode.ForceLight -> false
+            DarkMode.ForceDark -> true
+        }
+
+        setContent {
+            TuxunDLTheme(darkTheme = darkTheme, palette = uiStore.themePalette) {
+                Surface(color = MaterialTheme.colorScheme.background) {
+                    FilesScreen(
+                        state = uiState,
+                        onRequest = { request -> uiRequests.trySend(request) },
+                        onRenameConfirmed = { file, name -> renameFile(file, name) },
+                        onImportNameConfirmed = { name -> importWithName(name) },
+                        onBack = { onBackPressed() },
+                    )
+                }
+            }
+        }
     }
 }

@@ -58,6 +58,12 @@ class MainUiState {
     /** Non-null while the About dialog should be shown. */
     var aboutVersion by mutableStateOf<String?>(null)
 
+    // Home card visibility toggles (Appearance settings; status card always shows).
+    var showTraffic by mutableStateOf(true)
+    var showProxy by mutableStateOf(true)
+    var showProfile by mutableStateOf(true)
+    var showProviders by mutableStateOf(true)
+
     val snackbarHostState = SnackbarHostState()
 }
 
@@ -84,22 +90,28 @@ fun MainScreen(
             verticalArrangement = Arrangement.spacedBy(12.dp),
         ) {
             StatusCard(state = state, onRequest = onRequest)
-            TrafficCard(state = state)
-            EntryCard(
-                icon = DesignR.drawable.ic_baseline_apps,
-                title = DesignR.string.proxy,
-                subtext = modeText(state.mode),
-                onClick = { onRequest(MainDesign.Request.OpenProxy) },
-            )
-            EntryCard(
-                icon = DesignR.drawable.ic_baseline_view_list,
-                title = DesignR.string.profile,
-                subtext = state.profileName?.let {
-                    stringResource(DesignR.string.format_profile_activated, it)
-                } ?: stringResource(DesignR.string.not_selected),
-                onClick = { onRequest(MainDesign.Request.OpenProfiles) },
-            )
-            if (state.clashRunning && state.hasProviders) {
+            if (state.showTraffic) {
+                TrafficCard(state = state)
+            }
+            if (state.showProxy) {
+                EntryCard(
+                    icon = DesignR.drawable.ic_baseline_apps,
+                    title = DesignR.string.proxy,
+                    subtext = modeText(state.mode),
+                    onClick = { onRequest(MainDesign.Request.OpenProxy) },
+                )
+            }
+            if (state.showProfile) {
+                EntryCard(
+                    icon = DesignR.drawable.ic_baseline_view_list,
+                    title = DesignR.string.profile,
+                    subtext = state.profileName?.let {
+                        stringResource(DesignR.string.format_profile_activated, it)
+                    } ?: stringResource(DesignR.string.not_selected),
+                    onClick = { onRequest(MainDesign.Request.OpenProfiles) },
+                )
+            }
+            if (state.showProviders && state.clashRunning && state.hasProviders) {
                 EntryCard(
                     icon = DesignR.drawable.ic_baseline_swap_vertical_circle,
                     title = DesignR.string.providers,

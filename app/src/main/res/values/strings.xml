@@ -3,4 +3,16 @@
     <string name="traffic">Traffic</string>
     <string name="traffic_upload">Upload</string>
     <string name="traffic_download">Download</string>
+    <string name="appearance">Appearance</string>
+    <string name="theme_palette">Theme</string>
+    <string name="theme_default">Default</string>
+    <string name="theme_blue">Blue</string>
+    <string name="theme_sakura">Sakura Pink</string>
+    <string name="theme_mono">Graphite</string>
+    <string name="home_cards">Home Cards</string>
+    <string name="card_traffic">Traffic card</string>
+    <string name="card_proxy">Proxy card</string>
+    <string name="card_profile">Profile card</string>
+    <string name="card_providers">Providers card</string>
+    <string name="add">Add</string>
 </resources>

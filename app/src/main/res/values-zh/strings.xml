@@ -3,4 +3,16 @@
     <string name="traffic">流量</string>
     <string name="traffic_upload">上传</string>
     <string name="traffic_download">下载</string>
+    <string name="appearance">外观</string>
+    <string name="theme_palette">主题</string>
+    <string name="theme_default">默认</string>
+    <string name="theme_blue">蓝色主题</string>
+    <string name="theme_sakura">樱花粉</string>
+    <string name="theme_mono">灰黑</string>
+    <string name="home_cards">首页卡片</string>
+    <string name="card_traffic">流量卡片</string>
+    <string name="card_proxy">代理卡片</string>
+    <string name="card_profile">设定档卡片</string>
+    <string name="card_providers">Providers 卡片</string>
+    <string name="add">添加</string>
 </resources>
