@@ -2,12 +2,16 @@ package com.tuxundl.android
 
 import android.content.Intent
 import android.content.pm.PackageManager
+import android.content.res.Configuration
 import android.os.Build
 import android.os.Bundle
-import android.os.PersistableBundle
+import androidx.activity.compose.setContent
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.activity.result.contract.ActivityResultContracts.RequestPermission
-import androidx.core.app.ActivityCompat
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.SnackbarDuration
+import androidx.compose.material3.SnackbarResult
+import androidx.compose.material3.Surface
 import androidx.core.content.ContextCompat
 import androidx.core.content.pm.ShortcutInfoCompat
 import androidx.core.content.pm.ShortcutManagerCompat
@@ -16,26 +20,30 @@ import com.tuxundl.android.common.constants.Intents
 import com.tuxundl.android.common.util.intent
 import com.tuxundl.android.common.util.ticker
 import com.tuxundl.android.design.MainDesign
-import com.tuxundl.android.design.ui.ToastDuration
+import com.tuxundl.android.design.model.DarkMode
+import com.tuxundl.android.ui.MainScreen
+import com.tuxundl.android.ui.MainUiState
+import com.tuxundl.android.ui.theme.TuxunDLTheme
 import com.tuxundl.android.util.startClashService
 import com.tuxundl.android.util.stopClashService
 import com.tuxundl.android.util.withClash
 import com.tuxundl.android.util.withProfile
 import com.tuxundl.android.core.bridge.*
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.isActive
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.selects.select
 import kotlinx.coroutines.withContext
 import java.util.concurrent.TimeUnit
 import com.tuxundl.android.design.R as DesignR
 
 class MainActivity : BaseActivity<MainDesign>() {
+    private val uiState = MainUiState()
+    private val uiRequests = Channel<MainDesign.Request>(Channel.UNLIMITED)
+
     override suspend fun main() {
-        val design = MainDesign(this)
-
-        setContentDesign(design)
-
-        design.fetch()
+        fetch()
 
         val ticker = ticker(TimeUnit.SECONDS.toMillis(1))
 
@@ -46,17 +54,17 @@ class MainActivity : BaseActivity<MainDesign>() {
                         Event.ActivityStart,
                         Event.ServiceRecreated,
                         Event.ClashStop, Event.ClashStart,
-                        Event.ProfileLoaded, Event.ProfileChanged -> design.fetch()
+                        Event.ProfileLoaded, Event.ProfileChanged -> fetch()
                         else -> Unit
                     }
                 }
-                design.requests.onReceive {
+                uiRequests.onReceive {
                     when (it) {
                         MainDesign.Request.ToggleStatus -> {
                             if (clashRunning)
                                 stopClashService()
                             else
-                                design.startClash()
+                                startClash()
                         }
                         MainDesign.Request.OpenProxy ->
                             startActivity(ProxyActivity::class.intent)
@@ -76,20 +84,20 @@ class MainActivity : BaseActivity<MainDesign>() {
                         MainDesign.Request.OpenHelp ->
                             startActivity(HelpActivity::class.intent)
                         MainDesign.Request.OpenAbout ->
-                            design.showAbout(queryAppVersionName())
+                            uiState.aboutVersion = queryAppVersionName()
                     }
                 }
                 if (clashRunning) {
                     ticker.onReceive {
-                        design.fetchTraffic()
+                        fetchTraffic()
                     }
                 }
             }
         }
     }
 
-    private suspend fun MainDesign.fetch() {
-        setClashRunning(clashRunning)
+    private suspend fun fetch() {
+        uiState.clashRunning = clashRunning
 
         val state = withClash {
             queryTunnelState()
@@ -98,28 +106,30 @@ class MainActivity : BaseActivity<MainDesign>() {
             queryProviders()
         }
 
-        setMode(state.mode)
-        setHasProviders(providers.isNotEmpty())
+        uiState.mode = state.mode
+        uiState.hasProviders = providers.isNotEmpty()
 
-        withProfile {
-            setProfileName(queryActive()?.name)
-        }
+        val profileName = withProfile { queryActive()?.name }
+        uiState.profileName = profileName
     }
 
-    private suspend fun MainDesign.fetchTraffic() {
-        withClash {
-            setForwarded(queryTrafficTotal())
-        }
+    private suspend fun fetchTraffic() {
+        val total = withClash { queryTrafficTotal() }
+        uiState.traffic = total
     }
 
-    private suspend fun MainDesign.startClash() {
+    private suspend fun startClash() {
         val active = withProfile { queryActive() }
 
         if (active == null || !active.imported) {
-            showToast(DesignR.string.no_profile_selected, ToastDuration.Long) {
-                setAction(DesignR.string.profiles) {
-                    startActivity(ProfilesActivity::class.intent)
-                }
+            val result = uiState.snackbarHostState.showSnackbar(
+                message = getString(DesignR.string.no_profile_selected),
+                actionLabel = getString(DesignR.string.profiles),
+                duration = SnackbarDuration.Long,
+            )
+
+            if (result == SnackbarResult.ActionPerformed) {
+                startActivity(ProfilesActivity::class.intent)
             }
 
             return
@@ -138,7 +148,22 @@ class MainActivity : BaseActivity<MainDesign>() {
                     startClashService()
             }
         } catch (e: Exception) {
-            design?.showToast(DesignR.string.unable_to_start_vpn, ToastDuration.Long)
+            uiState.snackbarHostState.showSnackbar(
+                message = getString(DesignR.string.unable_to_start_vpn),
+                duration = SnackbarDuration.Long,
+            )
+        }
+    }
+
+    override fun onStopped(cause: String?) {
+        super.onStopped(cause)
+
+        // BaseActivity shows stop causes through the Design toast, which the
+        // Compose home screen no longer has; surface it as a snackbar instead.
+        if (cause != null && activityStarted) {
+            launch {
+                uiState.snackbarHostState.showSnackbar(message = cause)
+            }
         }
     }
 
@@ -150,6 +175,25 @@ class MainActivity : BaseActivity<MainDesign>() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+
+        val darkTheme = when (uiStore.darkMode) {
+            DarkMode.Auto -> resources.configuration.uiMode and
+                Configuration.UI_MODE_NIGHT_MASK == Configuration.UI_MODE_NIGHT_YES
+            DarkMode.ForceLight -> false
+            DarkMode.ForceDark -> true
+        }
+
+        setContent {
+            TuxunDLTheme(darkTheme = darkTheme) {
+                Surface(color = MaterialTheme.colorScheme.background) {
+                    MainScreen(
+                        state = uiState,
+                        onRequest = { request -> uiRequests.trySend(request) },
+                    )
+                }
+            }
+        }
+
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
             val requestPermissionLauncher =
                 registerForActivityResult(RequestPermission()

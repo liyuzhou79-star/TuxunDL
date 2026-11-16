@@ -14,6 +14,7 @@ buildscript {
     dependencies {
         classpath(libs.build.android)
         classpath(libs.build.kotlin.common)
+        classpath(libs.build.kotlin.compose)
         classpath(libs.build.kotlin.serialization)
         classpath(libs.build.ksp)
         classpath(libs.build.golang)
@@ -58,8 +59,8 @@ subprojects {
             minSdk = 21
             targetSdk = 35
 
-            versionName = "0.1.0"
-            versionCode = 1
+            versionName = "0.2.0"
+            versionCode = 2
 
             resValue("string", "release_name", "v$versionName")
             resValue("integer", "release_code", "$versionCode")

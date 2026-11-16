@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="traffic">流量</string>
+    <string name="traffic_upload">上传</string>
+    <string name="traffic_download">下载</string>
+</resources>
