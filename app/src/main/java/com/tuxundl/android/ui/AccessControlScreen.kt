@@ -39,7 +39,7 @@ import androidx.core.graphics.drawable.toBitmap
 import com.tuxundl.android.design.AccessControlDesign
 import com.tuxundl.android.design.model.AppInfo
 import com.tuxundl.android.design.model.AppInfoSort
-import com.tuxundl.android.service.store.UiStore
+import com.tuxundl.android.design.store.UiStore
 import com.tuxundl.android.design.R as DesignR
 
 /** State holder for the Compose access control screen. */

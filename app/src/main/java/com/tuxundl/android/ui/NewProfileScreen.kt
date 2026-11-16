@@ -1,6 +1,7 @@
 package com.tuxundl.android.ui
 
 import androidx.compose.foundation.Image
+import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -87,6 +88,7 @@ fun NewProfileScreen(
 }
 
 @OptIn(ExperimentalMaterial3Api::class, androidx.compose.foundation.ExperimentalFoundationApi::class)
+@OptIn(androidx.compose.foundation.ExperimentalFoundationApi::class)
 @Composable
 private fun ProviderCard(
     provider: ProfileProvider,
@@ -96,7 +98,7 @@ private fun ProviderCard(
     Card(
         modifier = Modifier
             .fillMaxWidth()
-            .androidx.compose.foundation.combinedClickable(
+            .combinedClickable(
                 onClick = onClick,
                 onLongClick = { onLongClick() },
             ),
