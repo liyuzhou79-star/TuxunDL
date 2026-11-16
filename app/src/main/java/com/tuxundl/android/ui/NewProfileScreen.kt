@@ -88,7 +88,6 @@ fun NewProfileScreen(
 }
 
 @OptIn(ExperimentalMaterial3Api::class, androidx.compose.foundation.ExperimentalFoundationApi::class)
-@OptIn(androidx.compose.foundation.ExperimentalFoundationApi::class)
 @Composable
 private fun ProviderCard(
     provider: ProfileProvider,
