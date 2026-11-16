@@ -86,18 +86,19 @@
 
                 <data android:scheme="clash"/>
                 <data android:scheme="clashmeta"/>
+                <data android:scheme="tuxundl"/>
                 <data android:host="install-config"/>
             </intent-filter>
             <intent-filter>
-                <action android:name="com.github.metacubex.clash.meta.action.START_CLASH" />
+                <action android:name="com.tuxundl.android.action.START_CLASH" />
                 <category android:name="android.intent.category.DEFAULT" />
             </intent-filter>
             <intent-filter>
-                <action android:name="com.github.metacubex.clash.meta.action.STOP_CLASH" />
+                <action android:name="com.tuxundl.android.action.STOP_CLASH" />
                 <category android:name="android.intent.category.DEFAULT" />
             </intent-filter>
             <intent-filter>
-                <action android:name="com.github.metacubex.clash.meta.action.TOGGLE_CLASH" />
+                <action android:name="com.tuxundl.android.action.TOGGLE_CLASH" />
                 <category android:name="android.intent.category.DEFAULT" />
             </intent-filter>
         </activity>
@@ -221,8 +222,8 @@
             android:exported="true">
             <intent-filter>
                 <action android:name="android.provider.Telephony.SECRET_CODE" />
-                <!-- 252746382 is the name of Clash Meta in T9 -->
-                <data android:scheme="android_secret_code" android:host="252746382" />
+                <!-- 8898635 is the name of TuxunDL in T9 -->
+                <data android:scheme="android_secret_code" android:host="8898635" />
             </intent-filter>
         </receiver>
     </application>

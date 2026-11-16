@@ -47,19 +47,19 @@ subprojects {
         defaultConfig {
             if (isApp) {
                 val customApplicationId = queryConfigProperty("custom.application.id") as? String?
-                applicationId = customApplicationId.takeIf { it?.isNotBlank() == true } ?: "com.github.metacubex.clash"
+                applicationId = customApplicationId.takeIf { it?.isNotBlank() == true } ?: "com.tuxundl.android"
             }
 
             project.name.let { name ->
-                namespace = if (name == "app") "com.github.kr328.clash"
-                else "com.github.kr328.clash.$name"
+                namespace = if (name == "app") "com.tuxundl.android"
+                else "com.tuxundl.android.$name"
             }
 
             minSdk = 21
             targetSdk = 35
 
-            versionName = "2.11.37"
-            versionCode = 211037
+            versionName = "0.1.0"
+            versionCode = 1
 
             resValue("string", "release_name", "v$versionName")
             resValue("integer", "release_code", "$versionCode")
@@ -77,7 +77,7 @@ subprojects {
             if (!isApp) {
                 consumerProguardFiles("consumer-rules.pro")
             } else {
-                setProperty("archivesBaseName", "cmfa-$versionName")
+                setProperty("archivesBaseName", "tuxundl-$versionName")
             }
         }
 
@@ -101,36 +101,19 @@ subprojects {
             create("alpha") {
                 isDefault = true
                 dimension = flavorDimensionList[0]
-                if (!removeSuffix) {
-                    versionNameSuffix = ".Alpha"
-                }
-
-
                 buildConfigField("boolean", "PREMIUM", "Boolean.parseBoolean(\"false\")")
 
                 resValue("string", "launch_name", "@string/launch_name_alpha")
                 resValue("string", "application_name", "@string/application_name_alpha")
-
-                if (isApp && !removeSuffix) {
-                    applicationIdSuffix = ".alpha"
-                }
             }
 
             create("meta") {
 
                 dimension = flavorDimensionList[0]
-                if (!removeSuffix) {
-                    versionNameSuffix = ".Meta"
-                }
-
                 buildConfigField("boolean", "PREMIUM", "Boolean.parseBoolean(\"false\")")
 
                 resValue("string", "launch_name", "@string/launch_name_meta")
                 resValue("string", "application_name", "@string/application_name_meta")
-
-                if (isApp && !removeSuffix) {
-                    applicationIdSuffix = ".meta"
-                }
             }
         }
 

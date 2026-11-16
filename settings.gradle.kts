@@ -1,4 +1,4 @@
-rootProject.name = "ClashMetaForAndroid"
+rootProject.name = "TuxunDL"
 
 include(":app")
 include(":core")

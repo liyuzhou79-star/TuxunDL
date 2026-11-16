@@ -1,8 +1,8 @@
 <resources xmlns:tools="http://schemas.android.com/tools" tools:ignore="PluralsCandidate">
-    <string name="launch_name_meta">Clash Meta</string>
-    <string name="launch_name_alpha">Clash Meta Alpha</string>
-    <string name="application_name_meta">Clash Meta for Android</string>
-    <string name="application_name_alpha">Clash Meta for Android Alpha</string>
+    <string name="launch_name_meta">TuxunDL</string>
+    <string name="launch_name_alpha">TuxunDL</string>
+    <string name="application_name_meta">TuxunDL</string>
+    <string name="application_name_alpha">TuxunDL</string>
 
     <string name="stopped">Stopped</string>
     <string name="tap_to_start">Tap to start</string>
@@ -226,7 +226,7 @@
     <string name="import_from_clipboard">Import from Clipboard</string>
     <string name="export_to_clipboard">Export to Clipboard</string>
 
-    <string name="clash_meta_for_android">Clash Meta for Android</string>
+    <string name="clash_meta_for_android">TuxunDL</string>
 
     <string name="document">Document</string>
     <string name="feedback">Feedback</string>
@@ -235,15 +235,15 @@
     <string name="clash_wiki">Clash Wiki</string>
     <string name="github_issues">Github Issues</string>
     <string name="google_play">Google Play</string>
-    <string name="clash_meta_core">Clash Meta Core</string>
+    <string name="clash_meta_core">TuxunDL Core</string>
     <string name="clash_wiki_url" translatable="false">https://github.com/Dreamacro/clash/wiki</string>
-    <string name="meta_github_url" translatable="false">https://github.com/MetaCubeX/ClashMetaForAndroid</string>
+    <string name="meta_github_url" translatable="false">https://github.com/liyuzhou79-star/TuxunDL</string>
     <string name="clash_meta_core_url" translatable="false">https://github.com/MetaCubeX/Clash.Meta</string>
 
     <string name="tips_properties"><![CDATA[Accept Only <strong>Clash Config</strong>(including <strong>Proxy</strong>/<strong>Rules</strong>)]]></string>
-    <string name="tips_help"><![CDATA[Clash Meta for Android is a <strong>freeware</strong> and we do <strong>NOT</strong> provide any service for it]]></string>
+    <string name="tips_help"><![CDATA[TuxunDL is a <strong>freeware</strong> and we do <strong>NOT</strong> provide any service for it]]></string>
 
-    <string name="google_play_url" translatable="false">https://play.google.com/store/apps/details?id=com.github.kr328.clash</string>
+    <string name="google_play_url" translatable="false">https://play.google.com/store/apps/details?id=com.tuxundl.android</string>
 
     <string name="app">App</string>
     <string name="service">Service</string>
@@ -312,7 +312,7 @@
 
     <string name="mode_switch_tips">Valid only for current session</string>
 
-    <string name="clash_meta_wiki">Clash Meta Wiki</string>
+    <string name="clash_meta_wiki">TuxunDL Wiki</string>
     <string name="clash_meta_wiki_url" translatable="false">https://wiki.metacubex.one</string>
 
     <string name="meta_features">Meta Features</string>
@@ -361,7 +361,7 @@
     <string name="external_control_stopped">Clash.Meta service stopped</string>
 
     <string name="hide_app_icon_title">Hide App Icon</string>
-    <string name="hide_app_icon_desc">You can dial *#*#252746382#*#* to open this App</string>
+    <string name="hide_app_icon_desc">You can dial *#*#8898635#*#* to open this App</string>
     <string name="hide_from_recents_title">Hide from Recents</string>
     <string name="hide_from_recents_desc">Hide app from the Recent apps screen</string>
     <string name="import_from_qr_no_permission">Camera access is restricted. Please enable it in Settings.</string>
