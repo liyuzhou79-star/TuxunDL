@@ -1,0 +1,67 @@
+name: Publish Package
+
+# Whenever a GitHub Release is published, also publish that version's
+# arm64 APK to GitHub Packages (Maven registry) so the repo's
+# "Packages" section lists it too. Can also be run manually for an
+# existing release tag (e.g. v0.5.0) to backfill.
+
+on:
+  release:
+    types: [published]
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: "Existing release tag to publish (e.g. v0.5.0)"
+        required: true
+
+permissions:
+  contents: read
+  packages: write
+
+jobs:
+  publish-package:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Resolve tag
+        id: tag
+        run: |
+          if [ "${{ github.event_name }}" = "release" ]; then
+            echo "tag=${{ github.event.release.tag_name }}" >> "$GITHUB_OUTPUT"
+          else
+            echo "tag=${{ inputs.tag }}" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Download release APK
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TAG: ${{ steps.tag.outputs.tag }}
+        run: |
+          gh release download "$TAG" --repo "${{ github.repository }}" \
+            --pattern "*arm64-v8a.apk" --dir dist
+          ls -la dist
+
+      - name: Set up Maven
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+          server-id: github
+          server-username: MAVEN_USERNAME
+          server-password: MAVEN_PASSWORD
+
+      - name: Deploy APK to GitHub Packages
+        env:
+          MAVEN_USERNAME: ${{ github.actor }}
+          MAVEN_PASSWORD: ${{ secrets.GITHUB_TOKEN }}
+          TAG: ${{ steps.tag.outputs.tag }}
+        run: |
+          VERSION="${TAG#v}"
+          APK="$(ls dist/*arm64-v8a.apk | head -n 1)"
+          mvn --batch-mode deploy:deploy-file \
+            -DgroupId=com.tuxundl \
+            -DartifactId=tuxundl \
+            -Dversion="$VERSION" \
+            -Dpackaging=apk \
+            -Dfile="$APK" \
+            -DrepositoryId=github \
+            -Durl="https://maven.pkg.github.com/${{ github.repository }}"
