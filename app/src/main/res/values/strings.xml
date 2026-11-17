@@ -43,6 +43,8 @@
     <string name="update_download">Download</string>
     <string name="update_checking">Checking for updates…</string>
     <string name="update_latest">You are on the latest version.</string>
+    <string name="update_latest_detail">Latest release: v%1$s · %2$s</string>
+    <string name="update_latest_version_only">Latest release: v%1$s</string>
     <string name="update_windows_hint">The Windows edition v%1$s is also available — its installers are on the same release page.</string>
     <string name="windows_section_title">Windows edition</string>
     <string name="windows_entry_summary">See the newest desktop release, open its page or copy the link</string>

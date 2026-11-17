@@ -87,19 +87,33 @@ class SettingsActivity : BaseActivity<SettingsDesign>() {
                     // Same full-screen page as the startup check.
                     uiState.updatePageInfo = result.info
                 is UpdateCheckResult.UpToDate -> {
-                    val base = getString(R.string.update_latest)
+                    // Detail line (1.2.6): name the newest version and
+                    // its release date, so "already latest" is checkable
+                    // instead of a bare claim.
+                    val parts = mutableListOf(getString(R.string.update_latest))
+                    if (result.publishedAt.isNotBlank()) {
+                        parts += getString(
+                            R.string.update_latest_detail,
+                            result.latestVersion,
+                            result.publishedAt.take(10),
+                        )
+                    } else {
+                        parts += getString(
+                            R.string.update_latest_version_only,
+                            result.latestVersion,
+                        )
+                    }
                     // Cross-platform hint (1.2.3): when a Windows
                     // release exists, say so — phone users may not
                     // know there is a desktop edition on the same
                     // release page.
-                    uiState.updateMessage = if (result.windows != null) {
-                        base + "\n" + getString(
+                    if (result.windows != null) {
+                        parts += getString(
                             R.string.update_windows_hint,
                             result.windows.version,
                         )
-                    } else {
-                        base
                     }
+                    uiState.updateMessage = parts.joinToString("\n")
                 }
                 is UpdateCheckResult.Failed ->
                     uiState.updateMessage = when (val failure = result.failure) {

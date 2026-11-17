@@ -23,6 +23,8 @@ data class UpdateInfo(
     val pageUrl: String?,
     /** Release notes body (markdown) for the full-screen update page. */
     val notes: String = "",
+    /** ISO-8601 publish timestamp from GitHub; "" when absent. */
+    val publishedAt: String = "",
 )
 
 /** The newest Windows-edition release, for the cross-platform hint. */
@@ -67,6 +69,8 @@ sealed interface UpdateCheckResult {
     data class UpToDate(
         val latestVersion: String,
         val windows: WindowsInfo? = null,
+        /** ISO-8601 publish date of the newest release; "" when absent. */
+        val publishedAt: String = "",
     ) : UpdateCheckResult
 
     data class Failed(val failure: UpdateFailure) : UpdateCheckResult
@@ -143,7 +147,11 @@ object UpdateChecker {
                 if (isNewer(info.version, currentVersion)) {
                     UpdateCheckResult.UpdateAvailable(info, outcome.windows)
                 } else {
-                    UpdateCheckResult.UpToDate(info.version, outcome.windows)
+                    UpdateCheckResult.UpToDate(
+                        info.version,
+                        outcome.windows,
+                        info.publishedAt,
+                    )
                 }
             }
         }
@@ -231,6 +239,7 @@ object UpdateChecker {
             pageUrl = json.optString("html_url")
                 .takeIf { it.isNotEmpty() },
             notes = json.optString("body"),
+            publishedAt = json.optString("published_at"),
         )
     }
 
