@@ -77,6 +77,7 @@
     <string name="options_unavailable">選項在 Clash 運行時不可用</string>
     <string name="search">查找</string>
     <string name="system_apps">系統應用</string>
+    <string name="only_third_party_apps">只顯示第三方應用</string>
     <string name="update_time">更新時間</string>
     <string name="package_name">應用包名稱</string>
     <string name="install_time">安裝時間</string>

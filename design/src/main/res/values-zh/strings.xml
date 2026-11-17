@@ -92,6 +92,7 @@
     <string name="age_key_to_public">从私钥生成</string>
     <string name="age_key_copy">复制</string>
     <string name="system_apps">系统应用</string>
+    <string name="only_third_party_apps">只显示第三方应用</string>
     <string name="update_time">更新时间</string>
     <string name="package_name">应用包名称</string>
     <string name="install_time">安装时间</string>

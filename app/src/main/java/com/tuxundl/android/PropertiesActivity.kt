@@ -16,6 +16,7 @@ import com.tuxundl.android.service.model.Profile
 import com.tuxundl.android.ui.PropertiesScreen
 import com.tuxundl.android.ui.PropertiesUiState
 import com.tuxundl.android.ui.theme.TuxunDLTheme
+import com.tuxundl.android.ui.theme.customSeedColor
 import com.tuxundl.android.util.withProfile
 import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.coroutineScope
@@ -174,7 +175,7 @@ class PropertiesActivity : BaseActivity<PropertiesDesign>() {
         }
 
         setContent {
-            TuxunDLTheme(darkTheme = darkTheme, palette = uiStore.themePalette) {
+            TuxunDLTheme(darkTheme = darkTheme, palette = uiStore.themePalette, customSeed = customSeedColor(uiStore)) {
                 Surface(color = MaterialTheme.colorScheme.background) {
                     PropertiesScreen(
                         state = uiState,

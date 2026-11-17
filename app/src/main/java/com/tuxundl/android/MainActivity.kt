@@ -28,6 +28,7 @@ import com.tuxundl.android.ui.MainScreen
 import com.tuxundl.android.ui.MainUiState
 import com.tuxundl.android.ui.TrafficSample
 import com.tuxundl.android.ui.theme.TuxunDLTheme
+import com.tuxundl.android.ui.theme.customSeedColor
 import com.tuxundl.android.ui.trafficDownloadBytes
 import com.tuxundl.android.ui.trafficUploadBytes
 import com.tuxundl.android.util.UpdateChecker
@@ -55,6 +56,9 @@ class MainActivity : BaseActivity<MainDesign>() {
     private var prevTrafficDown = 0L
     private var prevTrafficAt = 0L
 
+    // Throttle widget persistence: write rates at most every 5 ticks.
+    private var widgetTickCount = 0
+
     override suspend fun main() {
         fetch()
         checkUpdateOnStartup()
@@ -69,12 +73,14 @@ class MainActivity : BaseActivity<MainDesign>() {
                             uiStore.runningSince = System.currentTimeMillis()
                             resetTrafficSampling()
                             fetch()
+                            TuxunWidgetProvider.requestUpdate(this)
                         }
                         Event.ClashStop -> {
                             uiStore.runningSince = 0L
                             resetTrafficSampling()
                             uiState.trafficSamples = emptyList()
                             fetch()
+                            TuxunWidgetProvider.requestUpdate(this)
                         }
                         Event.ActivityStart,
                         Event.ServiceRecreated,
@@ -188,6 +194,7 @@ class MainActivity : BaseActivity<MainDesign>() {
     private suspend fun fetch() {
         uiState.clashRunning = clashRunning
         uiState.runningSince = uiStore.runningSince
+        uiStore.widgetRunning = clashRunning
 
         if (!clashRunning) {
             uiState.connectedMillis = 0L
@@ -259,6 +266,7 @@ class MainActivity : BaseActivity<MainDesign>() {
         uiState.mainGroupName = result?.first
         uiState.currentNodeName = result?.second
         uiState.currentNodeDelay = result?.third ?: -1
+        uiStore.widgetNodeName = result?.second ?: ""
     }
 
     /** One silent update check per activity start; failures stay invisible. */
@@ -302,6 +310,16 @@ class MainActivity : BaseActivity<MainDesign>() {
             )
 
             uiState.trafficSamples = (uiState.trafficSamples + sample).takeLast(60)
+
+            // Persist the latest rates for the home-screen widget, throttled
+            // to one write every 5 seconds so the prefs file is not churned.
+            widgetTickCount++
+            if (widgetTickCount % 5 == 0) {
+                uiStore.widgetUpRate = sample.upRate
+                uiStore.widgetDownRate = sample.downRate
+                uiStore.widgetUpdatedAt = System.currentTimeMillis()
+                TuxunWidgetProvider.requestUpdate(this)
+            }
         }
 
         prevTrafficUp = up
@@ -382,7 +400,7 @@ class MainActivity : BaseActivity<MainDesign>() {
         uiState.disclaimerAccepted = uiStore.disclaimerAccepted
 
         setContent {
-            TuxunDLTheme(darkTheme = darkTheme, palette = uiStore.themePalette) {
+            TuxunDLTheme(darkTheme = darkTheme, palette = uiStore.themePalette, customSeed = customSeedColor(uiStore)) {
                 Surface(color = MaterialTheme.colorScheme.background) {
                     if (uiState.disclaimerAccepted) {
                         MainScreen(

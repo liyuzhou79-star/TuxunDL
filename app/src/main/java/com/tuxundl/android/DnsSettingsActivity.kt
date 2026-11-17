@@ -14,6 +14,7 @@ import com.tuxundl.android.service.util.sendProfileChanged
 import com.tuxundl.android.ui.DnsSettingsScreen
 import com.tuxundl.android.ui.DnsSettingsUiState
 import com.tuxundl.android.ui.theme.TuxunDLTheme
+import com.tuxundl.android.ui.theme.customSeedColor
 import com.tuxundl.android.util.withProfile
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.channels.Channel
@@ -79,7 +80,7 @@ class DnsSettingsActivity : BaseActivity<AppSettingsDesign>() {
         }
 
         setContent {
-            TuxunDLTheme(darkTheme = darkTheme, palette = uiStore.themePalette) {
+            TuxunDLTheme(darkTheme = darkTheme, palette = uiStore.themePalette, customSeed = customSeedColor(uiStore)) {
                 Surface(color = MaterialTheme.colorScheme.background) {
                     DnsSettingsScreen(
                         state = uiState,

@@ -20,6 +20,7 @@ import com.tuxundl.android.service.store.ServiceStore
 import com.tuxundl.android.ui.AccessControlScreen
 import com.tuxundl.android.ui.AccessControlUiState
 import com.tuxundl.android.ui.theme.TuxunDLTheme
+import com.tuxundl.android.ui.theme.customSeedColor
 import com.tuxundl.android.util.startClashService
 import com.tuxundl.android.util.stopClashService
 import kotlinx.coroutines.Dispatchers
@@ -178,7 +179,7 @@ class AccessControlActivity : BaseActivity<AccessControlDesign>() {
         }
 
         setContent {
-            TuxunDLTheme(darkTheme = darkTheme, palette = uiStore.themePalette) {
+            TuxunDLTheme(darkTheme = darkTheme, palette = uiStore.themePalette, customSeed = customSeedColor(uiStore)) {
                 Surface(color = MaterialTheme.colorScheme.background) {
                     AccessControlScreen(
                         state = uiState,

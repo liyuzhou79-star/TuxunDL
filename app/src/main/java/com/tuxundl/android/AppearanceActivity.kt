@@ -10,6 +10,7 @@ import com.tuxundl.android.design.model.DarkMode
 import com.tuxundl.android.design.model.ThemePalette
 import com.tuxundl.android.ui.AppearanceScreen
 import com.tuxundl.android.ui.theme.TuxunDLTheme
+import com.tuxundl.android.ui.theme.customSeedColor
 import com.tuxundl.android.util.ApplicationObserver
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.selects.select
@@ -48,7 +49,7 @@ class AppearanceActivity : BaseActivity<AppSettingsDesign>() {
         }
 
         setContent {
-            TuxunDLTheme(darkTheme = darkTheme, palette = uiStore.themePalette) {
+            TuxunDLTheme(darkTheme = darkTheme, palette = uiStore.themePalette, customSeed = customSeedColor(uiStore)) {
                 Surface(color = MaterialTheme.colorScheme.background) {
                     AppearanceScreen(
                         uiStore = uiStore,
@@ -59,6 +60,10 @@ class AppearanceActivity : BaseActivity<AppSettingsDesign>() {
                         },
                         onDarkModeChange = { mode: DarkMode ->
                             uiStore.darkMode = mode
+                            recreateAll()
+                        },
+                        onCustomColorChange = { argb: Int ->
+                            uiStore.customThemeColor = argb
                             recreateAll()
                         },
                         onBack = { finish() },

@@ -241,5 +241,17 @@
                 <data android:scheme="android_secret_code" android:host="8898635" />
             </intent-filter>
         </receiver>
+
+        <receiver
+            android:name=".TuxunWidgetProvider"
+            android:exported="false"
+            android:label="@string/application_name">
+            <intent-filter>
+                <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
+            </intent-filter>
+            <meta-data
+                android:name="android.appwidget.provider"
+                android:resource="@xml/tuxun_widget_info" />
+        </receiver>
     </application>
 </manifest>

@@ -15,6 +15,7 @@ import com.tuxundl.android.service.util.sendProfileChanged
 import com.tuxundl.android.ui.RulesScreen
 import com.tuxundl.android.ui.RulesUiState
 import com.tuxundl.android.ui.theme.TuxunDLTheme
+import com.tuxundl.android.ui.theme.customSeedColor
 import com.tuxundl.android.util.withClash
 import com.tuxundl.android.util.withProfile
 import kotlinx.coroutines.Dispatchers
@@ -119,7 +120,7 @@ class RulesActivity : BaseActivity<AppSettingsDesign>() {
         }
 
         setContent {
-            TuxunDLTheme(darkTheme = darkTheme, palette = uiStore.themePalette) {
+            TuxunDLTheme(darkTheme = darkTheme, palette = uiStore.themePalette, customSeed = customSeedColor(uiStore)) {
                 Surface(color = MaterialTheme.colorScheme.background) {
                     RulesScreen(
                         state = uiState,

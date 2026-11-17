@@ -214,6 +214,7 @@
     <string name="always">Always</string>
 
     <string name="system_apps">System Apps</string>
+    <string name="only_third_party_apps">Third-party apps only</string>
     <string name="filter">Filter</string>
     <string name="package_name">Package Name</string>
     <string name="update_time">Update Time</string>

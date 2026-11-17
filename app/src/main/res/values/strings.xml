@@ -9,6 +9,14 @@
     <string name="theme_blue">Blue</string>
     <string name="theme_sakura">Sakura Pink</string>
     <string name="theme_mono">Graphite</string>
+    <string name="theme_custom">Custom color</string>
+    <string name="color_hue">Hue</string>
+    <string name="color_saturation">Saturation</string>
+    <string name="color_value">Brightness</string>
+    <string name="widget_description">Show TuxunDL status on the home screen; tap to start or stop</string>
+    <string name="widget_running">Running</string>
+    <string name="widget_stopped">Stopped</string>
+    <string name="widget_no_node">No node selected</string>
     <string name="home_cards">Home Cards</string>
     <string name="card_traffic">Traffic card</string>
     <string name="card_proxy">Nodes card</string>

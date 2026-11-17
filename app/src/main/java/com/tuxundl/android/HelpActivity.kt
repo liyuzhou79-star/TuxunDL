@@ -10,6 +10,7 @@ import com.tuxundl.android.design.HelpDesign
 import com.tuxundl.android.design.model.DarkMode
 import com.tuxundl.android.ui.HelpScreen
 import com.tuxundl.android.ui.theme.TuxunDLTheme
+import com.tuxundl.android.ui.theme.customSeedColor
 import kotlinx.coroutines.isActive
 
 class HelpActivity : BaseActivity<HelpDesign>() {
@@ -30,7 +31,7 @@ class HelpActivity : BaseActivity<HelpDesign>() {
         }
 
         setContent {
-            TuxunDLTheme(darkTheme = darkTheme, palette = uiStore.themePalette) {
+            TuxunDLTheme(darkTheme = darkTheme, palette = uiStore.themePalette, customSeed = customSeedColor(uiStore)) {
                 Surface(color = MaterialTheme.colorScheme.background) {
                     HelpScreen(
                         openLink = {

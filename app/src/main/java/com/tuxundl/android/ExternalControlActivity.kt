@@ -3,12 +3,15 @@ package com.tuxundl.android
 import android.app.Activity
 import android.content.Intent
 import android.os.Bundle
+import android.os.Handler
+import android.os.Looper
 import android.widget.Toast
 import androidx.activity.result.contract.ActivityResultContracts
 import com.tuxundl.android.common.constants.Intents
 import com.tuxundl.android.common.util.intent
 import com.tuxundl.android.common.util.setUUID
 import com.tuxundl.android.design.MainDesign
+import com.tuxundl.android.design.store.UiStore
 import com.tuxundl.android.design.ui.ToastDuration
 import com.tuxundl.android.remote.StatusClient
 import com.tuxundl.android.service.model.Profile
@@ -92,12 +95,29 @@ class ExternalControlActivity : Activity(), CoroutineScope by MainScope() {
             Toast.makeText(this, R.string.unable_to_start_vpn, Toast.LENGTH_LONG).show()
             return
         }
+        UiStore(this).widgetRunning = true
+        refreshWidget()
         Toast.makeText(this, R.string.external_control_started, Toast.LENGTH_LONG).show()
     }
 
     private fun stopClash() {
         stopClashService()
+        UiStore(this).widgetRunning = false
+        refreshWidget()
         Toast.makeText(this, R.string.external_control_stopped, Toast.LENGTH_LONG).show()
+    }
+
+    /**
+     * Refresh the home-screen widget now, and once more after a short delay:
+     * starting/stopping the service is asynchronous, so the immediate refresh
+     * may still show the old state.
+     */
+    private fun refreshWidget() {
+        TuxunWidgetProvider.requestUpdate(this)
+        Handler(Looper.getMainLooper()).postDelayed(
+            { TuxunWidgetProvider.requestUpdate(this) },
+            2500,
+        )
     }
 
     override fun finish() {

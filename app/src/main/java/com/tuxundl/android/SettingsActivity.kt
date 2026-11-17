@@ -11,6 +11,7 @@ import com.tuxundl.android.design.model.DarkMode
 import com.tuxundl.android.ui.SettingsScreen
 import com.tuxundl.android.ui.SettingsUiState
 import com.tuxundl.android.ui.theme.TuxunDLTheme
+import com.tuxundl.android.ui.theme.customSeedColor
 import com.tuxundl.android.util.UpdateChecker
 import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.isActive
@@ -91,7 +92,7 @@ class SettingsActivity : BaseActivity<SettingsDesign>() {
         }
 
         setContent {
-            TuxunDLTheme(darkTheme = darkTheme, palette = uiStore.themePalette) {
+            TuxunDLTheme(darkTheme = darkTheme, palette = uiStore.themePalette, customSeed = customSeedColor(uiStore)) {
                 Surface(color = MaterialTheme.colorScheme.background) {
                     SettingsScreen(
                         state = uiState,

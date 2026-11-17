@@ -9,6 +9,14 @@
     <string name="theme_blue">蓝色主题</string>
     <string name="theme_sakura">樱花粉</string>
     <string name="theme_mono">灰黑</string>
+    <string name="theme_custom">自定义颜色</string>
+    <string name="color_hue">色相</string>
+    <string name="color_saturation">饱和度</string>
+    <string name="color_value">明度</string>
+    <string name="widget_description">在桌面显示 TuxunDL 状态，点一下启动或停止</string>
+    <string name="widget_running">运行中</string>
+    <string name="widget_stopped">已停止</string>
+    <string name="widget_no_node">未选择节点</string>
     <string name="home_cards">首页卡片</string>
     <string name="card_traffic">流量卡片</string>
     <string name="card_proxy">节点选择卡片</string>

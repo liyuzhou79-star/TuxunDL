@@ -46,4 +46,12 @@
     <string name="disclaimer_agree">我已閱讀並同意以上內容</string>
     <string name="disclaimer_continue">同意並繼續</string>
     <string name="disclaimer_disagree">不同意</string>
+    <string name="theme_custom">自訂顏色</string>
+    <string name="color_hue">色相</string>
+    <string name="color_saturation">飽和度</string>
+    <string name="color_value">明度</string>
+    <string name="widget_description">在桌面顯示 TuxunDL 狀態，點一下啟動或停止</string>
+    <string name="widget_running">運行中</string>
+    <string name="widget_stopped">已停止</string>
+    <string name="widget_no_node">未選擇節點</string>
 </resources>

@@ -15,6 +15,7 @@ import com.tuxundl.android.design.store.UiStore.Companion.mainActivityAlias
 import com.tuxundl.android.service.store.ServiceStore
 import com.tuxundl.android.ui.AppSettingsScreen
 import com.tuxundl.android.ui.theme.TuxunDLTheme
+import com.tuxundl.android.ui.theme.customSeedColor
 import com.tuxundl.android.util.ApplicationObserver
 import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.isActive
@@ -89,7 +90,7 @@ class AppSettingsActivity : BaseActivity<AppSettingsDesign>(), Behavior {
         val running = clashRunning
 
         setContent {
-            TuxunDLTheme(darkTheme = darkTheme, palette = uiStore.themePalette) {
+            TuxunDLTheme(darkTheme = darkTheme, palette = uiStore.themePalette, customSeed = customSeedColor(uiStore)) {
                 Surface(color = MaterialTheme.colorScheme.background) {
                     AppSettingsScreen(
                         uiStore = uiStore,

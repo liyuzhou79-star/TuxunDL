@@ -34,6 +34,45 @@ class UiStore(context: Context) {
         values = ThemePalette.values()
     )
 
+    /**
+     * Custom theme seed colour as an ARGB int; 0 = not set, use [themePalette].
+     * Picking a custom colour overrides the preset palette until a preset
+     * is picked again (which clears this back to 0).
+     */
+    var customThemeColor: Int by store.int(
+        key = "custom_theme_color",
+        defaultValue = 0
+    )
+
+    /** Last-known state for the home-screen widget (written by MainActivity). */
+    var widgetRunning: Boolean by store.boolean(
+        key = "widget_running",
+        defaultValue = false
+    )
+
+    /** Current node name for the home-screen widget; "" = none selected. */
+    var widgetNodeName: String by store.string(
+        key = "widget_node_name",
+        defaultValue = ""
+    )
+
+    /** Last sampled up/down rates (bytes/s) for the home-screen widget. */
+    var widgetUpRate: Long by store.long(
+        key = "widget_up_rate",
+        defaultValue = 0L
+    )
+
+    var widgetDownRate: Long by store.long(
+        key = "widget_down_rate",
+        defaultValue = 0L
+    )
+
+    /** Epoch millis of the last widget rate sample. */
+    var widgetUpdatedAt: Long by store.long(
+        key = "widget_updated_at",
+        defaultValue = 0L
+    )
+
     var showTrafficCard: Boolean by store.boolean(
         key = "show_traffic_card",
         defaultValue = true

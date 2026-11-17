@@ -12,6 +12,7 @@ import com.tuxundl.android.design.model.DarkMode
 import com.tuxundl.android.service.store.ServiceStore
 import com.tuxundl.android.ui.NetworkSettingsScreen
 import com.tuxundl.android.ui.theme.TuxunDLTheme
+import com.tuxundl.android.ui.theme.customSeedColor
 import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.selects.select
@@ -53,7 +54,7 @@ class NetworkSettingsActivity : BaseActivity<NetworkSettingsDesign>() {
         val running = clashRunning
 
         setContent {
-            TuxunDLTheme(darkTheme = darkTheme, palette = uiStore.themePalette) {
+            TuxunDLTheme(darkTheme = darkTheme, palette = uiStore.themePalette, customSeed = customSeedColor(uiStore)) {
                 Surface(color = MaterialTheme.colorScheme.background) {
                     NetworkSettingsScreen(
                         uiStore = uiStore,

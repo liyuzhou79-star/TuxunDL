@@ -32,6 +32,7 @@ import com.tuxundl.android.service.model.Profile
 import com.tuxundl.android.ui.NewProfileScreen
 import com.tuxundl.android.ui.NewProfileUiState
 import com.tuxundl.android.ui.theme.TuxunDLTheme
+import com.tuxundl.android.ui.theme.customSeedColor
 import com.tuxundl.android.util.withProfile
 import io.github.g00fy2.quickie.QRResult
 import io.github.g00fy2.quickie.QRResult.QRError
@@ -315,7 +316,7 @@ class NewProfileActivity : BaseActivity<NewProfileDesign>() {
         }
 
         setContent {
-            TuxunDLTheme(darkTheme = darkTheme, palette = uiStore.themePalette) {
+            TuxunDLTheme(darkTheme = darkTheme, palette = uiStore.themePalette, customSeed = customSeedColor(uiStore)) {
                 Surface(color = MaterialTheme.colorScheme.background) {
                     NewProfileScreen(
                         state = uiState,

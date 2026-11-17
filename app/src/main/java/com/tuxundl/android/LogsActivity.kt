@@ -13,6 +13,7 @@ import com.tuxundl.android.design.model.LogFile
 import com.tuxundl.android.ui.LogsScreen
 import com.tuxundl.android.ui.LogsUiState
 import com.tuxundl.android.ui.theme.TuxunDLTheme
+import com.tuxundl.android.ui.theme.customSeedColor
 import com.tuxundl.android.util.logsDir
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.channels.Channel
@@ -79,7 +80,7 @@ class LogsActivity : BaseActivity<LogsDesign>() {
         }
 
         setContent {
-            TuxunDLTheme(darkTheme = darkTheme, palette = uiStore.themePalette) {
+            TuxunDLTheme(darkTheme = darkTheme, palette = uiStore.themePalette, customSeed = customSeedColor(uiStore)) {
                 Surface(color = MaterialTheme.colorScheme.background) {
                     LogsScreen(
                         state = uiState,

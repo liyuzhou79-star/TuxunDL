@@ -22,6 +22,7 @@ import com.tuxundl.android.service.model.Profile
 import com.tuxundl.android.ui.FilesScreen
 import com.tuxundl.android.ui.FilesUiState
 import com.tuxundl.android.ui.theme.TuxunDLTheme
+import com.tuxundl.android.ui.theme.customSeedColor
 import com.tuxundl.android.util.fileName
 import com.tuxundl.android.util.withProfile
 import kotlinx.coroutines.channels.Channel
@@ -200,7 +201,7 @@ class FilesActivity : BaseActivity<FilesDesign>() {
         }
 
         setContent {
-            TuxunDLTheme(darkTheme = darkTheme, palette = uiStore.themePalette) {
+            TuxunDLTheme(darkTheme = darkTheme, palette = uiStore.themePalette, customSeed = customSeedColor(uiStore)) {
                 Surface(color = MaterialTheme.colorScheme.background) {
                     FilesScreen(
                         state = uiState,

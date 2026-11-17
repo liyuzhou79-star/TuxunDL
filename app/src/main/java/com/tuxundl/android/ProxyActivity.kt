@@ -15,6 +15,7 @@ import com.tuxundl.android.ui.ProxyGroupUiState
 import com.tuxundl.android.ui.ProxyScreen
 import com.tuxundl.android.ui.ProxyUiState
 import com.tuxundl.android.ui.theme.TuxunDLTheme
+import com.tuxundl.android.ui.theme.customSeedColor
 import com.tuxundl.android.util.withClash
 import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.isActive
@@ -204,7 +205,7 @@ class ProxyActivity : BaseActivity<ProxyDesign>() {
         }
 
         setContent {
-            TuxunDLTheme(darkTheme = darkTheme, palette = uiStore.themePalette) {
+            TuxunDLTheme(darkTheme = darkTheme, palette = uiStore.themePalette, customSeed = customSeedColor(uiStore)) {
                 Surface(color = MaterialTheme.colorScheme.background) {
                     ProxyScreen(
                         state = uiState,
