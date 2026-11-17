@@ -81,6 +81,19 @@ object SettingsStore {
         write(mapOf("closeToTray" to kotlinx.serialization.json.JsonPrimitive(value)))
     }
 
+    /** Hours between automatic subscription refreshes (default 24). */
+    fun autoUpdateIntervalHours(): Int =
+        read()["autoUpdateIntervalHours"]?.jsonPrimitive?.intOrNull ?: 24
+
+    fun setAutoUpdateIntervalHours(value: Int) {
+        write(
+            mapOf(
+                "autoUpdateIntervalHours" to
+                    kotlinx.serialization.json.JsonPrimitive(value),
+            ),
+        )
+    }
+
     private fun applyAutoStart(value: Boolean) {
         if (!Elevation.isWindows()) return
         val key = "HKCU\\Software\\Microsoft\\Windows\\CurrentVersion\\Run"

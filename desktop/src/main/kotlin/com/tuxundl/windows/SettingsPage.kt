@@ -45,6 +45,9 @@ internal fun SettingsPage() {
     var autoStart by remember { mutableStateOf(SettingsStore.autoStart()) }
     var autoConnect by remember { mutableStateOf(SettingsStore.autoConnect()) }
     var closeToTray by remember { mutableStateOf(SettingsStore.closeToTray()) }
+    var intervalHours by remember {
+        mutableStateOf(SettingsStore.autoUpdateIntervalHours())
+    }
     var portText by remember { mutableStateOf(SettingsStore.mixedPort().toString()) }
     var note by remember { mutableStateOf<String?>(null) }
     var updateText by remember { mutableStateOf<String?>(null) }
@@ -168,6 +171,26 @@ internal fun SettingsPage() {
                 "关闭窗口时将最小化到系统匣"
             } else {
                 "关闭窗口时将直接退出程序"
+            }
+        }
+
+        Spacer(Modifier.height(28.dp))
+
+        Text(text = "订阅自动更新间隔", color = Color.White, fontSize = 16.sp)
+        Spacer(Modifier.height(4.dp))
+        Text(
+            text = "订阅配置超过这个时长没刷新时，程序会在启动时和打开订阅页时自动更新。节点变得快可以选短一点，订阅稳定就选长一点省流量。",
+            color = TextDim,
+            fontSize = 13.sp,
+        )
+        Spacer(Modifier.height(10.dp))
+        Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+            listOf(6, 12, 24, 48).forEach { hours ->
+                ModeChip("$hours 小时", intervalHours == hours) {
+                    intervalHours = hours
+                    SettingsStore.setAutoUpdateIntervalHours(hours)
+                    note = "订阅自动更新间隔已设为 $hours 小时"
+                }
             }
         }
 

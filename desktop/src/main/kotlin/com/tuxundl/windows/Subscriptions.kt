@@ -142,13 +142,15 @@ object SubscriptionStore {
 
     /**
      * Refresh every subscription whose config is older than [maxAgeMs]
-     * (a day by default). Runs at startup and when the subscriptions
-     * page opens, so configs stay fresh without the user remembering
-     * to update them. If the stale subscription is the active one, the
-     * active profile is refreshed with it. Returns how many updated.
+     * (the interval from settings, 24 hours by default). Runs at
+     * startup and when the subscriptions page opens, so configs stay
+     * fresh without the user remembering to update them. If the stale
+     * subscription is the active one, the active profile is refreshed
+     * with it. Returns how many updated.
      */
     suspend fun autoUpdateStale(
-        maxAgeMs: Long = 24 * 60 * 60 * 1000L,
+        maxAgeMs: Long = SettingsStore.autoUpdateIntervalHours()
+            .toLong() * 60 * 60 * 1000,
     ): Int {
         val now = System.currentTimeMillis()
         val list = load()
