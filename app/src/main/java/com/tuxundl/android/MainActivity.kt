@@ -438,7 +438,7 @@ class MainActivity : BaseActivity<MainDesign>() {
         return withContext(Dispatchers.IO) {
             val versionName = packageManager.getPackageInfo(packageName, 0).versionName
             // 1.x is the official line: mark it on the About screen.
-            val official = if (versionName.startsWith("1.")) {
+            val official = if (versionName?.startsWith("1.") == true) {
                 getString(R.string.version_official)
             } else {
                 ""
