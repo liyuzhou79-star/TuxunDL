@@ -16,6 +16,7 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -28,6 +29,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import java.io.File
+import kotlinx.coroutines.delay
 
 private val Indigo = Color(0xFF5B5BD6)
 private val PanelDark = Color(0xFF1E1E2A)
@@ -42,6 +44,24 @@ internal fun LogsPage() {
     var source by remember { mutableStateOf("app") }
     var tick by remember { mutableStateOf(0) }
     var query by remember { mutableStateOf("") }
+    var autoRefresh by remember { mutableStateOf(false) }
+    var confirmClear by remember { mutableStateOf(false) }
+
+    // While auto-refresh is on, re-read the current log every 2 seconds.
+    LaunchedEffect(autoRefresh, source) {
+        while (autoRefresh) {
+            delay(2000)
+            tick++
+        }
+    }
+
+    // The armed "confirm clear" state disarms itself after 3 seconds.
+    LaunchedEffect(confirmClear) {
+        if (confirmClear) {
+            delay(3000)
+            confirmClear = false
+        }
+    }
 
     val file = File(
         CoreBridge.workDir,
@@ -79,9 +99,25 @@ internal fun LogsPage() {
                 fontWeight = FontWeight.Bold,
             )
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                LogTab("应用", source == "app") { source = "app" }
-                LogTab("核心", source == "core") { source = "core" }
+                LogTab("应用", source == "app") {
+                    source = "app"
+                    confirmClear = false
+                }
+                LogTab("核心", source == "core") {
+                    source = "core"
+                    confirmClear = false
+                }
+                LogTab("自动刷新", autoRefresh) { autoRefresh = !autoRefresh }
                 LogTab("刷新", false) { tick++ }
+                LogTab(if (confirmClear) "确认清空？" else "清空", confirmClear) {
+                    if (confirmClear) {
+                        runCatching { file.writeText("") }
+                        confirmClear = false
+                        tick++
+                    } else {
+                        confirmClear = true
+                    }
+                }
             }
         }
 
