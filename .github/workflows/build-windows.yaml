@@ -1,0 +1,57 @@
+name: Build Windows
+
+# Builds the Windows desktop edition in desktop/. The Android workflows
+# never touch that folder and this workflow never touches Android code,
+# so the two editions verify independently.
+on:
+  workflow_dispatch:
+  push:
+    paths:
+      - "desktop/**"
+      - ".github/workflows/build-windows.yaml"
+
+jobs:
+  BuildWindows:
+    runs-on: windows-latest
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v6
+
+      - name: Setup Java
+        uses: actions/setup-java@v5
+        with:
+          distribution: "temurin"
+          java-version: 17
+
+      - name: Setup Gradle
+        uses: gradle/actions/setup-gradle@v5
+
+      - name: Compile desktop app
+        run: .\gradlew.bat -p desktop compileKotlin --no-daemon --stacktrace
+
+      - name: Create app image
+        if: success()
+        run: .\gradlew.bat -p desktop createDistributable --no-daemon --stacktrace
+
+      - name: Upload app image
+        uses: actions/upload-artifact@v7
+        if: ${{ success() }}
+        with:
+          name: TuxunDL Windows app image
+          path: desktop/build/compose/binaries/main/app/**
+
+      - name: Package installers
+        if: success()
+        run: .\gradlew.bat -p desktop packageMsi packageExe --no-daemon --stacktrace
+
+      - name: Upload installers
+        uses: actions/upload-artifact@v7
+        if: ${{ success() }}
+        with:
+          name: TuxunDL Windows installers
+          # Installers land in per-format subfolders, and a missing
+          # file must fail loudly instead of warning into the void.
+          if-no-files-found: error
+          path: |
+            desktop/build/compose/binaries/main/msi/*.msi
+            desktop/build/compose/binaries/main/exe/*.exe

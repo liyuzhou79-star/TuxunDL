@@ -69,12 +69,22 @@ sealed interface UpdateCheckResult {
  * try as a fallback before the failure is reported. HTTP 403/429 with
  * rate-limit evidence is classified as [UpdateFailure.RateLimited]
  * instead of the generic server bucket it landed in before.
+ *
+ * Platform filtering (1.2.2): the Windows edition publishes from this
+ * same repository with `win-v`-prefixed tags. Only tags matching the
+ * Android shape (`v` + numeric dotted version) count as Android
+ * releases; anything else in the list is skipped, and a non-Android
+ * `/releases/latest` answer is rejected instead of being mistaken for
+ * an Android update (or for "already up to date").
  */
 object UpdateChecker {
     private const val RELEASES_URL =
         "https://api.github.com/repos/liyuzhou79-star/TuxunDL/releases?per_page=5"
     private const val LATEST_URL =
         "https://api.github.com/repos/liyuzhou79-star/TuxunDL/releases/latest"
+
+    /** Android release tags look like `v1.2.2`; Windows uses `win-v…`. */
+    private val ANDROID_TAG = Regex("""^v\d+\.\d+\.\d+$""")
 
     private sealed interface FetchOutcome {
         data class Ok(val info: UpdateInfo) : FetchOutcome
@@ -129,9 +139,13 @@ object UpdateChecker {
 
             if (json.optBoolean("draft")) continue
 
-            val version = json.optString("tag_name").removePrefix("v")
+            val tag = json.optString("tag_name")
 
-            if (version.isEmpty()) continue
+            // Skip other platforms' releases (e.g. Windows `win-v1.0.0`)
+            // and keep looking for the newest Android release.
+            if (!ANDROID_TAG.matches(tag)) continue
+
+            val version = tag.removePrefix("v")
 
             return FetchOutcome.Ok(infoFrom(json, version))
         }
@@ -150,11 +164,15 @@ object UpdateChecker {
             return FetchOutcome.Error(UpdateFailure.Parse)
         }
 
-        val version = json.optString("tag_name").removePrefix("v")
+        val tag = json.optString("tag_name")
 
-        if (version.isEmpty()) {
+        // The latest release overall may be a Windows release; that is
+        // not an Android update and must not pose as one.
+        if (!ANDROID_TAG.matches(tag)) {
             return FetchOutcome.Error(UpdateFailure.Parse)
         }
+
+        val version = tag.removePrefix("v")
 
         return FetchOutcome.Ok(infoFrom(json, version))
     }

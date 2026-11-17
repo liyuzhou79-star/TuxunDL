@@ -72,6 +72,14 @@ jobs:
           fi
 
           for TAG in ${TAGS}; do
+            # Android releases only: Windows tags (win-v*) are a
+            # different product and must never land in this Maven
+            # artifact, even though their pages also carry the APKs.
+            case "${TAG}" in
+              v[0-9]*) ;;
+              *) echo "== ${TAG}: not an Android tag, skipping"; continue ;;
+            esac
+
             VERSION="${TAG#v}"
 
             if printf '%s\n' "${PUBLISHED}" | grep -qx "${VERSION}"; then

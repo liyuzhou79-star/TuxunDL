@@ -1,0 +1,106 @@
+package com.tuxundl.windows
+
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
+import kotlinx.serialization.Serializable
+import kotlinx.serialization.decodeFromString
+import kotlinx.serialization.encodeToString
+import kotlinx.serialization.json.Json
+import java.io.File
+import java.net.URI
+import java.net.http.HttpClient
+import java.net.http.HttpRequest
+import java.net.http.HttpResponse
+import java.time.Duration
+import java.util.UUID
+
+/** One saved subscription: a name, its URL and the last fetch time. */
+@Serializable
+data class Subscription(
+    val id: String,
+    val name: String,
+    val url: String,
+    val updatedAt: Long = 0,
+)
+
+/**
+ * Subscription storage under the app data dir: the list lives in
+ * `subscriptions.json`, each fetched config in `profiles/<id>.yaml`,
+ * and the active one is copied to the profile file CoreBridge reads.
+ * Configs are the same mihomo YAML the Android edition consumes.
+ */
+object SubscriptionStore {
+
+    private val json = Json {
+        ignoreUnknownKeys = true
+        prettyPrint = true
+    }
+
+    private val client: HttpClient = HttpClient.newBuilder()
+        .connectTimeout(Duration.ofSeconds(10))
+        .followRedirects(HttpClient.Redirect.NORMAL)
+        .build()
+
+    private fun listFile(): File = File(CoreBridge.workDir, "subscriptions.json")
+
+    private fun profilesDir(): File =
+        File(CoreBridge.workDir, "profiles").apply { mkdirs() }
+
+    fun load(): List<Subscription> = runCatching {
+        val file = listFile()
+        if (!file.exists()) {
+            emptyList()
+        } else {
+            json.decodeFromString<List<Subscription>>(file.readText())
+        }
+    }.getOrDefault(emptyList())
+
+    fun save(list: List<Subscription>) {
+        CoreBridge.workDir.mkdirs()
+        listFile().writeText(json.encodeToString(list))
+    }
+
+    fun newSubscription(name: String, url: String): Subscription =
+        Subscription(
+            id = UUID.randomUUID().toString().take(8),
+            name = name,
+            url = url,
+        )
+
+    fun profileFile(sub: Subscription): File =
+        File(profilesDir(), "${sub.id}.yaml")
+
+    /**
+     * Download the subscription's config and store it. The body must
+     * look like a mihomo config (it has to name its proxies), which
+     * filters out HTML error pages and login walls.
+     */
+    suspend fun fetch(sub: Subscription): Result<Subscription> =
+        withContext(Dispatchers.IO) {
+            runCatching {
+                val request = HttpRequest.newBuilder(URI.create(sub.url))
+                    .timeout(Duration.ofSeconds(30))
+                    .header("User-Agent", "clash.meta")
+                    .GET()
+                    .build()
+                val response = client.send(request, HttpResponse.BodyHandlers.ofString())
+                check(response.statusCode() == 200) { "HTTP ${response.statusCode()}" }
+
+                val body = response.body()
+                check(body.contains("proxies:")) { "返回的内容不像订阅配置" }
+
+                profileFile(sub).writeText(body)
+                sub.copy(updatedAt = System.currentTimeMillis())
+            }
+        }
+
+    /** Make a fetched subscription the one the home page connects with. */
+    fun activate(sub: Subscription) {
+        profileFile(sub).copyTo(CoreBridge.profileFile(), overwrite = true)
+    }
+
+    fun delete(sub: Subscription, list: List<Subscription>): List<Subscription> {
+        profileFile(sub).delete()
+        return list.filterNot { it.id == sub.id }
+    }
+}
