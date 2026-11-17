@@ -87,7 +87,8 @@ tasks.register("fetchCore") {
             copy {
                 from(zipTree(zip))
                 into(coreResDir)
-                include("bin/amd64/wintun.dll")
+                // The archive nests everything under a wintun/ folder.
+                include("wintun/bin/amd64/wintun.dll")
                 eachFile { path = name }
             }
             check(dllFile.exists()) { "wintun.dll missing after fetchCore" }
