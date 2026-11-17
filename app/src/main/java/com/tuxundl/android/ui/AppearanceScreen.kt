@@ -397,7 +397,7 @@ private fun CustomColorRow(
     }
 }
 
-/** Twelve curated seeds for one-tap picking. */
+/** Sixteen curated seeds for one-tap picking. */
 // Full ARGB ints (the hex literals exceed Int.MAX_VALUE, so .toInt() pins
 // the bit pattern; Color(Int) then reads them as ARGB).
 private val CUSTOM_SEED_SWATCHES = listOf(
@@ -405,6 +405,8 @@ private val CUSTOM_SEED_SWATCHES = listOf(
     0xFF5E35B1.toInt(), 0xFF3949AB.toInt(), 0xFF1E88E5.toInt(),
     0xFF039BE5.toInt(), 0xFF00897B.toInt(), 0xFF43A047.toInt(),
     0xFF7CB342.toInt(), 0xFFFB8C00.toInt(), 0xFF6D4C41.toInt(),
+    0xFF26A69A.toInt(), 0xFFFF7043.toInt(), 0xFF6A1B9A.toInt(),
+    0xFF4FC3F7.toInt(),
 )
 
 /**
@@ -476,9 +478,29 @@ private fun ColorPicker(
         }
         Row(
             horizontalArrangement = Arrangement.spacedBy(10.dp),
+            modifier = Modifier.padding(bottom = 4.dp),
+        ) {
+            CUSTOM_SEED_SWATCHES.drop(6).take(6).forEach { swatch ->
+                Box(
+                    modifier = Modifier
+                        .size(32.dp)
+                        .clip(CircleShape)
+                        .background(Color(swatch))
+                        .border(
+                            width = if (swatch == seedArgb) 2.dp else 1.dp,
+                            color = if (swatch == seedArgb) MaterialTheme.colorScheme.primary
+                            else MaterialTheme.colorScheme.outlineVariant,
+                            shape = CircleShape,
+                        )
+                        .clickable { onSeedChange(swatch); onSeedChangeFinished() },
+                )
+            }
+        }
+        Row(
+            horizontalArrangement = Arrangement.spacedBy(10.dp),
             modifier = Modifier.padding(bottom = 12.dp),
         ) {
-            CUSTOM_SEED_SWATCHES.drop(6).forEach { swatch ->
+            CUSTOM_SEED_SWATCHES.drop(12).forEach { swatch ->
                 Box(
                     modifier = Modifier
                         .size(32.dp)

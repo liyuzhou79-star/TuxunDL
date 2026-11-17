@@ -75,6 +75,11 @@
     <string name="traffic_today">今日 ↑ %1$s ↓ %2$s</string>
     <string name="traffic_daily_note">僅統計 App 開啟期間的流量。</string>
     <string name="traffic_last_7_days">近 7 日</string>
+    <string name="traffic_this_week">本週</string>
+    <string name="traffic_last_week">上週</string>
+    <string name="traffic_week_total">合計 ↑ %1$s ↓ %2$s</string>
+    <string name="traffic_week_note">僅保留最近 14 天。</string>
+    <string name="traffic_week_empty">本週還沒有流量記錄。</string>
     <string name="traffic_not_running">未啟動，啟動代理後開始統計。</string>
     <string name="version_official">（正式版）</string>
     <string name="sort_delay_asc">延遲由低到高</string>

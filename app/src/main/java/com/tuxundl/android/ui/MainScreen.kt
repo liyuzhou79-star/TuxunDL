@@ -161,8 +161,11 @@ class MainUiState {
     var todayUp by mutableStateOf(0L)
     var todayDown by mutableStateOf(0L)
 
-    /** Previous days' totals, newest first (excludes today). */
-    var last7Days by mutableStateOf<List<DailyTrafficDay>>(emptyList())
+    /** This week's days with data (Monday..today), oldest first. */
+    var currentWeekDays by mutableStateOf<List<DailyTrafficDay>>(emptyList())
+
+    /** Last week's days with data (Monday..Sunday), oldest first. */
+    var lastWeekDays by mutableStateOf<List<DailyTrafficDay>>(emptyList())
 
     val snackbarHostState = SnackbarHostState()
 }
@@ -689,6 +692,9 @@ private fun HomeCards(
  */
 @Composable
 private fun TrafficMonitorCard(state: MainUiState) {
+    // This week / last week toggle; session-only, not persisted.
+    var weekTab by remember { mutableStateOf(0) }
+
     TuxunCard(
         shape = RoundedCornerShape(TuxunCardCornerLarge),
         modifier = Modifier.fillMaxWidth(),
@@ -772,30 +778,81 @@ private fun TrafficMonitorCard(state: MainUiState) {
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
 
-            if (state.last7Days.isNotEmpty()) {
-                Spacer(modifier = Modifier.height(4.dp))
-                Text(
-                    text = stringResource(R.string.traffic_last_7_days),
-                    style = MaterialTheme.typography.titleSmall,
-                    color = MaterialTheme.colorScheme.primary,
-                )
-                state.last7Days.forEach { day ->
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.SpaceBetween,
-                    ) {
-                        Text(
-                            text = day.date,
-                            style = MaterialTheme.typography.bodyMedium,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            // Weekly view: this week (Monday..today) or last week
+            // (Monday..Sunday), with a small bar per day. Only days
+            // with stored data are shown; the file keeps 14 days, so
+            // last week may be partial.
+            val weekDays = if (weekTab == 0) state.currentWeekDays else state.lastWeekDays
+            val weekMax = weekDays.maxOfOrNull { it.up + it.down } ?: 0L
+
+            Spacer(modifier = Modifier.height(4.dp))
+            SingleChoiceSegmentedButtonRow(modifier = Modifier.fillMaxWidth()) {
+                listOf(R.string.traffic_this_week, R.string.traffic_last_week)
+                    .forEachIndexed { index, label ->
+                        SegmentedButton(
+                            selected = weekTab == index,
+                            onClick = { weekTab = index },
+                            shape = SegmentedButtonDefaults.itemShape(index = index, count = 2),
+                            icon = {},
+                            label = { Text(text = stringResource(label)) },
                         )
-                        Text(
-                            text = "↑ ${day.up.toBytesString()}   ↓ ${day.down.toBytesString()}",
-                            style = MaterialTheme.typography.bodyMedium,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    }
+            }
+            if (weekDays.isNotEmpty()) {
+                Text(
+                    text = stringResource(
+                        R.string.traffic_week_total,
+                        weekDays.sumOf { it.up }.toBytesString(),
+                        weekDays.sumOf { it.down }.toBytesString(),
+                    ),
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+                weekDays.forEach { day ->
+                    val total = day.up + day.down
+                    val fraction = if (weekMax > 0L) {
+                        (total.toFloat() / weekMax.toFloat()).coerceIn(0.06f, 1f)
+                    } else {
+                        0.06f
+                    }
+                    Column(modifier = Modifier.fillMaxWidth()) {
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                        ) {
+                            Text(
+                                text = day.date.substring(5),
+                                style = MaterialTheme.typography.bodyMedium,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            )
+                            Text(
+                                text = "↑ ${day.up.toBytesString()}   ↓ ${day.down.toBytesString()}",
+                                style = MaterialTheme.typography.bodyMedium,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            )
+                        }
+                        Box(
+                            modifier = Modifier
+                                .fillMaxWidth(fraction)
+                                .height(6.dp)
+                                .clip(RoundedCornerShape(3.dp))
+                                .background(MaterialTheme.colorScheme.primary),
                         )
                     }
                 }
+                if (weekTab == 1) {
+                    Text(
+                        text = stringResource(R.string.traffic_week_note),
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                }
+            } else {
+                Text(
+                    text = stringResource(R.string.traffic_week_empty),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
             }
         }
     }

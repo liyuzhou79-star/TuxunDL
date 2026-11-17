@@ -90,6 +90,11 @@
     <string name="traffic_today">Today ↑ %1$s ↓ %2$s</string>
     <string name="traffic_daily_note">Counts only while the app is open.</string>
     <string name="traffic_last_7_days">Last 7 Days</string>
+    <string name="traffic_this_week">This Week</string>
+    <string name="traffic_last_week">Last Week</string>
+    <string name="traffic_week_total">Total ↑ %1$s ↓ %2$s</string>
+    <string name="traffic_week_note">Only the last 14 days are kept.</string>
+    <string name="traffic_week_empty">No traffic recorded this week yet.</string>
     <string name="traffic_not_running">Not running — traffic stats start after you start the proxy.</string>
     <string name="version_official"> (Official)</string>
     <string name="sort_delay_asc">Delay (low to high)</string>

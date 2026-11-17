@@ -69,6 +69,39 @@ class DailyTrafficStore(private val file: File) {
             .map { DailyTrafficDay(it, days[it]?.get(0) ?: 0L, days[it]?.get(1) ?: 0L) }
     }
 
+    /** Days with stored data in [start]..[end] (inclusive), oldest first. */
+    fun daysBetween(start: String, end: String): List<DailyTrafficDay> {
+        return days.keys
+            .filter { it in start..end }
+            .sorted()
+            .map { DailyTrafficDay(it, days[it]?.get(0) ?: 0L, days[it]?.get(1) ?: 0L) }
+    }
+
+    /**
+     * Days of the week [weeksBack] weeks ago that have stored data,
+     * oldest first. Weeks start on Monday; the current week ends today,
+     * past weeks end on Sunday. Only days present in the file are
+     * returned (the file keeps 14 days, so last week may be partial).
+     */
+    fun weekDays(todayKey: String, weeksBack: Int): List<DailyTrafficDay> {
+        val parsed = try {
+            dateFormat.parse(todayKey)
+        } catch (e: Exception) {
+            null
+        } ?: return emptyList()
+
+        val cal = Calendar.getInstance()
+        cal.time = parsed
+        // Calendar.SUNDAY == 1 .. SATURDAY == 7; Monday is offset 0.
+        val offsetToMonday = (cal.get(Calendar.DAY_OF_WEEK) + 5) % 7
+        cal.add(Calendar.DAY_OF_YEAR, -offsetToMonday - weeksBack * 7)
+        val start = dateFormat.format(cal.time)
+        cal.add(Calendar.DAY_OF_YEAR, 6)
+        var end = dateFormat.format(cal.time)
+        if (end > todayKey) end = todayKey
+        return daysBetween(start, end)
+    }
+
     fun save() {
         try {
             val stored = JSONObject()

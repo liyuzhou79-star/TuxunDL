@@ -305,7 +305,8 @@ class MainActivity : BaseActivity<MainDesign>() {
 
         uiState.todayUp = today.up
         uiState.todayDown = today.down
-        uiState.last7Days = dailyTraffic.previousDays(7, todayKey)
+        uiState.currentWeekDays = dailyTraffic.weekDays(todayKey, 0)
+        uiState.lastWeekDays = dailyTraffic.weekDays(todayKey, 1)
     }
 
     private fun resetTrafficSampling() {
@@ -352,7 +353,8 @@ class MainActivity : BaseActivity<MainDesign>() {
             dailyTickCount++
             if (dailyTickCount % 60 == 0) {
                 withContext(Dispatchers.IO) { dailyTraffic.save() }
-                uiState.last7Days = dailyTraffic.previousDays(7, todayKey)
+                uiState.currentWeekDays = dailyTraffic.weekDays(todayKey, 0)
+                uiState.lastWeekDays = dailyTraffic.weekDays(todayKey, 1)
             }
 
             // Persist the latest rates for the home-screen widget, throttled
