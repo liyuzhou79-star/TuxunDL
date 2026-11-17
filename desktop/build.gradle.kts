@@ -1,4 +1,3 @@
-import org.gradle.api.plugins.JavaPluginExtension
 import org.jetbrains.compose.desktop.application.dsl.TargetFormat
 
 // Kotlin 2.1.0 matches the Android side of this repo; Compose
@@ -47,12 +46,12 @@ compose.desktop {
 
 // Off-screen render of the home page (see PreviewMain.kt). The
 // preview-windows-ui workflow runs this and uploads the PNG, so the
-// UI can be eyeballed without a Windows machine.
+// UI can be eyeballed without a Windows machine. The classpath is
+// borrowed from the Compose plugin's own run task, which already
+// carries the full desktop runtime including the Skiko natives.
 tasks.register<JavaExec>("previewHome") {
-    val mainSourceSet = extensions.getByType<JavaPluginExtension>()
-        .sourceSets.getByName("main")
-    classpath = mainSourceSet.runtimeClasspath
+    dependsOn(tasks.named("compileKotlin"))
+    classpath = tasks.named<JavaExec>("run").get().classpath
     mainClass.set("com.tuxundl.windows.PreviewMainKt")
     args = listOf("tuxundl-home.png")
-    dependsOn(tasks.named("compileKotlin"))
 }
