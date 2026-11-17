@@ -200,6 +200,26 @@ class UiStore(context: Context) {
         defaultValue = ""
     )
 
+    /**
+     * Home brick order as a comma-separated list of brick ids
+     * (node, traffic, proxy, profile, providers, logs, settings, help,
+     * about), set by long-press drag on the home screen. Empty = default
+     * order (which follows [homeCardOrder] for the tile bricks).
+     */
+    var brickOrder: String by store.string(
+        key = "brick_order",
+        defaultValue = ""
+    )
+
+    /**
+     * Epoch day (UTC) of the first ever MainActivity launch; 0 = not yet
+     * recorded. Drives the "days used" counter in the mascot easter egg.
+     */
+    var firstLaunchDay: Long by store.long(
+        key = "first_launch_day",
+        defaultValue = 0L
+    )
+
     companion object {
         private const val PREFERENCE_NAME = "ui"
 

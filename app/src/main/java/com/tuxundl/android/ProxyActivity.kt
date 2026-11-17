@@ -34,11 +34,19 @@ class ProxyActivity : BaseActivity<ProxyDesign>() {
         data class SetSort(val sort: ProxySort) : Action
         data class SetExcludeNotSelectable(val exclude: Boolean) : Action
         data class ToggleFavorite(val group: String, val node: String) : Action
+
+        /** Single-node delay test (runs the group's health check; see ProxyScreen). */
+        data class TestNode(val group: String, val node: String) : Action
     }
 
     override suspend fun main() {
         var names = listOf<String>()
         val reloadLock = Semaphore(10)
+
+        // Groups with a delay test in flight (group test or single-node
+        // test). When such a group's reload lands, its testing nodes
+        // settle into testedNodes (see the Reload handler).
+        val pendingTestGroups = mutableSetOf<String>()
 
         suspend fun reloadNames() {
             names = withClash {
@@ -104,6 +112,31 @@ class ProxyActivity : BaseActivity<ProxyDesign>() {
                             uiStore.favoriteProxies = updated
                             uiState.favorites = updated
                         }
+                        is Action.TestNode -> {
+                            val key = "${it.group}|${it.node}"
+
+                            if (key !in uiState.testingNodes) {
+                                val index = names.indexOf(it.group)
+
+                                if (index >= 0) {
+                                    uiState.testingNodes = uiState.testingNodes + key
+                                    pendingTestGroups += it.group
+
+                                    launch {
+                                        // The core health check only
+                                        // accepts groups, so a single
+                                        // node's test re-tests its whole
+                                        // group and reads the node back
+                                        // on reload.
+                                        withClash {
+                                            healthCheck(it.group)
+                                        }
+
+                                        uiRequests.send(ProxyDesign.Request.Reload(index))
+                                    }
+                                }
+                            }
+                        }
                     }
                 }
                 uiRequests.onReceive {
@@ -134,6 +167,27 @@ class ProxyActivity : BaseActivity<ProxyDesign>() {
                                         selectable = group.type == "Selector"
                                         loaded = true
                                         urlTesting = false
+
+                                        // A test was in flight for this
+                                        // group: its testing nodes have
+                                        // their results now — settle them
+                                        // into the tested set so a 65535
+                                        // delay reads as "timeout", not
+                                        // "not tested".
+                                        if (name in pendingTestGroups) {
+                                            pendingTestGroups.remove(name)
+
+                                            val prefix = "$name|"
+                                            val finished = uiState.testingNodes
+                                                .filter { key -> key.startsWith(prefix) }
+
+                                            if (finished.isNotEmpty()) {
+                                                uiState.testingNodes =
+                                                    uiState.testingNodes - finished
+                                                uiState.testedNodes =
+                                                    uiState.testedNodes + finished
+                                            }
+                                        }
                                     }
                                 }
                             }
@@ -148,7 +202,15 @@ class ProxyActivity : BaseActivity<ProxyDesign>() {
                         is ProxyDesign.Request.UrlTest -> {
                             val index = it.index
 
-                            uiState.groups.getOrNull(index)?.urlTesting = true
+                            // Mark every node of the group as testing so
+                            // rows show "testing" instead of stale delays
+                            // while the health check runs.
+                            uiState.groups.getOrNull(index)?.let { group ->
+                                group.urlTesting = true
+                                pendingTestGroups += group.name
+                                uiState.testingNodes = uiState.testingNodes +
+                                    group.proxies.map { "${group.name}|${it.name}" }
+                            }
 
                             launch {
                                 withClash {
@@ -217,6 +279,9 @@ class ProxyActivity : BaseActivity<ProxyDesign>() {
                         onExpandedGroupChange = { name -> uiStore.proxyLastGroup = name },
                         onToggleFavorite = { group, node ->
                             uiActions.trySend(Action.ToggleFavorite(group, node))
+                        },
+                        onTestNode = { group, node ->
+                            uiActions.trySend(Action.TestNode(group, node))
                         },
                         onOpenRules = { startActivity(RulesActivity::class.intent) },
                         onBack = { finish() },

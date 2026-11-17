@@ -32,8 +32,12 @@ import com.tuxundl.android.ui.theme.customSeedColor
 import com.tuxundl.android.ui.trafficDownloadBytes
 import com.tuxundl.android.ui.trafficUploadBytes
 import com.tuxundl.android.util.DailyTrafficStore
+import com.tuxundl.android.util.DelaySample
+import com.tuxundl.android.util.SavedConnection
+import com.tuxundl.android.util.SavedConnectionStore
 import com.tuxundl.android.util.UpdateChecker
 import com.tuxundl.android.util.UpdateCheckResult
+import com.tuxundl.android.util.summarizeQuality
 import com.tuxundl.android.util.startClashService
 import com.tuxundl.android.util.stopClashService
 import com.tuxundl.android.util.withClash
@@ -67,11 +71,30 @@ class MainActivity : BaseActivity<MainDesign>() {
     private lateinit var dailyTraffic: DailyTrafficStore
     private var dailyTickCount = 0
 
+    // User-saved connection snapshots (filesDir/saved-connections.json).
+    private lateinit var savedConnections: SavedConnectionStore
+
+    // Consecutive seconds with zero up/down rate while running; a streak
+    // of 5+ counts as one stall in the advanced traffic panel.
+    private var zeroRateStreak = 0
+
+    // Periodic quality probe of the main group (every 15 ticks while
+    // running): healthCheck + read back the current node's delay.
+    private var qualityTickCount = 0
+    private var qualityProbing = false
+
     override suspend fun main() {
         dailyTraffic = DailyTrafficStore(filesDir.resolve("traffic-daily.json"))
+        savedConnections = SavedConnectionStore(filesDir.resolve("saved-connections.json"))
+
+        // First-launch day for the easter egg's "days used" counter.
+        if (uiStore.firstLaunchDay == 0L) {
+            uiStore.firstLaunchDay = System.currentTimeMillis() / 86_400_000L
+        }
 
         withContext(Dispatchers.IO) {
             dailyTraffic.load()
+            uiState.savedConnections = savedConnections.load()
         }
         refreshDailyState()
 
@@ -87,12 +110,14 @@ class MainActivity : BaseActivity<MainDesign>() {
                         Event.ClashStart -> {
                             uiStore.runningSince = System.currentTimeMillis()
                             resetTrafficSampling()
+                            resetSessionStats()
                             fetch()
                             TuxunWidgetProvider.requestUpdate(this@MainActivity)
                         }
                         Event.ClashStop -> {
                             uiStore.runningSince = 0L
                             resetTrafficSampling()
+                            resetSessionStats()
                             uiState.trafficSamples = emptyList()
                             fetch()
                             TuxunWidgetProvider.requestUpdate(this@MainActivity)
@@ -195,6 +220,44 @@ class MainActivity : BaseActivity<MainDesign>() {
                             }
                             uiState.updateInfo = null
                         }
+                        MainDesign.Request.OpenTrafficAdvanced -> {
+                            refreshDailyState()
+                            uiState.showTrafficAdvanced = true
+                        }
+                        MainDesign.Request.SaveCurrentConnection -> {
+                            if (clashRunning) {
+                                val summary = summarizeQuality(uiState.delaySamples)
+
+                                savedConnections.add(
+                                    SavedConnection(
+                                        id = SavedConnection.newId(),
+                                        savedAtMillis = System.currentTimeMillis(),
+                                        profileName = uiState.profileName ?: "",
+                                        nodeName = uiState.currentNodeName ?: "",
+                                        durationMillis = uiState.connectedMillis,
+                                        upBytes = uiState.sessionUpBytes,
+                                        downBytes = uiState.sessionDownBytes,
+                                        avgDelayMs = summary.avgDelayMs,
+                                        jitterMs = summary.jitterMs,
+                                        failRate = summary.failRate,
+                                        rating = summary.rating.name,
+                                    ),
+                                )
+                                uiState.savedConnections = savedConnections.snapshot()
+                            }
+                        }
+                        is MainDesign.Request.DeleteSavedConnection -> {
+                            savedConnections.remove(it.id)
+                            uiState.savedConnections = savedConnections.snapshot()
+                        }
+                        is MainDesign.Request.SetBrickOrder -> {
+                            uiStore.brickOrder = it.order
+                            uiState.brickOrder = parseBrickOrder(it.order)
+                        }
+                        is MainDesign.Request.SetCardOrder -> {
+                            uiStore.homeCardOrder = it.order
+                            uiState.cardOrder = parseCardOrder(it.order)
+                        }
                     }
                 }
                 if (clashRunning) {
@@ -221,6 +284,7 @@ class MainActivity : BaseActivity<MainDesign>() {
         uiState.showProviders = uiStore.showProvidersCard
         uiState.showTrafficMonitor = uiStore.showTrafficMonitorCard
         uiState.cardOrder = parseCardOrder(uiStore.homeCardOrder)
+        uiState.brickOrder = parseBrickOrder(uiStore.brickOrder)
 
         val state = withClash {
             queryTunnelState()
@@ -250,6 +314,26 @@ class MainActivity : BaseActivity<MainDesign>() {
             .distinct()
 
         return parsed + HOME_CARD_KEYS.filter { it !in parsed }
+    }
+
+    /** Stored brick order first; missing brick ids keep the default tail order. */
+    private fun parseBrickOrder(stored: String): List<String> {
+        val parsed = stored.split(",")
+            .map { it.trim() }
+            .filter { it in HOME_BRICK_KEYS }
+            .distinct()
+
+        return parsed + HOME_BRICK_KEYS.filter { it !in parsed }
+    }
+
+    /** Per-session counters behind the advanced traffic panel; reset on start/stop. */
+    private fun resetSessionStats() {
+        zeroRateStreak = 0
+        qualityTickCount = 0
+        uiState.sessionUpBytes = 0L
+        uiState.sessionDownBytes = 0L
+        uiState.stallCount = 0
+        uiState.delaySamples = emptyList()
     }
 
     /**
@@ -323,12 +407,62 @@ class MainActivity : BaseActivity<MainDesign>() {
         uiState.todayDown = today.down
         uiState.currentWeekDays = dailyTraffic.weekDays(todayKey, 0)
         uiState.lastWeekDays = dailyTraffic.weekDays(todayKey, 1)
+
+        // Easter-egg lifetime stats and the advanced panel's 24h window.
+        uiState.lifetimeUp = dailyTraffic.lifetimeUp()
+        uiState.lifetimeDown = dailyTraffic.lifetimeDown()
+        uiState.lifetimeConnectedSeconds = dailyTraffic.lifetimeConnectedSeconds()
+        uiState.todayConnectedSeconds = dailyTraffic.dayConnectedSeconds(todayKey)
+
+        val firstDay = uiStore.firstLaunchDay
+        val todayDay = System.currentTimeMillis() / 86_400_000L
+        uiState.daysUsed = if (firstDay > 0L) {
+            (todayDay - firstDay + 1L).toInt().coerceAtLeast(1)
+        } else {
+            1
+        }
+
+        val currentHour = System.currentTimeMillis() / 3_600_000L
+        uiState.hourlyBuckets = dailyTraffic.hourlyBuckets(currentHour - 23, currentHour)
     }
 
     private fun resetTrafficSampling() {
         prevTrafficUp = 0L
         prevTrafficDown = 0L
         prevTrafficAt = 0L
+    }
+
+    /**
+     * One quality probe: run the existing group health check, then read
+     * the current node's fresh delay back through [fetchCurrentNode].
+     * The core reports a failed/untested node as 65535, which the panel
+     * counts as a failed probe (-1). Results stay in memory (last 40).
+     */
+    private fun launchQualityProbe() {
+        val group = uiState.mainGroupName ?: return
+        if (qualityProbing) return
+
+        qualityProbing = true
+
+        launch {
+            try {
+                withClash { healthCheck(group) }
+                fetchCurrentNode()
+
+                val delay = uiState.currentNodeDelay
+                val sample = DelaySample(
+                    atMillis = System.currentTimeMillis(),
+                    delayMs = if (delay in 1..65534) delay else -1,
+                )
+                uiState.delaySamples = (uiState.delaySamples + sample).takeLast(40)
+            } catch (e: Exception) {
+                // Core stopped mid-probe: count it as a failed probe.
+                val sample = DelaySample(System.currentTimeMillis(), -1)
+                uiState.delaySamples = (uiState.delaySamples + sample).takeLast(40)
+            } finally {
+                qualityProbing = false
+            }
+        }
     }
 
     private suspend fun fetchTraffic() {
@@ -350,27 +484,56 @@ class MainActivity : BaseActivity<MainDesign>() {
                 downRate = ((down - prevTrafficDown).coerceAtLeast(0) / seconds).roundToLong(),
             )
 
-            uiState.trafficSamples = (uiState.trafficSamples + sample).takeLast(60)
+            // The monitor chart keeps the last 2 minutes (120 samples).
+            uiState.trafficSamples = (uiState.trafficSamples + sample).takeLast(120)
 
             // Daily totals: accumulate the raw byte deltas for today.
             // Only traffic while the app is open is counted (see the
             // note on the monitor card); the file is written at most
             // once a minute, plus once when the activity stops.
+            val deltaUp = (up - prevTrafficUp).coerceAtLeast(0)
+            val deltaDown = (down - prevTrafficDown).coerceAtLeast(0)
             val todayKey = dailyTraffic.todayKey()
-            dailyTraffic.add(
-                todayKey,
-                (up - prevTrafficUp).coerceAtLeast(0),
-                (down - prevTrafficDown).coerceAtLeast(0),
+            dailyTraffic.add(todayKey, deltaUp, deltaDown)
+            dailyTraffic.addHourly(
+                System.currentTimeMillis() / 3_600_000L,
+                deltaUp,
+                deltaDown,
             )
+            dailyTraffic.addConnected(todayKey, 1L)
             val today = dailyTraffic.today(todayKey)
             uiState.todayUp = today.up
             uiState.todayDown = today.down
+            uiState.todayConnectedSeconds = dailyTraffic.dayConnectedSeconds(todayKey)
+
+            // This session's totals, for the advanced panel and for
+            // snapshotting a saved connection.
+            uiState.sessionUpBytes += deltaUp
+            uiState.sessionDownBytes += deltaDown
+
+            // Stall detection: 5+ consecutive seconds of zero rate
+            // (after the session has carried something) count once.
+            if (sample.upRate == 0L && sample.downRate == 0L) {
+                zeroRateStreak++
+                if (zeroRateStreak == 5 &&
+                    uiState.sessionUpBytes + uiState.sessionDownBytes > 0L
+                ) {
+                    uiState.stallCount++
+                }
+            } else {
+                zeroRateStreak = 0
+            }
+
+            // Quality probe of the current group every 15 seconds.
+            qualityTickCount++
+            if (qualityTickCount % 15 == 0) {
+                launchQualityProbe()
+            }
 
             dailyTickCount++
             if (dailyTickCount % 60 == 0) {
                 withContext(Dispatchers.IO) { dailyTraffic.save() }
-                uiState.currentWeekDays = dailyTraffic.weekDays(todayKey, 0)
-                uiState.lastWeekDays = dailyTraffic.weekDays(todayKey, 1)
+                refreshDailyState()
             }
 
             // Persist the latest rates for the home-screen widget, throttled
@@ -566,6 +729,12 @@ class MainActivity : BaseActivity<MainDesign>() {
         /** All orderable home cards, in their default display order. */
         private val HOME_CARD_KEYS =
             listOf("monitor", "traffic", "proxy", "profile", "providers")
+
+        /** All home bricks (tiles + shortcuts), in their default display order. */
+        private val HOME_BRICK_KEYS = listOf(
+            "node", "traffic", "proxy", "profile", "providers",
+            "logs", "settings", "help", "about",
+        )
 
         /**
          * Version the full-screen update page was already shown for in

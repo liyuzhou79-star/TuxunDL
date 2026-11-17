@@ -5,11 +5,16 @@ import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.animateContentSize
 import androidx.compose.animation.core.FastOutSlowInEasing
+import androidx.compose.animation.core.RepeatMode
+import androidx.compose.animation.core.animateFloat
 import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.infiniteRepeatable
+import androidx.compose.animation.core.rememberInfiniteTransition
 import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.togetherWith
+import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -57,6 +62,7 @@ import com.tuxundl.android.core.model.Proxy
 import com.tuxundl.android.core.model.ProxySort
 import com.tuxundl.android.core.model.TunnelState
 import com.tuxundl.android.design.ProxyDesign
+import com.tuxundl.android.design.model.AnimationStyle
 import com.tuxundl.android.design.R as DesignR
 
 /**
@@ -95,6 +101,17 @@ class ProxyUiState {
     /** Favorite nodes as "group|node" keys (mirrors UiStore.favoriteProxies). */
     var favorites by mutableStateOf<Set<String>>(emptySet())
 
+    /** Nodes with a delay test in flight, as "group|node" keys. */
+    var testingNodes by mutableStateOf<Set<String>>(emptySet())
+
+    /**
+     * Nodes that finished at least one delay test this session, as
+     * "group|node" keys. The core reports both untested and timed-out
+     * nodes as delay 65535; this set is what tells them apart (timeout
+     * shows in red, untested shows "not tested").
+     */
+    var testedNodes by mutableStateOf<Set<String>>(emptySet())
+
     val snackbarHostState = SnackbarHostState()
 }
 
@@ -107,6 +124,7 @@ fun ProxyScreen(
     onExcludeNotSelectableChange: (Boolean) -> Unit,
     onExpandedGroupChange: (String) -> Unit,
     onToggleFavorite: (group: String, node: String) -> Unit,
+    onTestNode: (group: String, node: String) -> Unit,
     onOpenRules: () -> Unit,
     onBack: () -> Unit,
 ) {
@@ -234,6 +252,8 @@ fun ProxyScreen(
                             group = group,
                             links = links,
                             favorites = state.favorites,
+                            testingNodes = state.testingNodes,
+                            testedNodes = state.testedNodes,
                             query = query,
                             sort = state.sort,
                             // While searching, show matching rows without
@@ -251,6 +271,9 @@ fun ProxyScreen(
                             },
                             onToggleFavorite = { node ->
                                 onToggleFavorite(group.name, node)
+                            },
+                            onTestNode = { node ->
+                                onTestNode(group.name, node)
                             },
                             modifier = Modifier.animateItem(
                                 fadeInSpec = tuxunFadeSpec(itemStyle, entering = true),
@@ -414,6 +437,8 @@ private fun GroupCard(
     group: ProxyGroupUiState,
     links: Map<String, String>,
     favorites: Set<String>,
+    testingNodes: Set<String>,
+    testedNodes: Set<String>,
     query: String,
     sort: ProxySort,
     forceExpand: Boolean,
@@ -421,12 +446,14 @@ private fun GroupCard(
     onUrlTest: () -> Unit,
     onSelect: (String) -> Unit,
     onToggleFavorite: (String) -> Unit,
+    onTestNode: (String) -> Unit,
     modifier: Modifier = Modifier,
 ) {
-    // Search filter first, then — for delay sort only — untested nodes last.
-    // The Go core sorts Delay ascending with delay 0 (untested) first, so
-    // the UI re-orders: tested ascending, untested last. Favorites first;
-    // sortedBy is stable, so each partition keeps the order above.
+    // Search filter first, then — for delay sort only — untested and
+    // timed-out nodes (delay 65535 sentinel, or legacy 0) last. The Go
+    // core sorts Delay ascending with the sentinel mixed in, so the UI
+    // re-orders: tested ascending, untested/timeout last. Favorites
+    // first; sortedBy is stable, so each partition keeps the order above.
     val sortedProxies = remember(group.proxies, favorites, query, sort) {
         val filtered = if (query.isBlank()) {
             group.proxies
@@ -435,7 +462,8 @@ private fun GroupCard(
         }
         val ordered = if (sort == ProxySort.Delay) {
             filtered.sortedWith(
-                compareBy<Proxy> { it.delay <= 0 }.thenBy { it.delay },
+                compareBy<Proxy> { it.delay <= 0 || it.delay >= 65535 }
+                    .thenBy { it.delay },
             )
         } else {
             filtered
@@ -581,13 +609,17 @@ private fun GroupCard(
                         verticalArrangement = Arrangement.spacedBy(4.dp),
                     ) {
                         sortedProxies.forEachIndexed { index, proxy ->
+                            val nodeKey = "${group.name}|${proxy.name}"
                             ProxyRow(
                                 proxy = proxy,
                                 selected = proxy.name == group.now,
                                 links = links,
                                 enabled = group.selectable,
-                                favorite = "${group.name}|${proxy.name}" in favorites,
+                                favorite = nodeKey in favorites,
+                                testing = nodeKey in testingNodes || group.urlTesting,
+                                tested = nodeKey in testedNodes,
                                 onToggleFavorite = { onToggleFavorite(proxy.name) },
+                                onTestClick = { onTestNode(proxy.name) },
                                 onClick = { onSelect(proxy.name) },
                                 modifier = Modifier.tuxunStagger(index),
                             )
@@ -606,7 +638,10 @@ private fun ProxyRow(
     links: Map<String, String>,
     enabled: Boolean,
     favorite: Boolean,
+    testing: Boolean,
+    tested: Boolean,
     onToggleFavorite: () -> Unit,
+    onTestClick: () -> Unit,
     onClick: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
@@ -620,19 +655,6 @@ private fun ProxyRow(
         }
     } else {
         proxy.subtitle
-    }
-    val delayText = if (proxy.delay > 0) {
-        "${proxy.delay} ms"
-    } else if (proxy.isGroup) {
-        "-"
-    } else {
-        // Untested leaf node: small "not tested" text instead of "-".
-        stringResource(R.string.proxy_not_tested)
-    }
-    val delayStyle = if (proxy.delay <= 0 && !proxy.isGroup) {
-        MaterialTheme.typography.bodySmall
-    } else {
-        MaterialTheme.typography.bodyMedium
     }
 
     val style = animStyle()
@@ -695,10 +717,11 @@ private fun ProxyRow(
                 )
             }
         }
-        Text(
-            text = delayText,
-            style = delayStyle,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
+        DelayCell(
+            proxy = proxy,
+            testing = testing,
+            tested = tested,
+            onTestClick = onTestClick,
         )
         if (selected) {
             Icon(
@@ -727,5 +750,116 @@ private fun ProxyRow(
                     .tuxunPopOnSelect(favorite, peak = 1.3f),
             )
         }
+    }
+}
+
+/**
+ * The delay cell of a proxy row, with its own tap target: tapping it
+ * re-tests just this node (the row's other areas still select it).
+ *
+ * Display states, in priority order:
+ * - testing: a breathing dot + "Testing…" (never a stale number);
+ * - a real delay (1..65534): "X ms", coloured by tier
+ *   (<=200 green, <=500 neutral, above orange);
+ * - tested but the core sentinel (65535 / 0): red "Timeout";
+ * - group rows without a delay: "-";
+ * - otherwise: "Not tested".
+ */
+@Composable
+private fun DelayCell(
+    proxy: Proxy,
+    testing: Boolean,
+    tested: Boolean,
+    onTestClick: () -> Unit,
+) {
+    val delayColor = when {
+        proxy.delay <= 200 -> Color(0xFF43A047)
+        proxy.delay <= 500 -> MaterialTheme.colorScheme.onSurfaceVariant
+        else -> Color(0xFFEF6C00)
+    }
+
+    Box(
+        modifier = Modifier
+            .clip(RoundedCornerShape(8.dp))
+            .then(
+                if (proxy.isGroup) {
+                    Modifier
+                } else {
+                    Modifier.clickable(onClick = onTestClick)
+                },
+            )
+            .padding(horizontal = 8.dp, vertical = 6.dp),
+    ) {
+        when {
+            testing -> {
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(6.dp),
+                ) {
+                    TestingDot()
+                    Text(
+                        text = stringResource(R.string.proxy_testing),
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                }
+            }
+            proxy.delay in 1..65534 -> {
+                Text(
+                    text = "${proxy.delay} ms",
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = delayColor,
+                )
+            }
+            tested -> {
+                Text(
+                    text = stringResource(R.string.proxy_timeout),
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.error,
+                )
+            }
+            proxy.isGroup -> {
+                Text(
+                    text = "-",
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
+            else -> {
+                Text(
+                    text = stringResource(R.string.proxy_not_tested),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
+        }
+    }
+}
+
+/** Breathing dot shown while a node is being tested (static in Reduced style). */
+@Composable
+private fun TestingDot() {
+    val color = MaterialTheme.colorScheme.primary
+
+    if (animStyle() == AnimationStyle.Reduced) {
+        Canvas(modifier = Modifier.size(8.dp)) {
+            drawCircle(color = color)
+        }
+        return
+    }
+
+    val transition = rememberInfiniteTransition(label = "testingDot")
+    val alpha by transition.animateFloat(
+        initialValue = 0.25f,
+        targetValue = 1f,
+        animationSpec = infiniteRepeatable(
+            animation = tween(durationMillis = 800, easing = FastOutSlowInEasing),
+            repeatMode = RepeatMode.Reverse,
+        ),
+        label = "testingDotAlpha",
+    )
+
+    Canvas(modifier = Modifier.size(8.dp)) {
+        drawCircle(color = color.copy(alpha = alpha))
     }
 }

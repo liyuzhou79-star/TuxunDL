@@ -35,6 +35,21 @@ class MainDesign(context: Context) : Design<MainDesign.Request>(context) {
 
         /** Dismiss the "new version" card for the version it announced. */
         object DismissUpdate : Request()
+
+        /** Open the advanced traffic panel (24h totals, quality, saved connections). */
+        object OpenTrafficAdvanced : Request()
+
+        /** Snapshot the current connection into the saved-connections list. */
+        object SaveCurrentConnection : Request()
+
+        /** Remove one saved connection snapshot by id. */
+        data class DeleteSavedConnection(val id: String) : Request()
+
+        /** Persist a new home brick order (comma-separated brick ids). */
+        data class SetBrickOrder(val order: String) : Request()
+
+        /** Persist a new home card order (comma-separated card keys). */
+        data class SetCardOrder(val order: String) : Request()
     }
 
     private val binding = DesignMainBinding
