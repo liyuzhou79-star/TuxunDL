@@ -27,6 +27,7 @@ import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.SegmentedButton
 import androidx.compose.material3.SegmentedButtonDefaults
@@ -84,6 +85,9 @@ class ProxyUiState {
     var sort by mutableStateOf(ProxySort.Default)
     var excludeNotSelectable by mutableStateOf(false)
 
+    /** Node search keyword; blank shows everything. */
+    var searchQuery by mutableStateOf("")
+
     /** Favorite nodes as "group|node" keys (mirrors UiStore.favoriteProxies). */
     var favorites by mutableStateOf<Set<String>>(emptySet())
 
@@ -140,6 +144,53 @@ fun ProxyScreen(
                     .padding(horizontal = 16.dp, vertical = 12.dp),
             )
 
+            // Always-visible node search (same look as the per-app proxy page):
+            // live filter over node names, blank shows everything.
+            OutlinedTextField(
+                value = state.searchQuery,
+                onValueChange = { state.searchQuery = it },
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 16.dp, vertical = 4.dp),
+                singleLine = true,
+                leadingIcon = {
+                    Icon(
+                        painter = painterResource(DesignR.drawable.ic_baseline_search),
+                        contentDescription = null,
+                    )
+                },
+                trailingIcon = {
+                    if (state.searchQuery.isNotEmpty()) {
+                        IconButton(onClick = { state.searchQuery = "" }) {
+                            Icon(
+                                painter = painterResource(DesignR.drawable.ic_baseline_close),
+                                contentDescription = null,
+                            )
+                        }
+                    }
+                },
+                placeholder = {
+                    Text(text = stringResource(DesignR.string.search))
+                },
+            )
+
+            // Groups that still have a matching row. A group that has not
+            // finished loading yet stays visible — it may still match.
+            // Reading group.loaded / group.proxies here subscribes this
+            // composable to them, so groups appear as they finish loading.
+            val query = state.searchQuery
+            val visibleGroups = if (query.isBlank()) {
+                state.groups
+            } else {
+                state.groups.filter { group ->
+                    !group.loaded || group.proxies.any { matchesProxyQuery(it, query) }
+                }
+            }
+            val noSearchResult = query.isNotBlank() &&
+                state.groups.isNotEmpty() &&
+                state.groups.all { it.loaded } &&
+                visibleGroups.isEmpty()
+
             if (state.groups.isEmpty()) {
                 Box(
                     modifier = Modifier.fillMaxSize(),
@@ -147,6 +198,16 @@ fun ProxyScreen(
                 ) {
                     Text(
                         text = stringResource(DesignR.string.proxy_empty_tips),
+                        style = MaterialTheme.typography.titleMedium,
+                    )
+                }
+            } else if (noSearchResult) {
+                Box(
+                    modifier = Modifier.fillMaxSize(),
+                    contentAlignment = Alignment.Center,
+                ) {
+                    Text(
+                        text = stringResource(R.string.proxy_search_no_result),
                         style = MaterialTheme.typography.titleMedium,
                     )
                 }
@@ -160,20 +221,28 @@ fun ProxyScreen(
                         .padding(horizontal = 16.dp),
                     verticalArrangement = Arrangement.spacedBy(12.dp),
                 ) {
-                    itemsIndexed(state.groups, key = { _, group -> group.name }) { index, group ->
+                    itemsIndexed(visibleGroups, key = { _, group -> group.name }) { _, group ->
+                        // UrlTest/Select take the group's index in the full
+                        // list, not its position in the filtered list.
+                        val realIndex = state.groups.indexOf(group)
                         GroupCard(
                             group = group,
                             links = links,
                             favorites = state.favorites,
+                            query = query,
+                            sort = state.sort,
+                            // While searching, show matching rows without
+                            // making the user tap each group open.
+                            forceExpand = query.isNotBlank(),
                             onToggleExpand = {
                                 group.expanded = !group.expanded
                                 if (group.expanded) {
                                     onExpandedGroupChange(group.name)
                                 }
                             },
-                            onUrlTest = { onRequest(ProxyDesign.Request.UrlTest(index)) },
+                            onUrlTest = { onRequest(ProxyDesign.Request.UrlTest(realIndex)) },
                             onSelect = { name ->
-                                onRequest(ProxyDesign.Request.Select(index, name))
+                                onRequest(ProxyDesign.Request.Select(realIndex, name))
                             },
                             onToggleFavorite = { node ->
                                 onToggleFavorite(group.name, node)
@@ -258,7 +327,7 @@ private fun ProxyOverflowMenu(
                 text = {
                     Text(
                         text = stringResource(DesignR.string.sort) + ": " +
-                            stringResource(DesignR.string.delay),
+                            stringResource(R.string.sort_delay_asc),
                     )
                 },
                 leadingIcon = { MenuCheckIcon(checked = state.sort == ProxySort.Delay) },
@@ -278,6 +347,16 @@ private fun ProxyOverflowMenu(
             )
         }
     }
+}
+
+/**
+ * Case-insensitive substring match against a node's display name and raw
+ * name. A blank query matches everything.
+ */
+private fun matchesProxyQuery(proxy: Proxy, query: String): Boolean {
+    if (query.isBlank()) return true
+    return proxy.title.contains(query, ignoreCase = true) ||
+        proxy.name.contains(query, ignoreCase = true)
 }
 
 @Composable
@@ -325,16 +404,33 @@ private fun GroupCard(
     group: ProxyGroupUiState,
     links: Map<String, String>,
     favorites: Set<String>,
+    query: String,
+    sort: ProxySort,
+    forceExpand: Boolean,
     onToggleExpand: () -> Unit,
     onUrlTest: () -> Unit,
     onSelect: (String) -> Unit,
     onToggleFavorite: (String) -> Unit,
     modifier: Modifier = Modifier,
 ) {
-    // Favorites first; sortedBy is stable, so each partition keeps its
-    // original relative order.
-    val sortedProxies = remember(group.proxies, favorites) {
-        group.proxies.sortedBy { proxy ->
+    // Search filter first, then — for delay sort only — untested nodes last.
+    // The Go core sorts Delay ascending with delay 0 (untested) first, so
+    // the UI re-orders: tested ascending, untested last. Favorites first;
+    // sortedBy is stable, so each partition keeps the order above.
+    val sortedProxies = remember(group.proxies, favorites, query, sort) {
+        val filtered = if (query.isBlank()) {
+            group.proxies
+        } else {
+            group.proxies.filter { matchesProxyQuery(it, query) }
+        }
+        val ordered = if (sort == ProxySort.Delay) {
+            filtered.sortedWith(
+                compareBy<Proxy> { it.delay <= 0 }.thenBy { it.delay },
+            )
+        } else {
+            filtered
+        }
+        ordered.sortedBy { proxy ->
             if ("${group.name}|${proxy.name}" in favorites) 0 else 1
         }
     }
@@ -391,7 +487,7 @@ private fun GroupCard(
             }
 
             AnimatedVisibility(
-                visible = group.expanded,
+                visible = group.expanded || forceExpand,
                 enter = expandVertically() + fadeIn(),
                 exit = shrinkVertically() + fadeOut(),
             ) {
@@ -451,7 +547,19 @@ private fun ProxyRow(
     } else {
         proxy.subtitle
     }
-    val delayText = if (proxy.delay > 0) "${proxy.delay} ms" else "-"
+    val delayText = if (proxy.delay > 0) {
+        "${proxy.delay} ms"
+    } else if (proxy.isGroup) {
+        "-"
+    } else {
+        // Untested leaf node: small "not tested" text instead of "-".
+        stringResource(R.string.proxy_not_tested)
+    }
+    val delayStyle = if (proxy.delay <= 0 && !proxy.isGroup) {
+        MaterialTheme.typography.bodySmall
+    } else {
+        MaterialTheme.typography.bodyMedium
+    }
 
     Row(
         modifier = Modifier
@@ -484,7 +592,7 @@ private fun ProxyRow(
         }
         Text(
             text = delayText,
-            style = MaterialTheme.typography.bodyMedium,
+            style = delayStyle,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
         )
         if (selected) {

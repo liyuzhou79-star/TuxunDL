@@ -90,4 +90,7 @@
     <string name="traffic_last_7_days">Last 7 Days</string>
     <string name="traffic_not_running">Not running — traffic stats start after you start the proxy.</string>
     <string name="version_official"> (Official)</string>
+    <string name="sort_delay_asc">Delay (low to high)</string>
+    <string name="proxy_not_tested">Not tested</string>
+    <string name="proxy_search_no_result">No matching nodes</string>
 </resources>

@@ -75,4 +75,7 @@
     <string name="traffic_last_7_days">近 7 日</string>
     <string name="traffic_not_running">未啟動，啟動代理後開始統計。</string>
     <string name="version_official">（正式版）</string>
+    <string name="sort_delay_asc">延遲由低到高</string>
+    <string name="proxy_not_tested">未測試</string>
+    <string name="proxy_search_no_result">沒有符合的節點</string>
 </resources>
