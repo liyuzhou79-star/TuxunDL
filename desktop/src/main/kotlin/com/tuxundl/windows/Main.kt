@@ -74,10 +74,10 @@ internal fun App() {
         )
 
         Box(modifier = Modifier.fillMaxSize()) {
-            if (selectedNav == 0) {
-                HomePage()
-            } else {
-                Text(
+            when (selectedNav) {
+                0 -> HomePage()
+                2 -> SubscriptionsPage()
+                else -> Text(
                     text = "${NAV_ITEMS[selectedNav]}（开发中）",
                     color = TextDim,
                     fontSize = 16.sp,
