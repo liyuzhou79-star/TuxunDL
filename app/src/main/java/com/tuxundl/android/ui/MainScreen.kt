@@ -26,6 +26,7 @@ import androidx.compose.animation.shrinkVertically
 import androidx.compose.animation.slideInVertically
 import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.Canvas
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -205,7 +206,22 @@ fun MainScreen(
         AlertDialog(
             onDismissRequest = { state.aboutVersion = null },
             title = { Text(text = stringResource(R.string.application_name)) },
-            text = { Text(text = aboutVersion) },
+            text = {
+                Column(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                ) {
+                    Image(
+                        painter = painterResource(R.drawable.about_globe),
+                        contentDescription = null,
+                        modifier = Modifier
+                            .size(120.dp)
+                            .clip(RoundedCornerShape(28.dp)),
+                    )
+                    Spacer(modifier = Modifier.height(16.dp))
+                    Text(text = aboutVersion)
+                }
+            },
             confirmButton = {
                 TextButton(onClick = { state.aboutVersion = null }) {
                     Text(text = stringResource(DesignR.string.ok))

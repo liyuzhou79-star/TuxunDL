@@ -147,6 +147,6 @@ class UiStore(context: Context) {
         private const val PREFERENCE_NAME = "ui"
 
         val Context.mainActivityAlias: ComponentName
-            get() = ComponentName(this, "com.tuxundl.android.MainActivityAlias")
+            get() = ComponentName(this, "$packageName.MainActivityAlias")
     }
 }

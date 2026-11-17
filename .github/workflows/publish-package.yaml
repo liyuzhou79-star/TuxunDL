@@ -1,13 +1,26 @@
 name: Publish Package
 
-# Whenever a GitHub Release is published, also publish that version's
-# arm64 APK to GitHub Packages (Maven registry) so the repo's
-# "Packages" section lists it too. Can also be run manually for an
-# existing release tag (e.g. v0.5.0) to backfill.
+# Keeps GitHub Packages (Maven registry) in sync with GitHub Releases:
+# every non-draft release's standard arm64 APK is published as
+# com.tuxundl:tuxundl:<version> (packaging=apk), so the repo's "Packages"
+# section lists every version.
+#
+# Triggers:
+# - release published: sync right after a release goes live.
+# - push to main: releases created through the API with a PAT do not fire
+#   release events, but pushes do trigger workflows — this is the reliable
+#   path, and the sync is self-healing (missing versions are picked up on
+#   the next push).
+# - workflow_dispatch with a tag: backfill/repair one single version.
+#
+# Versions already present in Packages are always skipped (GitHub Packages
+# rejects re-deploying the same version with 409).
 
 on:
   release:
     types: [published]
+  push:
+    branches: [main]
   workflow_dispatch:
     inputs:
       tag:
@@ -18,28 +31,14 @@ permissions:
   contents: read
   packages: write
 
+concurrency:
+  group: publish-package
+  cancel-in-progress: false
+
 jobs:
   publish-package:
     runs-on: ubuntu-latest
     steps:
-      - name: Resolve tag
-        id: tag
-        run: |
-          if [ "${{ github.event_name }}" = "release" ]; then
-            echo "tag=${{ github.event.release.tag_name }}" >> "$GITHUB_OUTPUT"
-          else
-            echo "tag=${{ inputs.tag }}" >> "$GITHUB_OUTPUT"
-          fi
-
-      - name: Download release APK
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          TAG: ${{ steps.tag.outputs.tag }}
-        run: |
-          gh release download "$TAG" --repo "${{ github.repository }}" \
-            --pattern "*arm64-v8a.apk" --dir dist
-          ls -la dist
-
       - name: Set up Maven
         uses: actions/setup-java@v4
         with:
@@ -49,19 +48,63 @@ jobs:
           server-username: MAVEN_USERNAME
           server-password: MAVEN_PASSWORD
 
-      - name: Deploy APK to GitHub Packages
+      - name: Sync missing releases to GitHub Packages
         env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           MAVEN_USERNAME: ${{ github.actor }}
           MAVEN_PASSWORD: ${{ secrets.GITHUB_TOKEN }}
-          TAG: ${{ steps.tag.outputs.tag }}
+          REPO: ${{ github.repository }}
+          ONLY_TAG: ${{ github.event_name == 'workflow_dispatch' && inputs.tag || '' }}
         run: |
-          VERSION="${TAG#v}"
-          APK="$(ls dist/*arm64-v8a.apk | head -n 1)"
-          mvn --batch-mode deploy:deploy-file \
-            -DgroupId=com.tuxundl \
-            -DartifactId=tuxundl \
-            -Dversion="$VERSION" \
-            -Dpackaging=apk \
-            -Dfile="$APK" \
-            -DrepositoryId=github \
-            -Durl="https://maven.pkg.github.com/${{ github.repository }}"
+          set -uo pipefail
+
+          METADATA_URL="https://maven.pkg.github.com/${REPO}/com/tuxundl/tuxundl/maven-metadata.xml"
+          echo "Reading published versions from ${METADATA_URL}"
+          PUBLISHED="$(curl -s -u "${MAVEN_USERNAME}:${MAVEN_PASSWORD}" "${METADATA_URL}" \
+            | grep -o '<version>[^<]*</version>' | sed 's/<[^>]*>//g' || true)"
+          echo "Already in Packages: ${PUBLISHED:-<none>}"
+
+          if [ -n "${ONLY_TAG}" ]; then
+            TAGS="${ONLY_TAG}"
+          else
+            TAGS="$(gh api "repos/${REPO}/releases?per_page=100" \
+              --jq '.[] | select(.draft | not) | .tag_name')"
+          fi
+
+          for TAG in ${TAGS}; do
+            VERSION="${TAG#v}"
+
+            if printf '%s\n' "${PUBLISHED}" | grep -qx "${VERSION}"; then
+              echo "== ${TAG}: version ${VERSION} already in Packages, skipping"
+              continue
+            fi
+
+            echo "== ${TAG}: publishing version ${VERSION}"
+
+            # Standard arm64 asset only: name contains "arm64" but not
+            # "legacy" (the legacy variant is a separate package and is
+            # not published to this Maven artifact).
+            ASSET_ID="$(gh api "repos/${REPO}/releases/tags/${TAG}" \
+              --jq '.assets[] | select(.name | (contains("arm64") and (contains("legacy") | not))) | .id' \
+              | head -n 1)"
+
+            if [ -z "${ASSET_ID}" ]; then
+              echo "== ${TAG}: no standard arm64 asset found, skipping"
+              continue
+            fi
+
+            rm -rf dist && mkdir -p dist
+            gh api "repos/${REPO}/releases/assets/${ASSET_ID}" \
+              -H "Accept: application/octet-stream" > dist/app.apk
+            ls -la dist
+
+            mvn --batch-mode deploy:deploy-file \
+              -DgroupId=com.tuxundl \
+              -DartifactId=tuxundl \
+              -Dversion="${VERSION}" \
+              -Dpackaging=apk \
+              -Dfile=dist/app.apk \
+              -DrepositoryId=github \
+              -Durl="https://maven.pkg.github.com/${REPO}" \
+              || echo "== ${TAG}: deploy failed, will retry on next sync"
+          done

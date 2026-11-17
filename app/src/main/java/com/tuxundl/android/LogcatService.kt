@@ -138,8 +138,8 @@ class LogcatService : Service(), CoroutineScope by CoroutineScope(Dispatchers.De
     private fun showNotification() {
         val notification = NotificationCompat
             .Builder(this, CHANNEL_ID)
-            .setSmallIcon(com.tuxundl.android.service.R.drawable.ic_logo_service)
-            .setColor(getColorCompat(com.tuxundl.android.design.R.color.color_clash_light))
+            .setSmallIcon(com.tuxundl.android.service.R.drawable.ic_logo_tuxundl)
+            .setColor(getColorCompat(com.tuxundl.android.service.R.color.color_tuxundl))
             .setContentTitle(getString(com.tuxundl.android.design.R.string.clash_logcat))
             .setContentText(getString(com.tuxundl.android.design.R.string.running))
             .setContentIntent(

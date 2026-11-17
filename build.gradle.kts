@@ -46,9 +46,20 @@ subprojects {
     extensions.configure<BaseExtension> {
         buildFeatures.buildConfig = true
         defaultConfig {
+            // -PtuxundlLegacy builds the old-device variant: same app name
+            // and code, but applicationId com.tuxundl.android.legacy so it
+            // can coexist with the standard build on 32-bit devices.
+            val legacyProperty = project.findProperty("tuxundlLegacy")
+            val isLegacyBuild =
+                legacyProperty != null && legacyProperty.toString() != "false"
+
             if (isApp) {
                 val customApplicationId = queryConfigProperty("custom.application.id") as? String?
-                applicationId = customApplicationId.takeIf { it?.isNotBlank() == true } ?: "com.tuxundl.android"
+                applicationId = if (isLegacyBuild) {
+                    "com.tuxundl.android.legacy"
+                } else {
+                    customApplicationId.takeIf { it?.isNotBlank() == true } ?: "com.tuxundl.android"
+                }
             }
 
             project.name.let { name ->
@@ -59,8 +70,8 @@ subprojects {
             minSdk = 21
             targetSdk = 35
 
-            versionName = "0.7.0"
-            versionCode = 7
+            versionName = "0.8.0"
+            versionCode = 8
 
             resValue("string", "release_name", "v$versionName")
             resValue("integer", "release_code", "$versionCode")
@@ -78,7 +89,10 @@ subprojects {
             if (!isApp) {
                 consumerProguardFiles("consumer-rules.pro")
             } else {
-                setProperty("archivesBaseName", "tuxundl-$versionName")
+                setProperty(
+                    "archivesBaseName",
+                    if (isLegacyBuild) "tuxundl-legacy-$versionName" else "tuxundl-$versionName"
+                )
             }
         }
 
