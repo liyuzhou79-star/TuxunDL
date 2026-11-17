@@ -30,6 +30,19 @@ import androidx.compose.ui.unit.sp
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 
+// Each page file keeps its own private palette copy (the package has
+// several, so a new file must declare its own to stay unambiguous).
+private val Indigo = Color(0xFF5B5BD6)
+private val PanelDark = Color(0xFF1E1E2A)
+private val TextDim = Color(0xFF9A9AB0)
+
+private fun fmtBytes(bytes: Long): String = when {
+    bytes < 1024 -> "$bytes B"
+    bytes < 1024 * 1024 -> "%.1f KB".format(bytes / 1024.0)
+    bytes < 1024 * 1024 * 1024 -> "%.1f MB".format(bytes / 1048576.0)
+    else -> "%.2f GB".format(bytes / 1073741824.0)
+}
+
 /**
  * The connections page: every connection the core is holding open,
  * refreshed every three seconds, with per-connection and close-all
@@ -144,7 +157,7 @@ fun ConnectionsPage() {
                         )
                     }
                     Text(
-                        text = "↓ ${formatBytes(conn.download)}  ↑ ${formatBytes(conn.upload)}",
+                        text = "↓ ${fmtBytes(conn.download)}  ↑ ${fmtBytes(conn.upload)}",
                         color = TextDim,
                         fontSize = 12.sp,
                     )
