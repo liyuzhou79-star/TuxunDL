@@ -29,16 +29,23 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalClipboardManager
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.unit.dp
 import com.tuxundl.android.R
 import com.tuxundl.android.design.SettingsDesign
+import com.tuxundl.android.util.UpdateCheckResult
+import com.tuxundl.android.util.UpdateChecker
 import com.tuxundl.android.util.UpdateInfo
+import com.tuxundl.android.util.WindowsInfo
+import kotlinx.coroutines.launch
 import com.tuxundl.android.design.R as DesignR
 
 /** State for the settings home: the manual update-check flow lives here. */
@@ -62,6 +69,12 @@ class SettingsUiState {
 
     /** In-app language tag; "" = follow system (mirrors UiStore). */
     var appLanguage by mutableStateOf("")
+
+    /** True while the Windows-edition lookup is running (1.2.4). */
+    var checkingWindows by mutableStateOf(false)
+
+    /** Non-null while the Windows-edition dialog is shown (1.2.4). */
+    var windowsInfo by mutableStateOf<WindowsInfo?>(null)
 }
 
 /**
@@ -92,6 +105,8 @@ fun SettingsScreen(
 ) {
     var showLanguageDialog by remember { mutableStateOf(false) }
     var showThresholdDialog by remember { mutableStateOf(false) }
+    val screenContext = LocalContext.current
+    val screenScope = rememberCoroutineScope()
 
     Scaffold(
         topBar = {
@@ -215,7 +230,97 @@ fun SettingsScreen(
                 },
                 onClick = { onRequest(SettingsDesign.Request.CheckUpdate) },
             )
+
+            SettingsSectionTitle(
+                text = stringResource(R.string.windows_section_title),
+            )
+            SettingsEntryCard(
+                icon = DesignR.drawable.ic_baseline_update,
+                title = stringResource(R.string.windows_section_title),
+                trailing = {
+                    if (state.checkingWindows) {
+                        CircularProgressIndicator(modifier = Modifier.size(24.dp))
+                    }
+                },
+                onClick = {
+                    // Look up the newest Windows release (1.2.4). The
+                    // checker already collects it alongside the
+                    // Android result; here we only surface it.
+                    if (!state.checkingWindows) {
+                        state.checkingWindows = true
+                        screenScope.launch {
+                            val current = runCatching {
+                                screenContext.packageManager.getPackageInfo(
+                                    screenContext.packageName, 0,
+                                ).versionName ?: ""
+                            }.getOrDefault("")
+                            val result = UpdateChecker.check(current)
+                            state.checkingWindows = false
+                            val windows = when (result) {
+                                is UpdateCheckResult.UpdateAvailable ->
+                                    result.windows
+                                is UpdateCheckResult.UpToDate ->
+                                    result.windows
+                                is UpdateCheckResult.Failed -> null
+                            }
+                            if (windows != null) {
+                                state.windowsInfo = windows
+                            } else {
+                                state.updateMessage = screenContext.getString(
+                                    R.string.windows_check_failed,
+                                )
+                            }
+                        }
+                    }
+                },
+            )
         }
+    }
+
+    val windowsInfo = state.windowsInfo
+    if (windowsInfo != null) {
+        val clipboard = LocalClipboardManager.current
+        AlertDialog(
+            onDismissRequest = { state.windowsInfo = null },
+            title = { Text(text = stringResource(R.string.windows_section_title)) },
+            text = {
+                Text(
+                    text = stringResource(
+                        R.string.windows_latest,
+                        windowsInfo.version,
+                    ) + "\n" + stringResource(R.string.windows_entry_summary),
+                )
+            },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        state.windowsInfo = null
+                        windowsInfo.pageUrl?.let { url ->
+                            screenContext.startActivity(
+                                Intent(Intent.ACTION_VIEW, Uri.parse(url)),
+                            )
+                        }
+                    },
+                ) {
+                    Text(text = stringResource(R.string.windows_open_page))
+                }
+            },
+            dismissButton = {
+                TextButton(
+                    onClick = {
+                        windowsInfo.pageUrl?.let { url ->
+                            clipboard.setText(AnnotatedString(url))
+                        }
+                        state.windowsInfo = null
+                        state.updateMessage = screenContext.getString(
+                            R.string.windows_copied,
+                        )
+                    },
+                ) {
+                    Text(text = stringResource(R.string.windows_copy_link))
+                }
+            },
+        )
     }
 
     if (showLanguageDialog) {
