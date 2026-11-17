@@ -1,5 +1,11 @@
 name: Build Release
 
+# The version-bump commit, the tag push and the release creation all
+# write to this repository; the default token in this repo is
+# read-only, so the write grant has to be explicit.
+permissions:
+  contents: write
+
 on:
   workflow_dispatch:
     inputs:
