@@ -905,6 +905,13 @@ private fun DrawScope.drawSeries(points: List<Offset>, color: Color, sweep: Floa
     )
 }
 
+/** Days until [expireMillis] (epoch millis), rounded up; -1 means already expired. */
+private fun daysUntilExpiry(expireMillis: Long): Long {
+    val diff = expireMillis - System.currentTimeMillis()
+    if (diff <= 0L) return -1L
+    return (diff + 86_400_000L - 1L) / 86_400_000L
+}
+
 /**
  * Active profile's subscription usage (from the subscription-userinfo the
  * profile manager already tracks): used / total with a progress bar and
@@ -954,6 +961,28 @@ private fun SubscriptionCard(state: MainUiState) {
                 style = MaterialTheme.typography.bodyMedium,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
+            // Expiry reminder: only within 3 days of expiry (or already
+            // expired). No expiry date on the profile: show nothing.
+            // Display only — no notification, no subscription refresh.
+            if (state.subExpire > 0L) {
+                val daysLeft = daysUntilExpiry(state.subExpire)
+                if (daysLeft < 0L) {
+                    Text(
+                        text = stringResource(R.string.subscription_expired),
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.error,
+                    )
+                } else if (daysLeft <= 3L) {
+                    Text(
+                        text = stringResource(
+                            R.string.subscription_expires_soon,
+                            daysLeft.toInt(),
+                        ),
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.tertiary,
+                    )
+                }
+            }
             LinearProgressIndicator(
                 progress = (used.toFloat() / state.subTotal.toFloat()).coerceIn(0f, 1f),
                 modifier = Modifier.fillMaxWidth(),

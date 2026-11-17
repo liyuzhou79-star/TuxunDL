@@ -61,6 +61,8 @@
     <string name="traffic_monitor">流量监控</string>
     <string name="subscription">订阅</string>
     <string name="subscription_expires">到期 %1$s</string>
+    <string name="subscription_expires_soon">订阅将于 %1$d 天后到期</string>
+    <string name="subscription_expired">订阅已到期</string>
     <string name="profile_details">设定档详情</string>
     <string name="move_up">上移</string>
     <string name="move_down">下移</string>
@@ -93,4 +95,9 @@
     <string name="sort_delay_asc">延迟由低到高</string>
     <string name="proxy_not_tested">未测试</string>
     <string name="proxy_search_no_result">没有符合的节点</string>
+    <string name="log_search_no_result">没有符合的日志</string>
+    <string name="log_level_all">全部</string>
+    <string name="log_level_error">错误</string>
+    <string name="log_level_warning">警告</string>
+    <string name="log_level_info">信息</string>
 </resources>

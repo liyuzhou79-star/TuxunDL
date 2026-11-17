@@ -61,6 +61,8 @@
     <string name="traffic_monitor">Traffic Monitor</string>
     <string name="subscription">Subscription</string>
     <string name="subscription_expires">Expires %1$s</string>
+    <string name="subscription_expires_soon">Subscription expires in %1$d days</string>
+    <string name="subscription_expired">Subscription expired</string>
     <string name="profile_details">Profile Details</string>
     <string name="move_up">Move up</string>
     <string name="move_down">Move down</string>
@@ -93,4 +95,9 @@
     <string name="sort_delay_asc">Delay (low to high)</string>
     <string name="proxy_not_tested">Not tested</string>
     <string name="proxy_search_no_result">No matching nodes</string>
+    <string name="log_search_no_result">No matching log entries</string>
+    <string name="log_level_all">All</string>
+    <string name="log_level_error">Error</string>
+    <string name="log_level_warning">Warning</string>
+    <string name="log_level_info">Info</string>
 </resources>

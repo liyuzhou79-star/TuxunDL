@@ -144,6 +144,12 @@ class UiStore(context: Context) {
         defaultValue = false,
     )
 
+    /** Log viewer level filter ("all" / "error" / "warning" / "info"); persists across restarts. */
+    var logLevelFilter: String by store.string(
+        key = "log_level_filter",
+        defaultValue = "all"
+    )
+
     /** Favorite proxy nodes, stored as "group|node" keys; favorites pin to the top of their group. */
     var favoriteProxies: Set<String> by store.stringSet(
         key = "favorite_proxies",

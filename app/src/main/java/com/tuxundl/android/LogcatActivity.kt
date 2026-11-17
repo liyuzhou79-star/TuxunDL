@@ -27,12 +27,15 @@ import com.tuxundl.android.log.LogcatFilter
 import com.tuxundl.android.log.LogcatReader
 import com.tuxundl.android.ui.LogcatScreen
 import com.tuxundl.android.ui.LogcatUiState
+import com.tuxundl.android.ui.filterLogMessages
 import com.tuxundl.android.ui.theme.TuxunDLTheme
 import com.tuxundl.android.ui.theme.customSeedColor
 import com.tuxundl.android.util.logsDir
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.isActive
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.selects.select
 import kotlinx.coroutines.withContext
 import java.io.OutputStreamWriter
@@ -45,6 +48,30 @@ class LogcatActivity : BaseActivity<LogcatDesign>() {
 
     private val uiState = LogcatUiState()
     private val uiRequests = Channel<LogcatDesign.Request>(Channel.UNLIMITED)
+
+    /** In-flight filter run; a newer keystroke cancels the older one. */
+    private var filterJob: Job? = null
+
+    /**
+     * Recompute the visible list off the main thread, so typing or a
+     * 500ms streaming tick never stalls the UI on a long log.
+     * Filtering only affects what is shown; the stored log is untouched.
+     */
+    private fun refreshFiltered() {
+        filterJob?.cancel()
+
+        val messages = uiState.messages
+        val query = uiState.searchQuery
+        val level = uiState.levelFilter
+
+        filterJob = launch(Dispatchers.Default) {
+            val filtered = filterLogMessages(messages, query, level)
+
+            withContext(Dispatchers.Main) {
+                uiState.filteredMessages = filtered
+            }
+        }
+    }
 
     override suspend fun main() {
         val fileName = intent?.fileName
@@ -68,6 +95,7 @@ class LogcatActivity : BaseActivity<LogcatDesign>() {
 
         uiState.streaming = false
         uiState.messages = messages
+        refreshFiltered()
 
         while (isActive) {
             when (uiRequests.receive()) {
@@ -137,6 +165,7 @@ class LogcatActivity : BaseActivity<LogcatDesign>() {
                         val snapshot = logcat.snapshot(initial) ?: return@onReceive
 
                         uiState.messages = snapshot.messages
+                        refreshFiltered()
 
                         initial = false
                     }
@@ -203,6 +232,9 @@ class LogcatActivity : BaseActivity<LogcatDesign>() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
 
+        // Restore the saved level filter before the first frame.
+        uiState.levelFilter = uiStore.logLevelFilter
+
         val darkTheme = when (uiStore.darkMode) {
             DarkMode.Auto -> resources.configuration.uiMode and
                 Configuration.UI_MODE_NIGHT_MASK == Configuration.UI_MODE_NIGHT_YES
@@ -216,6 +248,12 @@ class LogcatActivity : BaseActivity<LogcatDesign>() {
                     LogcatScreen(
                         state = uiState,
                         onRequest = { request -> uiRequests.trySend(request) },
+                        onSearchQueryChange = { refreshFiltered() },
+                        onLevelFilterChange = {
+                            // Persist the choice so it survives reopening.
+                            uiStore.logLevelFilter = it
+                            refreshFiltered()
+                        },
                         onBack = { finish() },
                     )
                 }
