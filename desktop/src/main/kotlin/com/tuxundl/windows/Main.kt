@@ -117,6 +117,9 @@ internal fun App() {
                 0 -> HomePage()
                 1 -> NodesPage()
                 2 -> SubscriptionsPage()
+                3 -> RulesPage()
+                4 -> LogsPage()
+                5 -> SettingsPage()
                 else -> Text(
                     text = "${NAV_ITEMS[selectedNav]}（开发中）",
                     color = TextDim,
@@ -246,11 +249,12 @@ private fun HomePage() {
                     } else {
                         val profile = CoreBridge.profileFile()
                         if (!profile.exists()) {
-                            statusNote = "还没有订阅配置，订阅页做好后在这里点连接"
+                            statusNote = "还没有订阅配置，先到订阅页添加"
                         } else {
                             val ok = CoreBridge.start(
                                 profileYaml = profile.readText(),
-                                tunMode = false,
+                                tunMode = SettingsStore.tunMode(),
+                                mixedPort = SettingsStore.mixedPort(),
                             )
                             connected = ok
                             statusNote = if (ok) {

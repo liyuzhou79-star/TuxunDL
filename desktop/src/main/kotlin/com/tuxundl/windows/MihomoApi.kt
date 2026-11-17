@@ -5,6 +5,7 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.withContext
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.buildJsonObject
+import kotlinx.serialization.json.jsonArray
 import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.contentOrNull
 import kotlinx.serialization.json.jsonPrimitive
@@ -74,6 +75,16 @@ class MihomoApi(private val base: String = "http://127.0.0.1:9090") {
                     ?.mapValues { it.value.jsonObject }
             }.getOrNull()
         } ?: emptyMap()
+
+    /** The core's effective rule list, in evaluation order. */
+    suspend fun rules(): List<kotlinx.serialization.json.JsonObject> =
+        get("/rules")?.let { body ->
+            runCatching {
+                json.parseToJsonElement(body)
+                    .jsonObject["rules"]?.jsonArray
+                    ?.map { it.jsonObject }
+            }.getOrNull()
+        } ?: emptyList()
 
     /** The node traffic currently exits through, for the home page. */
     suspend fun currentNode(): String? {

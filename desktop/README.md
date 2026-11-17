@@ -42,3 +42,18 @@ gradlew -p desktop packageExe
 Packaging runs on a Windows runner in GitHub Actions, like every other
 build in this project. Installers are published on the `win-v*` GitHub
 release with full release notes, next to the Android releases.
+
+## What is ours, and what is upstream
+
+Everything in this `desktop/` folder — the interface, the core bridge,
+subscriptions, system proxy handling, the tray — is original code
+written for TuxunDL in this repository. The Windows edition does not
+copy or port any other Windows client.
+
+The traffic engine is not ours: the app drives the open-source
+[mihomo](https://github.com/MetaCubeX/mihomo) core (GPLv3), the same
+core the Android edition builds on, bundled at build time by the
+`fetchCore` task in `build.gradle.kts` and never committed to this
+repository. TUN mode uses `wintun.dll`, © WireGuard LLC, distributed
+under the Wintun prebuilt binaries license (see wintun.net). Because
+the core is GPLv3, this project stays GPLv3 and fully open source.
