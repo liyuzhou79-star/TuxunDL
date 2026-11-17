@@ -61,6 +61,14 @@ object SettingsStore {
         applyAutoStart(value)
     }
 
+    /** Connect on launch when a subscription profile is ready. */
+    fun autoConnect(): Boolean =
+        read()["autoConnect"]?.jsonPrimitive?.booleanOrNull ?: false
+
+    fun setAutoConnect(value: Boolean) {
+        write(mapOf("autoConnect" to kotlinx.serialization.json.JsonPrimitive(value)))
+    }
+
     private fun applyAutoStart(value: Boolean) {
         if (!Elevation.isWindows()) return
         val key = "HKCU\\Software\\Microsoft\\Windows\\CurrentVersion\\Run"

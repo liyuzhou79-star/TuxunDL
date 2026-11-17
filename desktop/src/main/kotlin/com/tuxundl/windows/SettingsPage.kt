@@ -43,6 +43,7 @@ private val TextDim = Color(0xFF9A9AB0)
 internal fun SettingsPage() {
     var tun by remember { mutableStateOf(SettingsStore.tunMode()) }
     var autoStart by remember { mutableStateOf(SettingsStore.autoStart()) }
+    var autoConnect by remember { mutableStateOf(SettingsStore.autoConnect()) }
     var portText by remember { mutableStateOf(SettingsStore.mixedPort().toString()) }
     var note by remember { mutableStateOf<String?>(null) }
     var updateText by remember { mutableStateOf<String?>(null) }
@@ -131,6 +132,22 @@ internal fun SettingsPage() {
             autoStart = !autoStart
             SettingsStore.setAutoStart(autoStart)
             note = if (autoStart) "开机自启已开启" else "开机自启已关闭"
+        }
+
+        Spacer(Modifier.height(28.dp))
+
+        Text(text = "启动时自动连接", color = Color.White, fontSize = 16.sp)
+        Spacer(Modifier.height(4.dp))
+        Text(
+            text = "打开 TuxunDL 时，如果已有订阅配置就自动连上。TUN 模式仍会先弹管理员权限确认并重启本程序。",
+            color = TextDim,
+            fontSize = 13.sp,
+        )
+        Spacer(Modifier.height(10.dp))
+        ModeChip(if (autoConnect) "已开启" else "已关闭", autoConnect) {
+            autoConnect = !autoConnect
+            SettingsStore.setAutoConnect(autoConnect)
+            note = if (autoConnect) "启动时自动连接已开启" else "启动时自动连接已关闭"
         }
 
         Spacer(Modifier.height(28.dp))

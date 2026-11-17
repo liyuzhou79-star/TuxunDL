@@ -21,7 +21,7 @@ import java.time.Duration
  */
 object WindowsUpdateCheck {
 
-    const val CURRENT_VERSION = "1.1.3"
+    const val CURRENT_VERSION = "1.1.4"
 
     private const val RELEASES_URL =
         "https://api.github.com/repos/liyuzhou79-star/TuxunDL/releases?per_page=30"

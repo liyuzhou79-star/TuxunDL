@@ -272,6 +272,33 @@ private fun HomePage() {
         }
     }
 
+    // Auto-connect once when the home page first appears, if the
+    // user turned it on and a profile is ready. This is the same
+    // start path as the power button below, elevation included.
+    LaunchedEffect(Unit) {
+        if (CoreBridge.running || !SettingsStore.autoConnect()) {
+            return@LaunchedEffect
+        }
+        val profile = CoreBridge.profileFile()
+        if (!profile.exists()) return@LaunchedEffect
+        if (SettingsStore.tunMode() &&
+            Elevation.isWindows() &&
+            !Elevation.isElevated()
+        ) {
+            statusNote = "TUN 需要管理员权限，正在以管理员身份重启…"
+            Elevation.relaunchElevated()
+            return@LaunchedEffect
+        }
+        busy = true
+        val ok = CoreBridge.start(
+            profileYaml = profile.readText(),
+            tunMode = SettingsStore.tunMode(),
+            mixedPort = SettingsStore.mixedPort(),
+        )
+        if (!ok) statusNote = "自动连接失败，细节在日志页"
+        busy = false
+    }
+
     Column(
         modifier = Modifier
             .fillMaxSize()
