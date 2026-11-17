@@ -155,6 +155,8 @@ class MihomoApi(private val base: String = "http://127.0.0.1:9090") {
         val upload: Long,
         val startedAt: String,
         val rule: String,
+        /** Originating process, when the core reports one. */
+        val process: String = "",
     )
 
     /** The core's currently open connections, newest first. */
@@ -187,6 +189,8 @@ class MihomoApi(private val base: String = "http://127.0.0.1:9090") {
                             startedAt = conn["start"]?.jsonPrimitive
                                 ?.contentOrNull.orEmpty(),
                             rule = conn["rule"]?.jsonPrimitive
+                                ?.contentOrNull.orEmpty(),
+                            process = meta?.get("process")?.jsonPrimitive
                                 ?.contentOrNull.orEmpty(),
                         )
                     }

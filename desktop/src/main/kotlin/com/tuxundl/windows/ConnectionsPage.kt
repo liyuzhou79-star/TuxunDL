@@ -12,6 +12,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -54,8 +55,20 @@ fun ConnectionsPage() {
         mutableStateOf<List<MihomoApi.ConnectionInfo>>(emptyList())
     }
     var loaded by remember { mutableStateOf(false) }
+    var query by remember { mutableStateOf("") }
     val scope = rememberCoroutineScope()
     val api = CoreBridge.api
+
+    val shown = if (query.isBlank()) {
+        connections
+    } else {
+        connections.filter { conn ->
+            conn.target.contains(query, ignoreCase = true) ||
+                conn.process.contains(query, ignoreCase = true) ||
+                conn.rule.contains(query, ignoreCase = true) ||
+                conn.node.contains(query, ignoreCase = true)
+        }
+    }
 
     suspend fun refresh() {
         if (api != null && CoreBridge.running) {
@@ -109,11 +122,22 @@ fun ConnectionsPage() {
         Text(
             text = when {
                 !CoreBridge.running -> "尚未连接"
+                loaded && query.isNotBlank() ->
+                    "当前 ${connections.size} 条连接，筛出 ${shown.size} 条，每 3 秒自动刷新"
                 loaded -> "当前 ${connections.size} 条连接，每 3 秒自动刷新"
                 else -> "正在读取…"
             },
             color = TextDim,
             fontSize = 13.sp,
+        )
+        Spacer(Modifier.height(12.dp))
+
+        OutlinedTextField(
+            value = query,
+            onValueChange = { query = it },
+            placeholder = { Text("搜索连接（目标、进程、规则或节点）", color = TextDim, fontSize = 14.sp) },
+            singleLine = true,
+            modifier = Modifier.fillMaxWidth(),
         )
         Spacer(Modifier.height(16.dp))
 
@@ -128,9 +152,16 @@ fun ConnectionsPage() {
                 fontSize = 14.sp,
             )
         }
+        if (loaded && connections.isNotEmpty() && shown.isEmpty()) {
+            Text(
+                text = "没有包含「$query」的连接，换个关键词试试",
+                color = TextDim,
+                fontSize = 14.sp,
+            )
+        }
 
         LazyColumn {
-            items(connections, key = { it.id }) { conn ->
+            items(shown, key = { it.id }) { conn ->
                 Row(
                     verticalAlignment = Alignment.CenterVertically,
                     modifier = Modifier
@@ -151,6 +182,7 @@ fun ConnectionsPage() {
                                 conn.network.uppercase(),
                                 conn.node,
                                 conn.rule,
+                                conn.process,
                             ).filter { it.isNotBlank() }.joinToString(" · "),
                             color = TextDim,
                             fontSize = 12.sp,

@@ -1,6 +1,8 @@
 package com.tuxundl.windows
 
+import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -12,6 +14,7 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
@@ -33,6 +36,7 @@ import kotlinx.coroutines.launch
 import kotlinx.serialization.json.jsonPrimitive
 
 private val Indigo = Color(0xFF5B5BD6)
+private val PanelDark = Color(0xFF1E1E2A)
 private val TextDim = Color(0xFF9A9AB0)
 
 private data class RuleRow(
@@ -52,15 +56,17 @@ internal fun RulesPage() {
     var rules by remember { mutableStateOf<List<RuleRow>>(emptyList()) }
     var loaded by remember { mutableStateOf(false) }
     var query by remember { mutableStateOf("") }
+    var typeFilter by remember { mutableStateOf<String?>(null) }
 
-    val shownRules = if (query.isBlank()) {
-        rules
-    } else {
-        rules.filter {
-            it.type.contains(query, ignoreCase = true) ||
-                it.payload.contains(query, ignoreCase = true) ||
-                it.proxy.contains(query, ignoreCase = true)
-        }
+    // Filter chips are generated from the types actually present.
+    val ruleTypes = remember(rules) { rules.map { it.type }.distinct() }
+
+    val shownRules = rules.filter { rule ->
+        (typeFilter == null || rule.type == typeFilter) &&
+            (query.isBlank() ||
+                rule.type.contains(query, ignoreCase = true) ||
+                rule.payload.contains(query, ignoreCase = true) ||
+                rule.proxy.contains(query, ignoreCase = true))
     }
 
     fun refresh() {
@@ -97,7 +103,7 @@ internal fun RulesPage() {
             verticalAlignment = Alignment.CenterVertically,
         ) {
             Text(
-                text = if (query.isBlank()) {
+                text = if (query.isBlank() && typeFilter == null) {
                     "规则（${rules.size}）"
                 } else {
                     "规则（${shownRules.size}/${rules.size}）"
@@ -126,6 +132,22 @@ internal fun RulesPage() {
             singleLine = true,
             modifier = Modifier.fillMaxWidth(),
         )
+
+        if (ruleTypes.size > 1) {
+            Spacer(Modifier.height(12.dp))
+
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .horizontalScroll(rememberScrollState()),
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+            ) {
+                RuleChip("全部", typeFilter == null) { typeFilter = null }
+                ruleTypes.forEach { type ->
+                    RuleChip(type, typeFilter == type) { typeFilter = type }
+                }
+            }
+        }
 
         Spacer(Modifier.height(16.dp))
 
@@ -161,4 +183,18 @@ internal fun RulesPage() {
             }
         }
     }
+}
+
+@Composable
+private fun RuleChip(label: String, active: Boolean, onClick: () -> Unit) {
+    Text(
+        text = label,
+        color = if (active) Color.White else TextDim,
+        fontSize = 13.sp,
+        modifier = Modifier
+            .clip(RoundedCornerShape(8.dp))
+            .background(if (active) Indigo else PanelDark)
+            .clickable { onClick() }
+            .padding(horizontal = 10.dp, vertical = 5.dp),
+    )
 }
