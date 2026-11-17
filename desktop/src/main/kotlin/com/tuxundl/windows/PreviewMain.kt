@@ -1,9 +1,8 @@
 package com.tuxundl.windows
 
 import androidx.compose.ui.ImageComposeScene
-import androidx.compose.ui.graphics.toAwtImage
+import org.jetbrains.skia.EncodedImageFormat
 import java.io.File
-import javax.imageio.ImageIO
 
 /**
  * Renders the home page off-screen to a PNG, without opening a window.
@@ -18,7 +17,11 @@ fun main(args: Array<String>) {
     }
     // Give the first frames a moment so fonts and layout settle.
     Thread.sleep(300)
-    ImageIO.write(scene.render().toAwtImage(), "png", out)
+    // ImageComposeScene renders to a Skia image; encode it as PNG
+    // directly instead of going through AWT.
+    val data = scene.render().encodeToData(EncodedImageFormat.PNG)
+    check(data != null) { "failed to encode the preview PNG" }
+    out.writeBytes(data.bytes)
     scene.close()
     println("wrote ${out.absolutePath}")
 }
