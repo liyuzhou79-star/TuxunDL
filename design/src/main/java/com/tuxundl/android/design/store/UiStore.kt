@@ -6,6 +6,7 @@ import android.content.pm.PackageManager
 import com.tuxundl.android.common.store.Store
 import com.tuxundl.android.common.store.asStoreProvider
 import com.tuxundl.android.core.model.ProxySort
+import com.tuxundl.android.design.model.AnimationStyle
 import com.tuxundl.android.design.model.AppInfoSort
 import com.tuxundl.android.design.model.DarkMode
 import com.tuxundl.android.design.model.ThemePalette
@@ -32,6 +33,17 @@ class UiStore(context: Context) {
         key = "theme_palette",
         defaultValue = ThemePalette.Default,
         values = ThemePalette.values()
+    )
+
+    /**
+     * Whole-app animation style (Appearance settings): Spring = full
+     * springy motion, Soft = calmer and quicker, Reduced = fades only.
+     * Read by every screen through the theme's composition local.
+     */
+    var animationStyle: AnimationStyle by store.enum(
+        key = "animation_style",
+        defaultValue = AnimationStyle.Spring,
+        values = AnimationStyle.values()
     )
 
     /**

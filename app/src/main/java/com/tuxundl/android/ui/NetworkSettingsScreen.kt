@@ -73,6 +73,7 @@ fun NetworkSettingsScreen(
             modifier = Modifier
                 .fillMaxSize()
                 .padding(padding)
+                .tuxunPageEnter()
                 .verticalScroll(rememberScrollState())
                 .padding(vertical = 8.dp),
         ) {

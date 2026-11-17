@@ -9,10 +9,13 @@ import androidx.compose.material3.dynamicDarkColorScheme
 import androidx.compose.material3.dynamicLightColorScheme
 import androidx.compose.material3.lightColorScheme
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.luminance
 import androidx.compose.ui.platform.LocalContext
+import com.tuxundl.android.design.model.AnimationStyle
 import com.tuxundl.android.design.model.ThemePalette
+import com.tuxundl.android.ui.LocalAnimStyle
 import com.tuxundl.android.design.store.UiStore
 import kotlin.math.max
 import kotlin.math.min
@@ -392,6 +395,7 @@ fun TuxunDLTheme(
     palette: ThemePalette = ThemePalette.Default,
     dynamicColor: Boolean = true,
     customSeed: Color? = null,
+    animStyle: AnimationStyle = AnimationStyle.Spring,
     content: @Composable () -> Unit,
 ) {
     val colorScheme = when {
@@ -410,9 +414,13 @@ fun TuxunDLTheme(
         else -> lightSchemeOf(palette)
     }
 
-    MaterialTheme(
-        colorScheme = colorScheme,
-        typography = Typography,
-        content = content,
-    )
+    // The animation style rides along with the theme so every screen
+    // reads the same LocalAnimStyle without extra plumbing.
+    CompositionLocalProvider(LocalAnimStyle provides animStyle) {
+        MaterialTheme(
+            colorScheme = colorScheme,
+            typography = Typography,
+            content = content,
+        )
+    }
 }

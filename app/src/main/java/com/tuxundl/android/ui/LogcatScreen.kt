@@ -198,6 +198,10 @@ fun LogcatScreen(
                             onLevelFilterChange(key)
                         },
                         label = { Text(text = stringResource(labelRes)) },
+                        modifier = Modifier.tuxunPopOnSelect(
+                            trigger = state.levelFilter == key,
+                            peak = 1.06f,
+                        ),
                     )
                 }
             }
@@ -228,6 +232,7 @@ fun LogcatScreen(
                     Column(
                         modifier = Modifier
                             .fillMaxWidth()
+                            .tuxunFadeInOnce()
                             .combinedClickable(
                                 onClick = {},
                                 onLongClick = {

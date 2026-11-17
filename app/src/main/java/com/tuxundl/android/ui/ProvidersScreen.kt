@@ -95,11 +95,20 @@ fun ProvidersScreen(
             verticalArrangement = Arrangement.spacedBy(12.dp),
         ) {
             itemsIndexed(state.providers) { index, provider ->
-                TuxunCard(modifier = Modifier.fillMaxWidth().animateItem()) {
+                val itemStyle = LocalAnimStyle.current
+                TuxunCard(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .animateItem(
+                            fadeInSpec = tuxunFadeSpec(itemStyle, entering = true),
+                            placementSpec = tuxunPlacementSpec(itemStyle),
+                            fadeOutSpec = tuxunFadeSpec(itemStyle, entering = false),
+                        ),
+                ) {
                     Row(
                         modifier = Modifier
                             .fillMaxWidth()
-                            .padding(start = 20.dp, end = 8.dp, top = 12.dp, bottom = 12.dp),
+                            .padding(start = 16.dp, end = 8.dp, top = 12.dp, bottom = 12.dp),
                         verticalAlignment = Alignment.CenterVertically,
                     ) {
                         Column(modifier = Modifier.weight(1f)) {

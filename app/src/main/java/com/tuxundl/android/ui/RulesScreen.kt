@@ -90,13 +90,13 @@ fun RulesScreen(
             !state.hasProfile -> {
                 CenteredHint(
                     text = stringResource(R.string.rules_no_profile),
-                    modifier = Modifier.padding(padding),
+                    modifier = Modifier.padding(padding).tuxunPageEnter(),
                 )
             }
             state.rules.isEmpty() -> {
                 CenteredHint(
                     text = stringResource(R.string.rules_empty),
-                    modifier = Modifier.padding(padding),
+                    modifier = Modifier.padding(padding).tuxunPageEnter(),
                 )
             }
             else -> {
@@ -104,6 +104,7 @@ fun RulesScreen(
                     modifier = Modifier
                         .fillMaxSize()
                         .padding(padding)
+                        .tuxunPageEnter()
                         .padding(horizontal = 16.dp, vertical = 12.dp),
                     verticalArrangement = Arrangement.spacedBy(12.dp),
                 ) {
@@ -234,7 +235,7 @@ private fun RuleRow(
                 )
             }
 
-            Switch(
+            TuxunSwitch(
                 checked = rule.enabled,
                 onCheckedChange = onToggleEnabled,
             )

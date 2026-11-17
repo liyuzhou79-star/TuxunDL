@@ -120,7 +120,7 @@ class RulesActivity : BaseActivity<AppSettingsDesign>() {
         }
 
         setContent {
-            TuxunDLTheme(darkTheme = darkTheme, palette = uiStore.themePalette, customSeed = customSeedColor(uiStore)) {
+            TuxunDLTheme(darkTheme = darkTheme, palette = uiStore.themePalette, customSeed = customSeedColor(uiStore), animStyle = uiStore.animationStyle) {
                 Surface(color = MaterialTheme.colorScheme.background) {
                     RulesScreen(
                         state = uiState,

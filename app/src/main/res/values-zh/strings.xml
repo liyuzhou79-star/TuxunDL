@@ -107,4 +107,15 @@
     <string name="log_level_error">错误</string>
     <string name="log_level_warning">警告</string>
     <string name="log_level_info">信息</string>
+    <string name="animation_style">动画风格</string>
+    <string name="anim_style_spring">弹簧</string>
+    <string name="anim_style_soft">柔和</string>
+    <string name="anim_style_reduced">减少动画</string>
+    <string name="update_page_title">发现新版本</string>
+    <string name="update_now">立即更新</string>
+    <string name="update_later">稍后再说</string>
+    <string name="update_notes">更新内容</string>
+    <string name="update_check_failed_network">检查更新失败：网络连不上。</string>
+    <string name="update_check_failed_server">检查更新失败：服务器忙，请稍后再试。</string>
+    <string name="update_check_failed_parse">检查更新失败：数据异常。</string>
 </resources>

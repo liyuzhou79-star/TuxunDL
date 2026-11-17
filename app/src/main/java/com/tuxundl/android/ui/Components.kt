@@ -1,5 +1,13 @@
 package com.tuxundl.android.ui
 
+import androidx.compose.animation.animateColorAsState
+import androidx.compose.animation.core.Animatable
+import androidx.compose.animation.core.LinearEasing
+import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.spring
+import androidx.compose.animation.core.tween
+import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -7,14 +15,17 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ColumnScope
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.itemsIndexed
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Card
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -29,15 +40,21 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.scale
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.layout.onSizeChanged
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.SpanStyle
 import androidx.compose.ui.text.TextStyle
@@ -50,7 +67,9 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
 import com.tuxundl.android.R
+import com.tuxundl.android.design.model.AnimationStyle
 import com.tuxundl.android.design.R as DesignR
+import kotlin.math.roundToInt
 
 /** Back-arrow top bar shared by all sub screens. */
 @OptIn(ExperimentalMaterial3Api::class)
@@ -210,7 +229,7 @@ fun SwitchRow(
             }
         }
         Spacer(modifier = Modifier.width(16.dp))
-        Switch(
+        TuxunSwitch(
             checked = checked,
             onCheckedChange = onCheckedChange,
             enabled = enabled,
@@ -700,5 +719,133 @@ fun PairInputDialog(
 fun ColorDot(color: androidx.compose.ui.graphics.Color, modifier: Modifier = Modifier) {
     androidx.compose.foundation.Canvas(modifier = modifier.size(28.dp)) {
         drawCircle(color = color)
+    }
+}
+
+/**
+ * The app-wide switch: the Material switch plus a subtle horizontal
+ * stretch-and-settle when it flips, so toggling feels physical. Spring
+ * stretches to 1.16x and bounces back, Soft only to 1.08x, Reduced
+ * leaves the stock switch untouched.
+ */
+@Composable
+fun TuxunSwitch(
+    checked: Boolean,
+    onCheckedChange: (Boolean) -> Unit,
+    modifier: Modifier = Modifier,
+    enabled: Boolean = true,
+) {
+    val style = LocalAnimStyle.current
+    val stretch = remember { Animatable(1f) }
+    var first by remember { mutableStateOf(true) }
+
+    LaunchedEffect(checked) {
+        if (first) {
+            first = false
+            return@LaunchedEffect
+        }
+        when (style) {
+            AnimationStyle.Spring -> {
+                stretch.snapTo(1f)
+                stretch.animateTo(1.16f, tween(durationMillis = 80, easing = LinearEasing))
+                stretch.animateTo(1f, spring(dampingRatio = 0.45f, stiffness = 520f))
+            }
+            AnimationStyle.Soft -> {
+                stretch.snapTo(1f)
+                stretch.animateTo(1.08f, tween(durationMillis = 70, easing = LinearEasing))
+                stretch.animateTo(1f, spring(dampingRatio = 0.85f, stiffness = 560f))
+            }
+            AnimationStyle.Reduced -> Unit
+        }
+    }
+
+    Switch(
+        checked = checked,
+        onCheckedChange = onCheckedChange,
+        enabled = enabled,
+        modifier = modifier.scale(stretch.value, 1f),
+    )
+}
+
+/**
+ * Segmented single-choice row whose selected pill physically slides
+ * between options (the Material SegmentedButton only cross-fades its
+ * colours). Same contract as the old rows: labels, a selected index
+ * (-1 = nothing selected) and a click callback.
+ */
+@Composable
+fun TuxunSegmentedRow(
+    options: List<String>,
+    selectedIndex: Int,
+    onSelect: (Int) -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    val style = LocalAnimStyle.current
+    var rowWidth by remember { mutableStateOf(0) }
+
+    val count = options.size
+    val segmentWidth = if (count > 0) rowWidth / count else 0
+    val indicatorTarget = selectedIndex
+        .coerceIn(0, (count - 1).coerceAtLeast(0))
+        .toFloat()
+    val indicatorFraction by animateFloatAsState(
+        targetValue = indicatorTarget,
+        animationSpec = tuxunSegmentedSpec(style),
+        label = "segmentedIndicator",
+    )
+
+    Box(
+        modifier = modifier
+            .height(40.dp)
+            .clip(RoundedCornerShape(20.dp))
+            .background(MaterialTheme.colorScheme.surfaceVariant)
+            .border(
+                width = 1.dp,
+                color = MaterialTheme.colorScheme.outlineVariant,
+                shape = RoundedCornerShape(20.dp),
+            )
+            .onSizeChanged { rowWidth = it.width },
+    ) {
+        if (selectedIndex >= 0 && segmentWidth > 0) {
+            Box(
+                modifier = Modifier
+                    .offset { IntOffset((indicatorFraction * segmentWidth).roundToInt(), 0) }
+                    .width(with(LocalDensity.current) { segmentWidth.toDp() })
+                    .fillMaxHeight()
+                    .padding(3.dp)
+                    .clip(RoundedCornerShape(17.dp))
+                    .background(MaterialTheme.colorScheme.secondaryContainer),
+            )
+        }
+
+        Row(modifier = Modifier.fillMaxSize()) {
+            options.forEachIndexed { index, label ->
+                val selected = index == selectedIndex
+                val textColor by animateColorAsState(
+                    targetValue = if (selected) {
+                        MaterialTheme.colorScheme.onSecondaryContainer
+                    } else {
+                        MaterialTheme.colorScheme.onSurfaceVariant
+                    },
+                    animationSpec = tuxunColorSpec(style),
+                    label = "segmentedLabel",
+                )
+
+                Box(
+                    modifier = Modifier
+                        .weight(1f)
+                        .fillMaxHeight()
+                        .clip(RoundedCornerShape(20.dp))
+                        .clickable { onSelect(index) },
+                    contentAlignment = Alignment.Center,
+                ) {
+                    Text(
+                        text = label,
+                        style = MaterialTheme.typography.labelLarge,
+                        color = textColor,
+                    )
+                }
+            }
+        }
     }
 }

@@ -54,7 +54,7 @@ class NetworkSettingsActivity : BaseActivity<NetworkSettingsDesign>() {
         val running = clashRunning
 
         setContent {
-            TuxunDLTheme(darkTheme = darkTheme, palette = uiStore.themePalette, customSeed = customSeedColor(uiStore)) {
+            TuxunDLTheme(darkTheme = darkTheme, palette = uiStore.themePalette, customSeed = customSeedColor(uiStore), animStyle = uiStore.animationStyle) {
                 Surface(color = MaterialTheme.colorScheme.background) {
                     NetworkSettingsScreen(
                         uiStore = uiStore,

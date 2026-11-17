@@ -63,8 +63,13 @@ fun NewProfileScreen(
             verticalArrangement = Arrangement.spacedBy(12.dp),
         ) {
             items(state.providers) { provider ->
+                val itemStyle = LocalAnimStyle.current
                 ProviderCard(
-                    modifier = Modifier.animateItem(),
+                    modifier = Modifier.animateItem(
+                        fadeInSpec = tuxunFadeSpec(itemStyle, entering = true),
+                        placementSpec = tuxunPlacementSpec(itemStyle),
+                        fadeOutSpec = tuxunFadeSpec(itemStyle, entering = false),
+                    ),
                     provider = provider,
                     onClick = {
                         if (provider is ProfileProvider.QR) {
@@ -85,8 +90,13 @@ fun NewProfileScreen(
             }
 
             item {
+                val itemStyle = LocalAnimStyle.current
                 AlbumScanCard(
-                    modifier = Modifier.animateItem(),
+                    modifier = Modifier.animateItem(
+                        fadeInSpec = tuxunFadeSpec(itemStyle, entering = true),
+                        placementSpec = tuxunPlacementSpec(itemStyle),
+                        fadeOutSpec = tuxunFadeSpec(itemStyle, entering = false),
+                    ),
                     onClick = { onRequest(NewProfileDesign.Request.ScanFromAlbum) },
                 )
             }

@@ -86,7 +86,7 @@ fun LogsScreen(
                     Row(
                         modifier = Modifier
                             .fillMaxWidth()
-                            .padding(20.dp),
+                            .padding(16.dp),
                         verticalAlignment = Alignment.CenterVertically,
                     ) {
                         Icon(
@@ -119,16 +119,21 @@ fun LogsScreen(
             }
 
             items(state.files) { file ->
+                val itemStyle = LocalAnimStyle.current
                 TuxunCard(
                     modifier = Modifier
-                        .animateItem()
+                        .animateItem(
+                            fadeInSpec = tuxunFadeSpec(itemStyle, entering = true),
+                            placementSpec = tuxunPlacementSpec(itemStyle),
+                            fadeOutSpec = tuxunFadeSpec(itemStyle, entering = false),
+                        )
                         .fillMaxWidth()
                         .clickable { onRequest(LogsDesign.Request.OpenFile(file)) },
                 ) {
                     Column(
                         modifier = Modifier
                             .fillMaxWidth()
-                            .padding(20.dp),
+                            .padding(16.dp),
                     ) {
                         Text(
                             text = file.fileName,

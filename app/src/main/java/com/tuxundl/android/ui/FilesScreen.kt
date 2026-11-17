@@ -96,9 +96,14 @@ fun FilesScreen(
             verticalArrangement = Arrangement.spacedBy(12.dp),
         ) {
             items(state.files, key = { it.id }) { file ->
+                val itemStyle = LocalAnimStyle.current
                 TuxunCard(
                     modifier = Modifier
-                        .animateItem()
+                        .animateItem(
+                            fadeInSpec = tuxunFadeSpec(itemStyle, entering = true),
+                            placementSpec = tuxunPlacementSpec(itemStyle),
+                            fadeOutSpec = tuxunFadeSpec(itemStyle, entering = false),
+                        )
                         .fillMaxWidth()
                         .clickable {
                             if (file.isDirectory) {

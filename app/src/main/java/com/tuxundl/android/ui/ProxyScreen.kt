@@ -1,14 +1,19 @@
 package com.tuxundl.android.ui
 
+import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.animateContentSize
-import androidx.compose.animation.expandVertically
+import androidx.compose.animation.core.FastOutSlowInEasing
+import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
-import androidx.compose.animation.shrinkVertically
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.interaction.MutableInteractionSource
+import androidx.compose.foundation.interaction.collectIsPressedAsState
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -29,9 +34,6 @@ import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
-import androidx.compose.material3.SegmentedButton
-import androidx.compose.material3.SegmentedButtonDefaults
-import androidx.compose.material3.SingleChoiceSegmentedButtonRow
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Text
@@ -45,6 +47,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
@@ -225,6 +228,7 @@ fun ProxyScreen(
                         // UrlTest/Select take the group's index in the full
                         // list, not its position in the filtered list.
                         val realIndex = state.groups.indexOf(group)
+                        val itemStyle = LocalAnimStyle.current
                         GroupCard(
                             group = group,
                             links = links,
@@ -247,7 +251,11 @@ fun ProxyScreen(
                             onToggleFavorite = { node ->
                                 onToggleFavorite(group.name, node)
                             },
-                            modifier = Modifier.animateItem(),
+                            modifier = Modifier.animateItem(
+                                fadeInSpec = tuxunFadeSpec(itemStyle, entering = true),
+                                placementSpec = tuxunPlacementSpec(itemStyle),
+                                fadeOutSpec = tuxunFadeSpec(itemStyle, entering = false),
+                            ),
                         )
                     }
                 }
@@ -372,7 +380,6 @@ private fun MenuCheckIcon(checked: Boolean) {
     }
 }
 
-@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 private fun ModeSelector(
     mode: TunnelState.Mode?,
@@ -380,22 +387,24 @@ private fun ModeSelector(
     modifier: Modifier = Modifier,
 ) {
     val modes = listOf(
-        TunnelState.Mode.Rule to DesignR.string.rule_mode,
-        TunnelState.Mode.Global to DesignR.string.global_mode,
-        TunnelState.Mode.Direct to DesignR.string.direct_mode,
+        TunnelState.Mode.Rule,
+        TunnelState.Mode.Global,
+        TunnelState.Mode.Direct,
     )
 
-    SingleChoiceSegmentedButtonRow(modifier = modifier) {
-        modes.forEachIndexed { index, (value, label) ->
-            SegmentedButton(
-                selected = mode == value,
-                onClick = { onModeChange(value) },
-                shape = SegmentedButtonDefaults.itemShape(index = index, count = modes.size),
-                icon = {},
-                label = { Text(text = stringResource(label)) },
-            )
-        }
-    }
+    // Sliding-pill segmented row (see Components.kt): the selected
+    // background glides between modes instead of jumping. A null mode
+    // ("do not modify") shows no selection.
+    TuxunSegmentedRow(
+        options = listOf(
+            stringResource(DesignR.string.rule_mode),
+            stringResource(DesignR.string.global_mode),
+            stringResource(DesignR.string.direct_mode),
+        ),
+        selectedIndex = mode?.let { modes.indexOf(it) } ?: -1,
+        onSelect = { onModeChange(modes[it]) },
+        modifier = modifier,
+    )
 }
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -435,16 +444,50 @@ private fun GroupCard(
         }
     }
 
+    val style = animStyle()
+    val fadeInMs = tuxunFadeInMs(style)
+    val fadeOutMs = tuxunFadeOutMs(style)
+
     TuxunCard(modifier = modifier.fillMaxWidth()) {
         Column(
             modifier = Modifier
                 .fillMaxWidth()
-                .animateContentSize(),
+                .animateContentSize(tuxunSizeSpec(style)),
         ) {
+            // Header: press shows as a soft background wash (top corners
+            // clipped to the card corner), chevron rotates with expansion.
+            val headerInteraction = remember { MutableInteractionSource() }
+            val headerPressed by headerInteraction.collectIsPressedAsState()
+            val headerBackground by animateColorAsState(
+                targetValue = if (headerPressed) {
+                    MaterialTheme.colorScheme.onSurface.copy(alpha = 0.08f)
+                } else {
+                    Color.Transparent
+                },
+                animationSpec = tuxunColorSpec(style),
+                label = "groupHeaderBackground",
+            )
+            val chevronRotation by animateFloatAsState(
+                targetValue = if (group.expanded || forceExpand) 180f else 0f,
+                animationSpec = tuxunSnapSpec(style),
+                label = "groupChevron",
+            )
+
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .clickable(onClick = onToggleExpand)
+                    .clip(
+                        RoundedCornerShape(
+                            topStart = TuxunCardCorner,
+                            topEnd = TuxunCardCorner,
+                        ),
+                    )
+                    .background(headerBackground)
+                    .clickable(
+                        interactionSource = headerInteraction,
+                        indication = null,
+                        onClick = onToggleExpand,
+                    )
                     .padding(start = 20.dp, top = 16.dp, bottom = 16.dp, end = 8.dp),
                 verticalAlignment = Alignment.CenterVertically,
             ) {
@@ -469,27 +512,55 @@ private fun GroupCard(
                     }
                 }
 
-                if (group.urlTesting) {
-                    CircularProgressIndicator(
-                        modifier = Modifier
-                            .padding(12.dp)
-                            .size(24.dp),
-                    )
-                } else {
-                    IconButton(onClick = onUrlTest) {
-                        Icon(
-                            painter = painterResource(DesignR.drawable.ic_baseline_flash_on),
-                            contentDescription = stringResource(DesignR.string.delay_test),
-                            tint = MaterialTheme.colorScheme.primary,
+                AnimatedContent(
+                    targetState = group.urlTesting,
+                    transitionSpec = {
+                        fadeIn(
+                            animationSpec = tween(
+                                durationMillis = fadeInMs,
+                                easing = FastOutSlowInEasing,
+                            ),
+                        ) togetherWith fadeOut(
+                            animationSpec = tween(
+                                durationMillis = fadeOutMs,
+                                easing = FastOutSlowInEasing,
+                            ),
                         )
+                    },
+                    label = "urlTestSwap",
+                ) { testing ->
+                    if (testing) {
+                        CircularProgressIndicator(
+                            modifier = Modifier
+                                .padding(12.dp)
+                                .size(24.dp),
+                        )
+                    } else {
+                        IconButton(onClick = onUrlTest) {
+                            Icon(
+                                painter = painterResource(DesignR.drawable.ic_baseline_flash_on),
+                                contentDescription = stringResource(DesignR.string.delay_test),
+                                tint = MaterialTheme.colorScheme.primary,
+                            )
+                        }
                     }
                 }
+
+                Icon(
+                    painter = painterResource(DesignR.drawable.ic_baseline_expand_more),
+                    contentDescription = null,
+                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier
+                        .padding(end = 8.dp)
+                        .size(24.dp)
+                        .graphicsLayer { rotationZ = chevronRotation },
+                )
             }
 
             AnimatedVisibility(
                 visible = group.expanded || forceExpand,
-                enter = expandVertically() + fadeIn(),
-                exit = shrinkVertically() + fadeOut(),
+                enter = tuxunEnterTransition(),
+                exit = tuxunExitTransition(),
             ) {
                 if (!group.loaded) {
                     Box(
@@ -508,7 +579,7 @@ private fun GroupCard(
                             .padding(bottom = 12.dp),
                         verticalArrangement = Arrangement.spacedBy(4.dp),
                     ) {
-                        sortedProxies.forEach { proxy ->
+                        sortedProxies.forEachIndexed { index, proxy ->
                             ProxyRow(
                                 proxy = proxy,
                                 selected = proxy.name == group.now,
@@ -517,6 +588,7 @@ private fun GroupCard(
                                 favorite = "${group.name}|${proxy.name}" in favorites,
                                 onToggleFavorite = { onToggleFavorite(proxy.name) },
                                 onClick = { onSelect(proxy.name) },
+                                modifier = Modifier.tuxunStagger(index),
                             )
                         }
                     }
@@ -535,6 +607,7 @@ private fun ProxyRow(
     favorite: Boolean,
     onToggleFavorite: () -> Unit,
     onClick: () -> Unit,
+    modifier: Modifier = Modifier,
 ) {
     val title = if (proxy.isGroup) proxy.name else proxy.title
     val subtitle = if (proxy.isGroup) {
@@ -561,18 +634,49 @@ private fun ProxyRow(
         MaterialTheme.typography.bodyMedium
     }
 
+    val style = animStyle()
+    val rowInteraction = remember { MutableInteractionSource() }
+    val rowPressed by rowInteraction.collectIsPressedAsState()
+    val rowBaseColor by animateColorAsState(
+        targetValue = if (selected) {
+            MaterialTheme.colorScheme.primaryContainer
+        } else {
+            MaterialTheme.colorScheme.surfaceVariant
+        },
+        animationSpec = tuxunColorSpec(style),
+        label = "proxyRowBackground",
+    )
+    val rowPressOverlay by animateColorAsState(
+        targetValue = if (rowPressed) {
+            MaterialTheme.colorScheme.onSurface.copy(alpha = 0.08f)
+        } else {
+            Color.Transparent
+        },
+        animationSpec = tuxunColorSpec(style),
+        label = "proxyRowPress",
+    )
+    val starTint by animateColorAsState(
+        targetValue = if (favorite) {
+            Color(0xFFFFB300)
+        } else {
+            MaterialTheme.colorScheme.onSurfaceVariant
+        },
+        animationSpec = tuxunColorSpec(style),
+        label = "favoriteStarTint",
+    )
+
     Row(
-        modifier = Modifier
+        modifier = modifier
             .fillMaxWidth()
             .clip(RoundedCornerShape(12.dp))
-            .background(
-                if (selected) {
-                    MaterialTheme.colorScheme.primaryContainer
-                } else {
-                    MaterialTheme.colorScheme.surfaceVariant
-                },
+            .background(rowBaseColor)
+            .clickable(
+                enabled = enabled,
+                interactionSource = rowInteraction,
+                indication = null,
+                onClick = onClick,
             )
-            .clickable(enabled = enabled, onClick = onClick)
+            .background(rowPressOverlay)
             .padding(horizontal = 16.dp, vertical = 12.dp),
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(12.dp),
@@ -616,12 +720,10 @@ private fun ProxyRow(
                     },
                 ),
                 contentDescription = stringResource(R.string.favorite),
-                tint = if (favorite) {
-                    Color(0xFFFFB300)
-                } else {
-                    MaterialTheme.colorScheme.onSurfaceVariant
-                },
-                modifier = Modifier.size(20.dp),
+                tint = starTint,
+                modifier = Modifier
+                    .size(20.dp)
+                    .tuxunPopOnSelect(favorite, peak = 1.3f),
             )
         }
     }

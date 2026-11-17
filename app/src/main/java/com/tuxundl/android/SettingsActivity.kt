@@ -13,6 +13,8 @@ import com.tuxundl.android.ui.SettingsUiState
 import com.tuxundl.android.ui.theme.TuxunDLTheme
 import com.tuxundl.android.ui.theme.customSeedColor
 import com.tuxundl.android.util.UpdateChecker
+import com.tuxundl.android.util.UpdateCheckResult
+import com.tuxundl.android.util.UpdateFailure
 import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
@@ -62,23 +64,27 @@ class SettingsActivity : BaseActivity<SettingsDesign>() {
         launch {
             uiState.checkingUpdate = true
 
-            val info = UpdateChecker.fetchLatest()
-
-            uiState.checkingUpdate = false
-
             val current = packageManager
                 .getPackageInfo(packageName, 0).versionName ?: ""
 
-            when {
-                info == null ->
-                    uiState.updateMessage = getString(R.string.update_check_failed)
-                UpdateChecker.isNewer(info.version, current) -> {
-                    uiState.updateMessage =
-                        getString(R.string.update_new_found, info.version)
-                    uiState.updateDownloadUrl = info.downloadUrl ?: info.pageUrl
-                }
-                else ->
+            val result = UpdateChecker.check(current)
+
+            uiState.checkingUpdate = false
+
+            when (result) {
+                is UpdateCheckResult.UpdateAvailable ->
+                    // Same full-screen page as the startup check.
+                    uiState.updatePageInfo = result.info
+                is UpdateCheckResult.UpToDate ->
                     uiState.updateMessage = getString(R.string.update_latest)
+                is UpdateCheckResult.Failed ->
+                    uiState.updateMessage = getString(
+                        when (result.failure) {
+                            UpdateFailure.Network -> R.string.update_check_failed_network
+                            UpdateFailure.Server -> R.string.update_check_failed_server
+                            UpdateFailure.Parse -> R.string.update_check_failed_parse
+                        },
+                    )
             }
         }
     }
@@ -94,7 +100,7 @@ class SettingsActivity : BaseActivity<SettingsDesign>() {
         }
 
         setContent {
-            TuxunDLTheme(darkTheme = darkTheme, palette = uiStore.themePalette, customSeed = customSeedColor(uiStore)) {
+            TuxunDLTheme(darkTheme = darkTheme, palette = uiStore.themePalette, customSeed = customSeedColor(uiStore), animStyle = uiStore.animationStyle) {
                 Surface(color = MaterialTheme.colorScheme.background) {
                     SettingsScreen(
                         state = uiState,

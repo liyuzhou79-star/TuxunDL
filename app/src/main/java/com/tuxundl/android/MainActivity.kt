@@ -33,6 +33,7 @@ import com.tuxundl.android.ui.trafficDownloadBytes
 import com.tuxundl.android.ui.trafficUploadBytes
 import com.tuxundl.android.util.DailyTrafficStore
 import com.tuxundl.android.util.UpdateChecker
+import com.tuxundl.android.util.UpdateCheckResult
 import com.tuxundl.android.util.startClashService
 import com.tuxundl.android.util.stopClashService
 import com.tuxundl.android.util.withClash
@@ -283,17 +284,32 @@ class MainActivity : BaseActivity<MainDesign>() {
         uiStore.widgetNodeName = result?.second ?: ""
     }
 
-    /** One silent update check per activity start; failures stay invisible. */
+    /**
+     * One update check per activity start, using the shared three-state
+     * result. Up-to-date and failed stay invisible here; a newer release
+     * lights the home update card and — once per version per launch,
+     * unless the user already dismissed that version — the full-screen
+     * update page.
+     */
     private fun checkUpdateOnStartup() {
         launch {
-            val info = UpdateChecker.fetchLatest() ?: return@launch
             val current = packageManager
                 .getPackageInfo(packageName, 0).versionName ?: return@launch
 
-            if (UpdateChecker.isNewer(info.version, current) &&
-                uiStore.dismissedUpdate != info.version
-            ) {
-                uiState.updateInfo = info
+            val result = UpdateChecker.check(current)
+
+            if (result is UpdateCheckResult.UpdateAvailable) {
+                val info = result.info
+
+                // A dismissed version wins over everything: no card, no page.
+                if (uiStore.dismissedUpdate != info.version) {
+                    uiState.updateInfo = info
+
+                    if (fullScreenUpdateShownFor != info.version) {
+                        fullScreenUpdateShownFor = info.version
+                        uiState.updatePageInfo = info
+                    }
+                }
             }
         }
     }
@@ -464,7 +480,7 @@ class MainActivity : BaseActivity<MainDesign>() {
         uiState.disclaimerAccepted = uiStore.disclaimerAccepted
 
         setContent {
-            TuxunDLTheme(darkTheme = darkTheme, palette = uiStore.themePalette, customSeed = customSeedColor(uiStore)) {
+            TuxunDLTheme(darkTheme = darkTheme, palette = uiStore.themePalette, customSeed = customSeedColor(uiStore), animStyle = uiStore.animationStyle) {
                 Surface(color = MaterialTheme.colorScheme.background) {
                     if (uiState.disclaimerAccepted) {
                         MainScreen(
@@ -550,5 +566,13 @@ class MainActivity : BaseActivity<MainDesign>() {
         /** All orderable home cards, in their default display order. */
         private val HOME_CARD_KEYS =
             listOf("monitor", "traffic", "proxy", "profile", "providers")
+
+        /**
+         * Version the full-screen update page was already shown for in
+         * this process (i.e. this app launch). Static on purpose: it
+         * survives activity recreation but resets when the app restarts,
+         * which is exactly "once per version per launch".
+         */
+        private var fullScreenUpdateShownFor: String? = null
     }
 }

@@ -107,4 +107,15 @@
     <string name="log_level_error">Error</string>
     <string name="log_level_warning">Warning</string>
     <string name="log_level_info">Info</string>
+    <string name="animation_style">Animation style</string>
+    <string name="anim_style_spring">Springy</string>
+    <string name="anim_style_soft">Soft</string>
+    <string name="anim_style_reduced">Reduced</string>
+    <string name="update_page_title">New version available</string>
+    <string name="update_now">Update now</string>
+    <string name="update_later">Later</string>
+    <string name="update_notes">What's new</string>
+    <string name="update_check_failed_network">Update check failed: no network connection.</string>
+    <string name="update_check_failed_server">Update check failed: the server is busy, please try again later.</string>
+    <string name="update_check_failed_parse">Update check failed: unexpected data from the server.</string>
 </resources>

@@ -20,12 +20,36 @@ data class UpdateInfo(
     val downloadUrl: String?,
     /** The release page URL, used as a fallback target. */
     val pageUrl: String?,
+    /** Release notes body (markdown) for the full-screen update page. */
+    val notes: String = "",
 )
+
+/** Why an update check failed, in user-presentable terms. */
+enum class UpdateFailure {
+    /** The request never completed (offline, blocked, timed out). */
+    Network,
+
+    /** GitHub answered with a non-200 status (rate limit, maintenance). */
+    Server,
+
+    /** The answer was not the JSON the checker expects. */
+    Parse,
+}
+
+/**
+ * The three explicit outcomes of an update check. Before 1.1.0 every
+ * failure collapsed into a single null, so "could not check at all"
+ * (e.g. api.github.com unreachable on a domestic network with the proxy
+ * off) was indistinguishable from — and displayed as — a generic error.
+ */
+sealed interface UpdateCheckResult {
+    data class UpdateAvailable(val info: UpdateInfo) : UpdateCheckResult
+    data class UpToDate(val latestVersion: String) : UpdateCheckResult
+    data class Failed(val failure: UpdateFailure) : UpdateCheckResult
+}
 
 /**
  * Minimal GitHub Releases update check, parsed with the built-in org.json.
- * Any failure (offline, rate limit, malformed body) returns null and
- * callers stay silent.
  *
  * Uses the release *list* endpoint rather than `/releases/latest`: the
  * latest endpoint only ever returns non-prerelease releases, so a release
@@ -36,47 +60,85 @@ object UpdateChecker {
     private const val RELEASES_URL =
         "https://api.github.com/repos/liyuzhou79-star/TuxunDL/releases?per_page=5"
 
-    suspend fun fetchLatest(): UpdateInfo? = withContext(Dispatchers.IO) {
-        try {
-            val connection = URL(RELEASES_URL).openConnection() as HttpURLConnection
+    private sealed interface FetchOutcome {
+        data class Ok(val info: UpdateInfo) : FetchOutcome
+        data class Error(val failure: UpdateFailure) : FetchOutcome
+    }
 
-            try {
-                connection.connectTimeout = 12000
-                connection.readTimeout = 12000
-                connection.setRequestProperty("User-Agent", "TuxunDL-Android")
-                connection.setRequestProperty("Accept", "application/vnd.github+json")
+    /** Check [currentVersion] against the newest GitHub release. */
+    suspend fun check(currentVersion: String): UpdateCheckResult {
+        return when (val fetched = fetchLatestRelease()) {
+            is FetchOutcome.Error -> UpdateCheckResult.Failed(fetched.failure)
+            is FetchOutcome.Ok -> {
+                val info = fetched.info
 
-                if (connection.responseCode != HttpURLConnection.HTTP_OK) {
-                    return@withContext null
+                if (isNewer(info.version, currentVersion)) {
+                    UpdateCheckResult.UpdateAvailable(info)
+                } else {
+                    UpdateCheckResult.UpToDate(info.version)
                 }
+            }
+        }
+    }
 
-                val releases = JSONArray(
-                    connection.inputStream.bufferedReader().readText()
-                )
+    private suspend fun fetchLatestRelease(): FetchOutcome = withContext(Dispatchers.IO) {
+        val connection = try {
+            URL(RELEASES_URL).openConnection() as HttpURLConnection
+        } catch (e: Exception) {
+            return@withContext FetchOutcome.Error(UpdateFailure.Network)
+        }
 
-                for (i in 0 until releases.length()) {
-                    val json = releases.getJSONObject(i)
+        try {
+            connection.connectTimeout = 12000
+            connection.readTimeout = 12000
+            connection.setRequestProperty("User-Agent", "TuxunDL-Android")
+            connection.setRequestProperty("Accept", "application/vnd.github+json")
 
-                    if (json.optBoolean("draft")) continue
+            val responseCode = try {
+                connection.responseCode
+            } catch (e: Exception) {
+                return@withContext FetchOutcome.Error(UpdateFailure.Network)
+            }
 
-                    val version = json.optString("tag_name").removePrefix("v")
+            if (responseCode != HttpURLConnection.HTTP_OK) {
+                return@withContext FetchOutcome.Error(UpdateFailure.Server)
+            }
 
-                    if (version.isEmpty()) continue
+            val body = try {
+                connection.inputStream.bufferedReader().readText()
+            } catch (e: Exception) {
+                return@withContext FetchOutcome.Error(UpdateFailure.Network)
+            }
 
-                    return@withContext UpdateInfo(
+            val releases = try {
+                JSONArray(body)
+            } catch (e: Exception) {
+                return@withContext FetchOutcome.Error(UpdateFailure.Parse)
+            }
+
+            for (i in 0 until releases.length()) {
+                val json = releases.getJSONObject(i)
+
+                if (json.optBoolean("draft")) continue
+
+                val version = json.optString("tag_name").removePrefix("v")
+
+                if (version.isEmpty()) continue
+
+                return@withContext FetchOutcome.Ok(
+                    UpdateInfo(
                         version = version,
                         downloadUrl = pickAssetUrl(json.optJSONArray("assets")),
                         pageUrl = json.optString("html_url")
                             .takeIf { it.isNotEmpty() },
-                    )
-                }
-
-                null
-            } finally {
-                connection.disconnect()
+                        notes = json.optString("body"),
+                    ),
+                )
             }
-        } catch (e: Exception) {
-            null
+
+            FetchOutcome.Error(UpdateFailure.Parse)
+        } finally {
+            connection.disconnect()
         }
     }
 

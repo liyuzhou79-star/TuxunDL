@@ -8,6 +8,8 @@ import androidx.annotation.StringRes
 import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.animateContentSize
+import androidx.compose.animation.core.AnimationSpec
+import androidx.compose.animation.core.FiniteAnimationSpec
 import androidx.compose.animation.core.FastOutSlowInEasing
 import androidx.compose.animation.core.LinearEasing
 import androidx.compose.animation.core.RepeatMode
@@ -30,6 +32,8 @@ import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.interaction.MutableInteractionSource
+import androidx.compose.foundation.interaction.collectIsPressedAsState
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -53,9 +57,6 @@ import androidx.compose.material3.IconButton
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
-import androidx.compose.material3.SegmentedButton
-import androidx.compose.material3.SegmentedButtonDefaults
-import androidx.compose.material3.SingleChoiceSegmentedButtonRow
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Text
@@ -82,9 +83,11 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import com.tuxundl.android.R
 import com.tuxundl.android.core.model.TunnelState
+import com.tuxundl.android.design.model.AnimationStyle
 import com.tuxundl.android.core.util.trafficDownload
 import com.tuxundl.android.core.util.trafficUpload
 import com.tuxundl.android.design.MainDesign
@@ -133,6 +136,9 @@ class MainUiState {
 
     /** Non-null while the "new version available" card should be shown. */
     var updateInfo by mutableStateOf<UpdateInfo?>(null)
+
+    /** Non-null while the full-screen update page should be shown. */
+    var updatePageInfo by mutableStateOf<UpdateInfo?>(null)
 
     /** False until the first-run disclaimer is accepted (gate screen). */
     var disclaimerAccepted by mutableStateOf(false)
@@ -240,6 +246,16 @@ fun MainScreen(
             },
         )
     }
+
+    // Full-screen update page: shown once per version per launch by the
+    // startup check; closing it leaves the update card as the reminder.
+    val updatePageInfo = state.updatePageInfo
+    if (updatePageInfo != null) {
+        UpdateFullScreen(
+            info = updatePageInfo,
+            onClose = { state.updatePageInfo = null },
+        )
+    }
 }
 
 /**
@@ -256,8 +272,8 @@ private fun UpdateCard(
 
     AnimatedVisibility(
         visible = info != null,
-        enter = fadeIn() + expandVertically(),
-        exit = fadeOut() + shrinkVertically(),
+        enter = tuxunEnterTransition(),
+        exit = tuxunExitTransition(),
     ) {
         if (info == null) return@AnimatedVisibility
 
@@ -329,6 +345,9 @@ private fun PowerCircle(
     onRequest: (MainDesign.Request) -> Unit,
 ) {
     val running = state.clashRunning
+    val style = animStyle()
+    val speedEnterSpec: FiniteAnimationSpec<Float> = tuxunFadeSpec(style, entering = true)
+    val speedExitSpec: FiniteAnimationSpec<Float> = tuxunFadeSpec(style, entering = false)
 
     var upSpeed by remember { mutableStateOf("0 B/s") }
     var downSpeed by remember { mutableStateOf("0 B/s") }
@@ -391,22 +410,30 @@ private fun PowerCircle(
     val contentColor = if (running) onPrimary else primary
 
     // Smooth the start/stop flip: the disc grows a touch, fills with the
-    // theme colour and its content cross-fades instead of snapping.
+    // theme colour and its content cross-fades instead of snapping. The
+    // size spring is the circle's own tuning: bouncy in Spring style,
+    // near-critically damped in Soft, a plain short tween in Reduced.
     val circleColor by animateColorAsState(
         targetValue = if (running) primary else MaterialTheme.colorScheme.surface,
-        animationSpec = tween(durationMillis = 450),
+        animationSpec = tuxunColorSpec(style),
         label = "circleColor",
     )
+    val circleSizeSpec: AnimationSpec<Dp> = when (style) {
+        AnimationStyle.Spring -> spring(dampingRatio = 0.8f, stiffness = 300f)
+        AnimationStyle.Soft -> spring(dampingRatio = 0.92f, stiffness = 420f)
+        AnimationStyle.Reduced -> tween(durationMillis = 120)
+    }
     val circleSize by animateDpAsState(
         targetValue = if (running) 204.dp else 196.dp,
-        animationSpec = spring(dampingRatio = 0.85f, stiffness = 260f),
+        animationSpec = circleSizeSpec,
         label = "circleSize",
     )
     val animatedContentColor by animateColorAsState(
         targetValue = contentColor,
-        animationSpec = tween(durationMillis = 450),
+        animationSpec = tuxunColorSpec(style),
         label = "circleContentColor",
     )
+    val powerInteraction = remember { MutableInteractionSource() }
 
     Box(
         modifier = Modifier.size(224.dp),
@@ -442,7 +469,11 @@ private fun PowerCircle(
                         Modifier.border(2.dp, primary, CircleShape)
                     },
                 )
-                .clickable { onRequest(MainDesign.Request.ToggleStatus) },
+                .tuxunPressScale(powerInteraction, pressedScale = 0.96f)
+                .clickable(
+                    interactionSource = powerInteraction,
+                    indication = null,
+                ) { onRequest(MainDesign.Request.ToggleStatus) },
             contentAlignment = Alignment.Center,
         ) {
             Column(
@@ -475,15 +506,30 @@ private fun PowerCircle(
                             style = MaterialTheme.typography.headlineSmall,
                             color = if (isRunning) onPrimary else MaterialTheme.colorScheme.onSurface,
                         )
-                        Text(
-                            text = if (isRunning) {
-                                "↑ $upSpeed   ↓ $downSpeed"
-                            } else {
-                                stringResource(DesignR.string.tap_to_start)
-                            },
-                            style = MaterialTheme.typography.bodyMedium,
-                            color = animatedContentColor,
-                        )
+                        if (isRunning) {
+                            // Live speed: soft cross-fade on each new
+                            // sample instead of the digits snapping.
+                            AnimatedContent(
+                                targetState = "↑ $upSpeed   ↓ $downSpeed",
+                                transitionSpec = {
+                                    fadeIn(speedEnterSpec) togetherWith
+                                        fadeOut(speedExitSpec)
+                                },
+                                label = "powerSpeed",
+                            ) { speedText ->
+                                Text(
+                                    text = speedText,
+                                    style = MaterialTheme.typography.bodyMedium,
+                                    color = animatedContentColor,
+                                )
+                            }
+                        } else {
+                            Text(
+                                text = stringResource(DesignR.string.tap_to_start),
+                                style = MaterialTheme.typography.bodyMedium,
+                                color = animatedContentColor,
+                            )
+                        }
                     }
                 }
             }
@@ -492,29 +538,28 @@ private fun PowerCircle(
 }
 
 /** Rule / Global / Direct switch, right under the power circle. */
-@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 private fun ModeSelector(
     state: MainUiState,
     onRequest: (MainDesign.Request) -> Unit,
 ) {
     val modes = listOf(
-        TunnelState.Mode.Rule to DesignR.string.rule_mode,
-        TunnelState.Mode.Global to DesignR.string.global_mode,
-        TunnelState.Mode.Direct to DesignR.string.direct_mode,
+        TunnelState.Mode.Rule,
+        TunnelState.Mode.Global,
+        TunnelState.Mode.Direct,
     )
 
-    SingleChoiceSegmentedButtonRow(modifier = Modifier.fillMaxWidth()) {
-        modes.forEachIndexed { index, (value, label) ->
-            SegmentedButton(
-                selected = state.mode == value,
-                onClick = { onRequest(MainDesign.Request.SetMode(value)) },
-                shape = SegmentedButtonDefaults.itemShape(index = index, count = modes.size),
-                icon = {},
-                label = { Text(text = stringResource(label)) },
-            )
-        }
-    }
+    // Sliding-pill segmented row: the selected background glides.
+    TuxunSegmentedRow(
+        options = listOf(
+            stringResource(DesignR.string.rule_mode),
+            stringResource(DesignR.string.global_mode),
+            stringResource(DesignR.string.direct_mode),
+        ),
+        selectedIndex = modes.indexOf(state.mode),
+        onSelect = { onRequest(MainDesign.Request.SetMode(modes[it])) },
+        modifier = Modifier.fillMaxWidth(),
+    )
 }
 
 private class HomeTile(
@@ -646,7 +691,7 @@ private fun HomeCards(
     if (blocks.isEmpty() && state.subTotal <= 1L) return
 
     Column(
-        modifier = Modifier.animateContentSize(),
+        modifier = Modifier.animateContentSize(tuxunSizeSpec(animStyle())),
         verticalArrangement = Arrangement.spacedBy(12.dp),
     ) {
         // Monitor hidden: the subscription card takes the monitor's
@@ -694,6 +739,11 @@ private fun HomeCards(
 private fun TrafficMonitorCard(state: MainUiState) {
     // This week / last week toggle; session-only, not persisted.
     var weekTab by remember { mutableStateOf(0) }
+    val style = animStyle()
+    val todayEnterSpec: FiniteAnimationSpec<Float> = tuxunFadeSpec(style, entering = true)
+    val todayExitSpec: FiniteAnimationSpec<Float> = tuxunFadeSpec(style, entering = false)
+    val weekEnterSpec: FiniteAnimationSpec<Float> = tuxunFadeSpec(style, entering = true)
+    val weekExitSpec: FiniteAnimationSpec<Float> = tuxunFadeSpec(style, entering = false)
 
     TuxunCard(
         shape = RoundedCornerShape(TuxunCardCornerLarge),
@@ -754,21 +804,31 @@ private fun TrafficMonitorCard(state: MainUiState) {
 
             // Today's forwarded total (app-open time only) plus the
             // previous days. When the proxy is stopped the chart is
-            // empty, so say so instead of showing a dead card.
-            if (!state.clashRunning) {
-                Text(
-                    text = stringResource(R.string.traffic_not_running),
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                )
+            // empty, so say so instead of showing a dead card. The line
+            // cross-fades as the totals tick up.
+            val todayText = if (!state.clashRunning) {
+                stringResource(R.string.traffic_not_running)
             } else {
+                stringResource(
+                    R.string.traffic_today,
+                    state.todayUp.toBytesString(),
+                    state.todayDown.toBytesString(),
+                )
+            }
+            AnimatedContent(
+                targetState = todayText,
+                transitionSpec = {
+                    fadeIn(todayEnterSpec) togetherWith fadeOut(todayExitSpec)
+                },
+                label = "todayLine",
+            ) { text ->
                 Text(
-                    text = stringResource(
-                        R.string.traffic_today,
-                        state.todayUp.toBytesString(),
-                        state.todayDown.toBytesString(),
-                    ),
-                    style = MaterialTheme.typography.bodyMedium,
+                    text = text,
+                    style = if (state.clashRunning) {
+                        MaterialTheme.typography.bodyMedium
+                    } else {
+                        MaterialTheme.typography.bodySmall
+                    },
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
             }
@@ -781,80 +841,104 @@ private fun TrafficMonitorCard(state: MainUiState) {
             // Weekly view: this week (Monday..today) or last week
             // (Monday..Sunday), with a small bar per day. Only days
             // with stored data are shown; the file keeps 14 days, so
-            // last week may be partial.
-            val weekDays = if (weekTab == 0) state.currentWeekDays else state.lastWeekDays
-            val weekMax = weekDays.maxOfOrNull { it.up + it.down } ?: 0L
-
+            // last week may be partial. Switching weeks cross-fades
+            // the content and each bar grows with its own spring.
             Spacer(modifier = Modifier.height(4.dp))
-            SingleChoiceSegmentedButtonRow(modifier = Modifier.fillMaxWidth()) {
-                listOf(R.string.traffic_this_week, R.string.traffic_last_week)
-                    .forEachIndexed { index, label ->
-                        SegmentedButton(
-                            selected = weekTab == index,
-                            onClick = { weekTab = index },
-                            shape = SegmentedButtonDefaults.itemShape(index = index, count = 2),
-                            icon = {},
-                            label = { Text(text = stringResource(label)) },
+            TuxunSegmentedRow(
+                options = listOf(
+                    stringResource(R.string.traffic_this_week),
+                    stringResource(R.string.traffic_last_week),
+                ),
+                selectedIndex = weekTab,
+                onSelect = { weekTab = it },
+                modifier = Modifier.fillMaxWidth(),
+            )
+            AnimatedContent(
+                targetState = weekTab,
+                transitionSpec = {
+                    fadeIn(weekEnterSpec) togetherWith fadeOut(weekExitSpec)
+                },
+                label = "weekTab",
+            ) { tab ->
+                val weekDays =
+                    if (tab == 0) state.currentWeekDays else state.lastWeekDays
+                val weekMax = weekDays.maxOfOrNull { it.up + it.down } ?: 0L
+
+                Column(
+                    modifier = Modifier.fillMaxWidth(),
+                    verticalArrangement = Arrangement.spacedBy(10.dp),
+                ) {
+                    if (weekDays.isNotEmpty()) {
+                        Text(
+                            text = stringResource(
+                                R.string.traffic_week_total,
+                                weekDays.sumOf { it.up }.toBytesString(),
+                                weekDays.sumOf { it.down }.toBytesString(),
+                            ),
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
                         )
-                    }
-            }
-            if (weekDays.isNotEmpty()) {
-                Text(
-                    text = stringResource(
-                        R.string.traffic_week_total,
-                        weekDays.sumOf { it.up }.toBytesString(),
-                        weekDays.sumOf { it.down }.toBytesString(),
-                    ),
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                )
-                weekDays.forEach { day ->
-                    val total = day.up + day.down
-                    val fraction = if (weekMax > 0L) {
-                        (total.toFloat() / weekMax.toFloat()).coerceIn(0.06f, 1f)
-                    } else {
-                        0.06f
-                    }
-                    Column(modifier = Modifier.fillMaxWidth()) {
-                        Row(
-                            modifier = Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.SpaceBetween,
-                        ) {
+                        weekDays.forEach { day ->
+                            WeekDayRow(day = day, weekMax = weekMax)
+                        }
+                        if (tab == 1) {
                             Text(
-                                text = day.date.substring(5),
-                                style = MaterialTheme.typography.bodyMedium,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                            )
-                            Text(
-                                text = "↑ ${day.up.toBytesString()}   ↓ ${day.down.toBytesString()}",
-                                style = MaterialTheme.typography.bodyMedium,
+                                text = stringResource(R.string.traffic_week_note),
+                                style = MaterialTheme.typography.bodySmall,
                                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                             )
                         }
-                        Box(
-                            modifier = Modifier
-                                .fillMaxWidth(fraction)
-                                .height(6.dp)
-                                .clip(RoundedCornerShape(3.dp))
-                                .background(MaterialTheme.colorScheme.primary),
+                    } else {
+                        Text(
+                            text = stringResource(R.string.traffic_week_empty),
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
                         )
                     }
                 }
-                if (weekTab == 1) {
-                    Text(
-                        text = stringResource(R.string.traffic_week_note),
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    )
-                }
-            } else {
-                Text(
-                    text = stringResource(R.string.traffic_week_empty),
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                )
             }
         }
+    }
+}
+
+/** One day of the weekly view; the bar grows to its share of the week max. */
+@Composable
+private fun WeekDayRow(day: DailyTrafficDay, weekMax: Long) {
+    val total = day.up + day.down
+    val targetFraction = if (weekMax > 0L) {
+        (total.toFloat() / weekMax.toFloat()).coerceIn(0.06f, 1f)
+    } else {
+        0.06f
+    }
+    val fraction by animateFloatAsState(
+        targetValue = targetFraction,
+        animationSpec = tuxunProgressSpec(animStyle()),
+        label = "weekDayBar",
+    )
+
+    Column(modifier = Modifier.fillMaxWidth()) {
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.SpaceBetween,
+        ) {
+            Text(
+                text = day.date.substring(5),
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+            Text(
+                text = "↑ ${day.up.toBytesString()}   ↓ ${day.down.toBytesString()}",
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+        }
+        Box(
+            modifier = Modifier
+                .fillMaxWidth(fraction)
+                .height(6.dp)
+                .clip(RoundedCornerShape(3.dp))
+                .background(MaterialTheme.colorScheme.primary),
+        )
     }
 }
 
@@ -976,14 +1060,23 @@ private fun daysUntilExpiry(expireMillis: Long): Long {
  */
 @Composable
 private fun SubscriptionCard(state: MainUiState) {
-    if (state.subTotal <= 1L) return
+    val style = animStyle()
 
-    val used = state.subUpload + state.subDownload
-
-    TuxunCard(
-        shape = RoundedCornerShape(TuxunCardCornerLarge),
-        modifier = Modifier.fillMaxWidth(),
+    // The card fades + grows in when the profile gains subscription
+    // data and shrinks away when it loses it, instead of popping.
+    AnimatedVisibility(
+        visible = state.subTotal > 1L,
+        enter = tuxunEnterTransition(),
+        exit = tuxunExitTransition(),
     ) {
+        if (state.subTotal <= 1L) return@AnimatedVisibility
+
+        val used = state.subUpload + state.subDownload
+
+        TuxunCard(
+            shape = RoundedCornerShape(TuxunCardCornerLarge),
+            modifier = Modifier.fillMaxWidth(),
+        ) {
         Column(
             modifier = Modifier
                 .fillMaxWidth()
@@ -1062,11 +1155,17 @@ private fun SubscriptionCard(state: MainUiState) {
                     color = MaterialTheme.colorScheme.tertiary,
                 )
             }
+            val animatedUsageRatio by animateFloatAsState(
+                targetValue = usageRatio.coerceIn(0f, 1f),
+                animationSpec = tuxunProgressSpec(style),
+                label = "subscriptionUsage",
+            )
             LinearProgressIndicator(
-                progress = (used.toFloat() / state.subTotal.toFloat()).coerceIn(0f, 1f),
+                progress = animatedUsageRatio,
                 modifier = Modifier.fillMaxWidth(),
             )
         }
+    }
     }
 }
 
@@ -1077,7 +1176,7 @@ private fun InfoTile(
     onRequest: (MainDesign.Request) -> Unit,
     modifier: Modifier = Modifier,
 ) {
-    val cardModifier = modifier.heightIn(min = 108.dp)
+    val cardModifier = modifier.heightIn(min = 108.dp).tuxunAppear()
 
     if (tile.request != null) {
         TuxunCard(

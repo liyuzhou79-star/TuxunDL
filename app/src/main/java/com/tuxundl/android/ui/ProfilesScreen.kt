@@ -1,7 +1,9 @@
 package com.tuxundl.android.ui
 
 import android.graphics.Bitmap
+import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.foundation.Image
+import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -33,6 +35,7 @@ import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -121,7 +124,12 @@ fun ProfilesScreen(
             )
         },
         floatingActionButton = {
-            FloatingActionButton(onClick = { onRequest(ProfilesDesign.Request.Create) }) {
+            val fabInteraction = remember { MutableInteractionSource() }
+            FloatingActionButton(
+                onClick = { onRequest(ProfilesDesign.Request.Create) },
+                interactionSource = fabInteraction,
+                modifier = Modifier.tuxunPressScale(fabInteraction, pressedScale = 0.92f),
+            ) {
                 Icon(
                     painter = painterResource(DesignR.drawable.ic_baseline_add),
                     contentDescription = null,
@@ -137,8 +145,13 @@ fun ProfilesScreen(
             verticalArrangement = Arrangement.spacedBy(12.dp),
         ) {
             items(state.profiles, key = { it.uuid }) { profile ->
+                val itemStyle = LocalAnimStyle.current
                 ProfileCard(
-                    modifier = Modifier.animateItem(),
+                    modifier = Modifier.animateItem(
+                        fadeInSpec = tuxunFadeSpec(itemStyle, entering = true),
+                        placementSpec = tuxunPlacementSpec(itemStyle),
+                        fadeOutSpec = tuxunFadeSpec(itemStyle, entering = false),
+                    ),
                     profile = profile,
                     now = state.now,
                     onClick = { onRequest(ProfilesDesign.Request.Active(profile)) },
@@ -238,10 +251,14 @@ private fun ProfileCard(
                         }
                     }
                     Spacer(modifier = Modifier.height(4.dp))
+                    val animatedProgress by animateFloatAsState(
+                        targetValue = (used.toFloat() / profile.total.toFloat())
+                            .coerceIn(0f, 1f),
+                        animationSpec = tuxunProgressSpec(animStyle()),
+                        label = "profileUsage",
+                    )
                     LinearProgressIndicator(
-                        progress = {
-                            (used.toFloat() / profile.total.toFloat()).coerceIn(0f, 1f)
-                        },
+                        progress = { animatedProgress },
                         modifier = Modifier.fillMaxWidth(),
                     )
                 }

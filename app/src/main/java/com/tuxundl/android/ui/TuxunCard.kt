@@ -1,15 +1,20 @@
 package com.tuxundl.android.ui
 
 import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.ColumnScope
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.ColorScheme
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Shape
+import androidx.compose.ui.graphics.luminance
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 
@@ -35,7 +40,7 @@ fun TuxunCard(
     Card(
         modifier = modifier,
         shape = shape,
-        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant),
+        border = BorderStroke(1.dp, MaterialTheme.colorScheme.tuxunCardBorder()),
         elevation = CardDefaults.cardElevation(defaultElevation = 1.dp),
         content = content,
     )
@@ -50,12 +55,24 @@ fun TuxunCard(
     shape: Shape = RoundedCornerShape(TuxunCardCorner),
     content: @Composable ColumnScope.() -> Unit,
 ) {
+    val interactionSource = remember { MutableInteractionSource() }
+
     Card(
         onClick = onClick,
-        modifier = modifier,
+        modifier = modifier.tuxunPressScale(interactionSource, pressedScale = 0.98f),
         shape = shape,
-        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant),
+        border = BorderStroke(1.dp, MaterialTheme.colorScheme.tuxunCardBorder()),
         elevation = CardDefaults.cardElevation(defaultElevation = 1.dp),
+        interactionSource = interactionSource,
         content = content,
     )
 }
+
+/**
+ * Card border colour: in dark mode shadows all but disappear, so the
+ * border steps up from outlineVariant to the stronger outline tone to
+ * keep cards separated from the background.
+ */
+@Composable
+private fun ColorScheme.tuxunCardBorder(): Color =
+    if (surface.luminance() < 0.4f) outline else outlineVariant

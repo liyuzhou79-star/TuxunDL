@@ -110,6 +110,7 @@ fun PropertiesScreen(
             modifier = Modifier
                 .fillMaxSize()
                 .padding(padding)
+                .tuxunPageEnter()
                 .verticalScroll(rememberScrollState())
                 .padding(bottom = 16.dp),
         ) {

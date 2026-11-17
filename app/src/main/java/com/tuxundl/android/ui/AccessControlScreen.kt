@@ -1,7 +1,11 @@
 package com.tuxundl.android.ui
 
+import androidx.compose.animation.animateColorAsState
 import androidx.compose.foundation.Image
+import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.interaction.MutableInteractionSource
+import androidx.compose.foundation.interaction.collectIsPressedAsState
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
@@ -22,7 +26,6 @@ import androidx.compose.material3.RadioButton
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
-import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
@@ -32,6 +35,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
@@ -203,7 +207,8 @@ fun AccessControlScreen(
         Column(
             modifier = Modifier
                 .fillMaxSize()
-                .padding(padding),
+                .padding(padding)
+                .tuxunPageEnter(),
         ) {
             OutlinedTextField(
                 value = keyword,
@@ -244,7 +249,7 @@ fun AccessControlScreen(
                     style = MaterialTheme.typography.bodyLarge,
                     modifier = Modifier.weight(1f),
                 )
-                Switch(
+                TuxunSwitch(
                     checked = !systemApps,
                     onCheckedChange = { thirdPartyOnly ->
                         systemApps = !thirdPartyOnly
@@ -263,10 +268,26 @@ fun AccessControlScreen(
                     // Reading selectionTick subscribes this item to selection changes.
                     val checked = state.selectionTick.let { app.packageName in selected }
 
+                    // Press shows as a soft background wash, like node rows.
+                    val rowInteraction = remember { MutableInteractionSource() }
+                    val rowPressed by rowInteraction.collectIsPressedAsState()
+                    val rowOverlay by animateColorAsState(
+                        targetValue = if (rowPressed) {
+                            MaterialTheme.colorScheme.onSurface.copy(alpha = 0.08f)
+                        } else {
+                            Color.Transparent
+                        },
+                        animationSpec = tuxunColorSpec(animStyle()),
+                        label = "appRowPress",
+                    )
+
                     Row(
                         modifier = Modifier
                             .fillMaxWidth()
-                            .clickable {
+                            .clickable(
+                                interactionSource = rowInteraction,
+                                indication = null,
+                            ) {
                                 if (checked) {
                                     selected.remove(app.packageName)
                                 } else {
@@ -274,6 +295,7 @@ fun AccessControlScreen(
                                 }
                                 state.selectionTick++
                             }
+                            .background(rowOverlay)
                             .padding(horizontal = 16.dp, vertical = 8.dp),
                         verticalAlignment = Alignment.CenterVertically,
                     ) {

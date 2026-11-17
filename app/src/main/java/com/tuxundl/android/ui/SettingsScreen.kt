@@ -33,6 +33,7 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import com.tuxundl.android.R
 import com.tuxundl.android.design.SettingsDesign
+import com.tuxundl.android.util.UpdateInfo
 import com.tuxundl.android.design.R as DesignR
 
 /** State for the settings home: the manual update-check flow lives here. */
@@ -44,6 +45,9 @@ class SettingsUiState {
 
     /** Download target for the dialog's Download button; null = no update. */
     var updateDownloadUrl by mutableStateOf<String?>(null)
+
+    /** Non-null while the full-screen update page should be shown. */
+    var updatePageInfo by mutableStateOf<UpdateInfo?>(null)
 }
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -65,6 +69,7 @@ fun SettingsScreen(
             modifier = Modifier
                 .fillMaxSize()
                 .padding(padding)
+                .tuxunPageEnter()
                 .verticalScroll(rememberScrollState())
                 .padding(horizontal = 16.dp, vertical = 12.dp),
             verticalArrangement = Arrangement.spacedBy(12.dp),
@@ -125,6 +130,16 @@ fun SettingsScreen(
                 onClick = { onRequest(SettingsDesign.Request.CheckUpdate) },
             )
         }
+    }
+
+    // A manual check that finds a release opens the same full-screen
+    // update page as the startup check.
+    val updatePageInfo = state.updatePageInfo
+    if (updatePageInfo != null) {
+        UpdateFullScreen(
+            info = updatePageInfo,
+            onClose = { state.updatePageInfo = null },
+        )
     }
 
     val message = state.updateMessage
@@ -191,7 +206,7 @@ private fun SettingsEntryCard(
         Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(horizontal = 20.dp, vertical = 16.dp),
+                .padding(horizontal = 16.dp, vertical = 16.dp),
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.spacedBy(16.dp),
         ) {

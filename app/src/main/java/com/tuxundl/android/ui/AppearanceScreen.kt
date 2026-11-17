@@ -1,5 +1,6 @@
 package com.tuxundl.android.ui
 
+import androidx.compose.animation.animateColorAsState
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -41,6 +42,7 @@ import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import com.tuxundl.android.R
+import com.tuxundl.android.design.model.AnimationStyle
 import com.tuxundl.android.design.model.DarkMode
 import com.tuxundl.android.design.model.ThemePalette
 import com.tuxundl.android.design.store.UiStore
@@ -65,10 +67,12 @@ fun AppearanceScreen(
     onPaletteChange: (ThemePalette) -> Unit,
     onDarkModeChange: (DarkMode) -> Unit,
     onCustomColorChange: (Int) -> Unit,
+    onAnimStyleChange: (AnimationStyle) -> Unit,
     onBack: () -> Unit,
 ) {
     var palette by remember { mutableStateOf(uiStore.themePalette) }
     var darkMode by remember { mutableStateOf(uiStore.darkMode) }
+    var animStyle by remember { mutableStateOf(uiStore.animationStyle) }
     var customSeed by remember { mutableStateOf(uiStore.customThemeColor) }
     var showTraffic by remember { mutableStateOf(uiStore.showTrafficCard) }
     var showProxy by remember { mutableStateOf(uiStore.showProxyCard) }
@@ -147,7 +151,8 @@ fun AppearanceScreen(
                 .fillMaxSize()
                 .padding(padding)
                 .verticalScroll(rememberScrollState())
-                .padding(vertical = 8.dp),
+                .padding(vertical = 8.dp)
+                .tuxunPageEnter(),
         ) {
             SectionCard(title = stringResource(R.string.theme_palette)) {
                 PaletteRow(
@@ -228,6 +233,23 @@ fun AppearanceScreen(
                 )
             }
 
+            SectionCard(title = stringResource(R.string.animation_style)) {
+                SelectRow(
+                    title = stringResource(R.string.animation_style),
+                    options = listOf(
+                        stringResource(R.string.anim_style_spring),
+                        stringResource(R.string.anim_style_soft),
+                        stringResource(R.string.anim_style_reduced),
+                    ),
+                    selectedIndex = AnimationStyle.values().indexOf(animStyle),
+                    onSelect = { index ->
+                        val style = AnimationStyle.values()[index]
+                        animStyle = style
+                        onAnimStyleChange(style)
+                    },
+                )
+            }
+
             SectionCard(title = stringResource(R.string.home_cards)) {
                 cardOrder.forEachIndexed { index, key ->
                     CardOrderRow(
@@ -300,7 +322,7 @@ private fun CardOrderRow(
                 contentDescription = stringResource(R.string.move_down),
             )
         }
-        androidx.compose.material3.Switch(
+        TuxunSwitch(
             checked = checked,
             onCheckedChange = onCheckedChange,
         )
@@ -316,6 +338,12 @@ private fun PaletteRow(
     onClick: () -> Unit,
 ) {
     val scheme = if (darkTheme) darkSchemeOf(palette) else lightSchemeOf(palette)
+    // The preview dot cross-fades when the palette (or dark mode) flips.
+    val dotColor by animateColorAsState(
+        targetValue = scheme.primary,
+        animationSpec = tuxunColorSpec(LocalAnimStyle.current),
+        label = "paletteDot",
+    )
 
     Row(
         modifier = Modifier
@@ -328,7 +356,7 @@ private fun PaletteRow(
             modifier = Modifier
                 .size(28.dp)
                 .clip(CircleShape)
-                .background(scheme.primary)
+                .background(dotColor)
                 .border(
                     width = 1.dp,
                     color = MaterialTheme.colorScheme.outlineVariant,
@@ -359,6 +387,14 @@ private fun CustomColorRow(
     selected: Boolean,
     onClick: () -> Unit,
 ) {
+    // The preview dot follows the seed live while the sliders move.
+    val dotColor by animateColorAsState(
+        targetValue = if (seedArgb != 0) Color(seedArgb)
+        else MaterialTheme.colorScheme.surfaceVariant,
+        animationSpec = tuxunColorSpec(LocalAnimStyle.current),
+        label = "customColorDot",
+    )
+
     Row(
         modifier = Modifier
             .fillMaxWidth()
@@ -370,10 +406,7 @@ private fun CustomColorRow(
             modifier = Modifier
                 .size(28.dp)
                 .clip(CircleShape)
-                .background(
-                    if (seedArgb != 0) Color(seedArgb)
-                    else MaterialTheme.colorScheme.surfaceVariant,
-                )
+                .background(dotColor)
                 .border(
                     width = 1.dp,
                     color = MaterialTheme.colorScheme.outlineVariant,
@@ -422,6 +455,12 @@ private fun ColorPicker(
 ) {
     val seed = Color(seedArgb)
     val (hue, saturation, value) = seedHsl(seed)
+    // The big preview cross-fades as the seed changes under the sliders.
+    val previewColor by animateColorAsState(
+        targetValue = seed,
+        animationSpec = tuxunColorSpec(LocalAnimStyle.current),
+        label = "pickerPreview",
+    )
 
     fun emit(h: Float, s: Float, v: Float) {
         val color = hslToColor(h, s, v)
@@ -442,7 +481,7 @@ private fun ColorPicker(
                 modifier = Modifier
                     .size(40.dp)
                     .clip(CircleShape)
-                    .background(seed)
+                    .background(previewColor)
                     .border(
                         width = 1.dp,
                         color = MaterialTheme.colorScheme.outlineVariant,

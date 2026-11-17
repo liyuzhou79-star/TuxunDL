@@ -1,5 +1,6 @@
 package com.tuxundl.android.ui
 
+import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Spacer
@@ -23,6 +24,7 @@ import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -62,6 +64,7 @@ fun BackupScreen(
             modifier = Modifier
                 .fillMaxSize()
                 .padding(padding)
+                .tuxunPageEnter()
                 .verticalScroll(rememberScrollState())
                 .padding(bottom = 16.dp),
             verticalArrangement = Arrangement.spacedBy(4.dp),
@@ -87,10 +90,14 @@ fun BackupScreen(
                         style = MaterialTheme.typography.bodyMedium,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
+                    val exportInteraction = remember { MutableInteractionSource() }
                     Button(
                         onClick = onExport,
                         enabled = !state.working,
-                        modifier = Modifier.fillMaxWidth(),
+                        interactionSource = exportInteraction,
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .tuxunPressScale(exportInteraction, pressedScale = 0.97f),
                     ) {
                         Text(text = stringResource(R.string.backup_export))
                     }
@@ -109,10 +116,14 @@ fun BackupScreen(
                         style = MaterialTheme.typography.bodyMedium,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
+                    val importInteraction = remember { MutableInteractionSource() }
                     OutlinedButton(
                         onClick = onImport,
                         enabled = !state.working,
-                        modifier = Modifier.fillMaxWidth(),
+                        interactionSource = importInteraction,
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .tuxunPressScale(importInteraction, pressedScale = 0.97f),
                     ) {
                         Text(text = stringResource(R.string.backup_import))
                     }

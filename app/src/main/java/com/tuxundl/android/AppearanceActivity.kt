@@ -49,7 +49,7 @@ class AppearanceActivity : BaseActivity<AppSettingsDesign>() {
         }
 
         setContent {
-            TuxunDLTheme(darkTheme = darkTheme, palette = uiStore.themePalette, customSeed = customSeedColor(uiStore)) {
+            TuxunDLTheme(darkTheme = darkTheme, palette = uiStore.themePalette, customSeed = customSeedColor(uiStore), animStyle = uiStore.animationStyle) {
                 Surface(color = MaterialTheme.colorScheme.background) {
                     AppearanceScreen(
                         uiStore = uiStore,
@@ -64,6 +64,10 @@ class AppearanceActivity : BaseActivity<AppSettingsDesign>() {
                         },
                         onCustomColorChange = { argb: Int ->
                             uiStore.customThemeColor = argb
+                            recreateAll()
+                        },
+                        onAnimStyleChange = { style ->
+                            uiStore.animationStyle = style
                             recreateAll()
                         },
                         onBack = { finish() },
