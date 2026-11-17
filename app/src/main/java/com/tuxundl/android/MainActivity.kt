@@ -73,14 +73,14 @@ class MainActivity : BaseActivity<MainDesign>() {
                             uiStore.runningSince = System.currentTimeMillis()
                             resetTrafficSampling()
                             fetch()
-                            TuxunWidgetProvider.requestUpdate(this)
+                            TuxunWidgetProvider.requestUpdate(this@MainActivity)
                         }
                         Event.ClashStop -> {
                             uiStore.runningSince = 0L
                             resetTrafficSampling()
                             uiState.trafficSamples = emptyList()
                             fetch()
-                            TuxunWidgetProvider.requestUpdate(this)
+                            TuxunWidgetProvider.requestUpdate(this@MainActivity)
                         }
                         Event.ActivityStart,
                         Event.ServiceRecreated,
@@ -318,7 +318,7 @@ class MainActivity : BaseActivity<MainDesign>() {
                 uiStore.widgetUpRate = sample.upRate
                 uiStore.widgetDownRate = sample.downRate
                 uiStore.widgetUpdatedAt = System.currentTimeMillis()
-                TuxunWidgetProvider.requestUpdate(this)
+                TuxunWidgetProvider.requestUpdate(this@MainActivity)
             }
         }
 
