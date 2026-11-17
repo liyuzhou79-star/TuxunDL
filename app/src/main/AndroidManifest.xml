@@ -144,6 +144,11 @@
             android:exported="false"
             android:label="@string/custom_dns" />
         <activity
+            android:name=".BackupActivity"
+            android:configChanges="uiMode"
+            android:exported="false"
+            android:label="@string/backup_restore" />
+        <activity
             android:name=".ProvidersActivity"
             android:configChanges="uiMode"
             android:exported="false"

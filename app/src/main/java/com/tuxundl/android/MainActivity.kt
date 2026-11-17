@@ -31,6 +31,7 @@ import com.tuxundl.android.ui.theme.TuxunDLTheme
 import com.tuxundl.android.ui.theme.customSeedColor
 import com.tuxundl.android.ui.trafficDownloadBytes
 import com.tuxundl.android.ui.trafficUploadBytes
+import com.tuxundl.android.util.DailyTrafficStore
 import com.tuxundl.android.util.UpdateChecker
 import com.tuxundl.android.util.startClashService
 import com.tuxundl.android.util.stopClashService
@@ -59,7 +60,20 @@ class MainActivity : BaseActivity<MainDesign>() {
     // Throttle widget persistence: write rates at most every 5 ticks.
     private var widgetTickCount = 0
 
+    // Per-day forwarded traffic (filesDir/traffic-daily.json). Only
+    // traffic seen while this activity is alive is counted; the file is
+    // written at most once a minute plus once when the activity stops.
+    private lateinit var dailyTraffic: DailyTrafficStore
+    private var dailyTickCount = 0
+
     override suspend fun main() {
+        dailyTraffic = DailyTrafficStore(filesDir.resolve("traffic-daily.json"))
+
+        withContext(Dispatchers.IO) {
+            dailyTraffic.load()
+        }
+        refreshDailyState()
+
         fetch()
         checkUpdateOnStartup()
 
@@ -284,6 +298,16 @@ class MainActivity : BaseActivity<MainDesign>() {
         }
     }
 
+    /** Push the stored daily totals into the home-screen state. */
+    private fun refreshDailyState() {
+        val todayKey = dailyTraffic.todayKey()
+        val today = dailyTraffic.today(todayKey)
+
+        uiState.todayUp = today.up
+        uiState.todayDown = today.down
+        uiState.last7Days = dailyTraffic.previousDays(7, todayKey)
+    }
+
     private fun resetTrafficSampling() {
         prevTrafficUp = 0L
         prevTrafficDown = 0L
@@ -310,6 +334,26 @@ class MainActivity : BaseActivity<MainDesign>() {
             )
 
             uiState.trafficSamples = (uiState.trafficSamples + sample).takeLast(60)
+
+            // Daily totals: accumulate the raw byte deltas for today.
+            // Only traffic while the app is open is counted (see the
+            // note on the monitor card); the file is written at most
+            // once a minute, plus once when the activity stops.
+            val todayKey = dailyTraffic.todayKey()
+            dailyTraffic.add(
+                todayKey,
+                (up - prevTrafficUp).coerceAtLeast(0),
+                (down - prevTrafficDown).coerceAtLeast(0),
+            )
+            val today = dailyTraffic.today(todayKey)
+            uiState.todayUp = today.up
+            uiState.todayDown = today.down
+
+            dailyTickCount++
+            if (dailyTickCount % 60 == 0) {
+                withContext(Dispatchers.IO) { dailyTraffic.save() }
+                uiState.last7Days = dailyTraffic.previousDays(7, todayKey)
+            }
 
             // Persist the latest rates for the home-screen widget, throttled
             // to one write every 5 seconds so the prefs file is not churned.
@@ -369,6 +413,15 @@ class MainActivity : BaseActivity<MainDesign>() {
         }
     }
 
+    override fun onStop() {
+        // Flush the daily totals before the process may be killed.
+        if (::dailyTraffic.isInitialized) {
+            runCatching { dailyTraffic.save() }
+        }
+
+        super.onStop()
+    }
+
     override fun onStopped(cause: String?) {
         super.onStopped(cause)
 
@@ -383,7 +436,16 @@ class MainActivity : BaseActivity<MainDesign>() {
 
     private suspend fun queryAppVersionName(): String {
         return withContext(Dispatchers.IO) {
-            packageManager.getPackageInfo(packageName, 0).versionName + "\n" + Bridge.nativeCoreVersion().replace("_", "-")
+            val versionName = packageManager.getPackageInfo(packageName, 0).versionName
+            // 1.x is the official line: mark it on the About screen.
+            val official = if (versionName.startsWith("1.")) {
+                getString(R.string.version_official)
+            } else {
+                ""
+            }
+
+            "TuxunDL $versionName$official\n" +
+                Bridge.nativeCoreVersion().replace("_", "-")
         }
     }
 

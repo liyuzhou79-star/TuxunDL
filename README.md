@@ -1,11 +1,30 @@
-## TuxunDL
+## TuxunDL 1.0.0（正式版）
 
-A Graphical user interface of [Clash.Meta](https://github.com/MetaCubeX/Clash.Meta) for Android
+TuxunDL 是基於 [mihomo](https://github.com/MetaCubeX/mihomo) 核心的開源 Android 代理工具，完全開源（GPL-3.0）。1.0.0 是第一個正式版：功能完整、介面自訂程度高，適合日常使用。
 
-### Feature
+TuxunDL is an open-source Android proxy client based on the mihomo core (GPL-3.0). Version 1.0.0 is the first official stable release.
 
-Feature of [Clash.Meta](https://github.com/MetaCubeX/Clash.Meta)
+### 下載 / Download
 
+請到 [Releases](https://github.com/liyuzhou79-star/TuxunDL/releases) 下載最新版：
+
+- 標準版（arm64 新機型）：`tuxundl-1.0.0-arm64-v8a.apk`（包名 `com.tuxundl.android`）
+- 老機型版（32 位舊機型）：`tuxundl-1.0.0-legacy-armeabi-v7a.apk`（包名 `com.tuxundl.android.legacy`，可與標準版共存）
+
+兩個版本同版本號、同一個發布頁；App 內的檢查更新會按你的版本自動挑對的安裝包。
+
+### 主要功能 / Features
+
+- 首頁流量監控：即時速率折線圖、總轉發流量、連接時長、每日流量統計
+- 訂閱流量顯示：首頁直接看已用 / 總量 / 到期日
+- 分流規則編輯器：不用改訂閱檔，直接在 App 裡寫規則
+- 自訂 DNS：Nameserver / Fallback 自由填
+- 節點收藏置頂、節點搜尋、只顯示第三方應用
+- 桌面小組件：一鍵啟停、看目前節點
+- 自訂主題色：12 預設色＋任意顏色調色器，卡片開關與排序自訂
+- 備份還原：設定檔、規則、DNS、收藏與外觀一鍵匯出 / 還原
+- 檢查更新：新版發布後首頁自動提醒
+- 相簿掃碼、首次免責聲明、深色模式
 
 ### Requirement
 

@@ -229,7 +229,7 @@
     <string name="version_updated_tips">未設定のプロファイルは、再度保存する必要があります。</string>
     <string name="mode_switch_tips">このセッションでのみ有効です</string>
     <string name="clash_meta_wiki">TuxunDL Wiki</string>
-    <string name="meta_features">Meta Features</string>
+    <string name="meta_features">コア機能</string>
     <string name="unified_delay">Unified Delay</string>
     <string name="geodata_mode">Geodata Mode</string>
     <string name="tcp_concurrent">TCP Concurrent</string>

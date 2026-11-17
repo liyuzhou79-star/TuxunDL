@@ -288,7 +288,7 @@
     <string name="clash_meta_wiki">TuxunDL Wiki</string>
     <string name="clash_meta_wiki_url" translatable="false">https://docs.metacubex.one/</string>
 
-    <string name="meta_features">Функции Meta</string>
+    <string name="meta_features">Основные функции</string>
     <string name="unified_delay">Унифицированная задержка</string>
     <string name="geodata_mode">Режим геоданных</string>
     <string name="tcp_concurrent">Многопоточный TCP</string>

@@ -69,4 +69,25 @@
     <string name="disclaimer_agree">我已阅读并同意以上内容</string>
     <string name="disclaimer_continue">同意并继续</string>
     <string name="disclaimer_disagree">不同意</string>
+    <string name="backup_restore">备份与还原</string>
+    <string name="backup_warning">备份文件包含你的订阅链接，请妥善保管，不要随意分享。</string>
+    <string name="backup_export">导出备份</string>
+    <string name="backup_export_summary">把设定档、自订规则、自订 DNS、收藏节点与外观设定存成一个 .json 文件。</string>
+    <string name="backup_import">从备份还原</string>
+    <string name="backup_import_summary">读取备份文件，还原其中的设定档与设定。</string>
+    <string name="backup_working">处理中…</string>
+    <string name="backup_exported">备份已保存。</string>
+    <string name="backup_export_failed">备份失败，请再试一次。</string>
+    <string name="backup_invalid">这个文件不是 TuxunDL 的备份文件。</string>
+    <string name="backup_result_profiles">设定档：已还原 %1$d 个，跳过 %2$d 个，失败 %3$d 个。</string>
+    <string name="backup_result_rules">自订规则文件：已还原 %1$d 个。</string>
+    <string name="backup_result_dns_yes">自订 DNS：已还原。</string>
+    <string name="backup_result_dns_no">自订 DNS：备份中没有。</string>
+    <string name="backup_result_prefs_yes">偏好设定：已还原。</string>
+    <string name="backup_result_prefs_no">偏好设定：备份中没有。</string>
+    <string name="traffic_today">今日 ↑ %1$s ↓ %2$s</string>
+    <string name="traffic_daily_note">仅统计 App 开启期间的流量。</string>
+    <string name="traffic_last_7_days">近 7 日</string>
+    <string name="traffic_not_running">未启动，启动代理后开始统计。</string>
+    <string name="version_official">（正式版）</string>
 </resources>

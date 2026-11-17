@@ -69,4 +69,25 @@
     <string name="disclaimer_agree">I have read and agree to the above</string>
     <string name="disclaimer_continue">Agree &amp; Continue</string>
     <string name="disclaimer_disagree">Disagree</string>
+    <string name="backup_restore">Backup &amp; Restore</string>
+    <string name="backup_warning">The backup file contains your subscription links. Keep it safe and do not share it.</string>
+    <string name="backup_export">Export Backup</string>
+    <string name="backup_export_summary">Save profiles, custom rules, custom DNS, favorite nodes and appearance settings into one .json file.</string>
+    <string name="backup_import">Restore from Backup</string>
+    <string name="backup_import_summary">Read a backup file and restore its profiles and settings.</string>
+    <string name="backup_working">Working…</string>
+    <string name="backup_exported">Backup saved.</string>
+    <string name="backup_export_failed">Backup failed. Please try again.</string>
+    <string name="backup_invalid">This file is not a TuxunDL backup.</string>
+    <string name="backup_result_profiles">Profiles: %1$d restored, %2$d skipped, %3$d failed.</string>
+    <string name="backup_result_rules">Custom rule files: %1$d restored.</string>
+    <string name="backup_result_dns_yes">Custom DNS: restored.</string>
+    <string name="backup_result_dns_no">Custom DNS: not in the backup.</string>
+    <string name="backup_result_prefs_yes">Preferences: restored.</string>
+    <string name="backup_result_prefs_no">Preferences: not in the backup.</string>
+    <string name="traffic_today">Today ↑ %1$s ↓ %2$s</string>
+    <string name="traffic_daily_note">Counts only while the app is open.</string>
+    <string name="traffic_last_7_days">Last 7 Days</string>
+    <string name="traffic_not_running">Not running — traffic stats start after you start the proxy.</string>
+    <string name="version_official"> (Official)</string>
 </resources>

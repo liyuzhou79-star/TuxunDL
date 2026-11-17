@@ -226,7 +226,7 @@
     <string name="block_loopback_summary">阻止本地迴環連接</string>
     <string name="clash_meta_for_android">TuxunDL</string>
     <string name="clash_meta_wiki">TuxunDL Wiki</string>
-    <string name="meta_features">Meta Features</string>
+    <string name="meta_features">核心功能</string>
     <string name="unified_delay">Unified Delay</string>
     <string name="geodata_mode">Geodata Mode</string>
     <string name="tcp_concurrent">TCP Concurrent</string>

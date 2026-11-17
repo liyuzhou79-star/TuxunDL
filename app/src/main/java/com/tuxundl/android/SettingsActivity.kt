@@ -46,6 +46,8 @@ class SettingsActivity : BaseActivity<SettingsDesign>() {
                             startActivity(AccessControlActivity::class.intent)
                         SettingsDesign.Request.StartCustomDns ->
                             startActivity(DnsSettingsActivity::class.intent)
+                        SettingsDesign.Request.StartBackup ->
+                            startActivity(BackupActivity::class.intent)
                         SettingsDesign.Request.CheckUpdate ->
                             checkUpdate()
                     }

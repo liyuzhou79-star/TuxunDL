@@ -90,6 +90,7 @@ import com.tuxundl.android.core.util.trafficUpload
 import com.tuxundl.android.design.MainDesign
 import com.tuxundl.android.design.util.toBytesString
 import com.tuxundl.android.design.util.toDateStr
+import com.tuxundl.android.util.DailyTrafficDay
 import com.tuxundl.android.util.UpdateInfo
 import kotlinx.coroutines.delay
 import kotlin.math.roundToLong
@@ -155,6 +156,13 @@ class MainUiState {
     var subDownload by mutableStateOf(0L)
     var subTotal by mutableStateOf(0L)
     var subExpire by mutableStateOf(0L)
+
+    /** Forwarded traffic today (only counted while the app is open). */
+    var todayUp by mutableStateOf(0L)
+    var todayDown by mutableStateOf(0L)
+
+    /** Previous days' totals, newest first (excludes today). */
+    var last7Days by mutableStateOf<List<DailyTrafficDay>>(emptyList())
 
     val snackbarHostState = SnackbarHostState()
 }
@@ -736,6 +744,58 @@ private fun TrafficMonitorCard(state: MainUiState) {
                     style = MaterialTheme.typography.bodyMedium,
                     color = MaterialTheme.colorScheme.tertiary,
                 )
+            }
+
+            // Today's forwarded total (app-open time only) plus the
+            // previous days. When the proxy is stopped the chart is
+            // empty, so say so instead of showing a dead card.
+            if (!state.clashRunning) {
+                Text(
+                    text = stringResource(R.string.traffic_not_running),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            } else {
+                Text(
+                    text = stringResource(
+                        R.string.traffic_today,
+                        state.todayUp.toBytesString(),
+                        state.todayDown.toBytesString(),
+                    ),
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
+            Text(
+                text = stringResource(R.string.traffic_daily_note),
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+
+            if (state.last7Days.isNotEmpty()) {
+                Spacer(modifier = Modifier.height(4.dp))
+                Text(
+                    text = stringResource(R.string.traffic_last_7_days),
+                    style = MaterialTheme.typography.titleSmall,
+                    color = MaterialTheme.colorScheme.primary,
+                )
+                state.last7Days.forEach { day ->
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                    ) {
+                        Text(
+                            text = day.date,
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                        Text(
+                            text = "↑ ${day.up.toBytesString()}   ↓ ${day.down.toBytesString()}",
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                    }
+                }
             }
         }
     }

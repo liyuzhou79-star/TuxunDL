@@ -54,4 +54,25 @@
     <string name="widget_running">運行中</string>
     <string name="widget_stopped">已停止</string>
     <string name="widget_no_node">未選擇節點</string>
+    <string name="backup_restore">備份與還原</string>
+    <string name="backup_warning">備份檔案包含你的訂閱連結，請妥善保管，不要隨意分享。</string>
+    <string name="backup_export">匯出備份</string>
+    <string name="backup_export_summary">把設定檔、自訂規則、自訂 DNS、收藏節點與外觀設定存成一個 .json 檔案。</string>
+    <string name="backup_import">從備份還原</string>
+    <string name="backup_import_summary">讀取備份檔案，還原其中的設定檔與設定。</string>
+    <string name="backup_working">處理中…</string>
+    <string name="backup_exported">備份已儲存。</string>
+    <string name="backup_export_failed">備份失敗，請再試一次。</string>
+    <string name="backup_invalid">這個檔案不是 TuxunDL 的備份檔案。</string>
+    <string name="backup_result_profiles">設定檔：已還原 %1$d 個，跳過 %2$d 個，失敗 %3$d 個。</string>
+    <string name="backup_result_rules">自訂規則檔案：已還原 %1$d 個。</string>
+    <string name="backup_result_dns_yes">自訂 DNS：已還原。</string>
+    <string name="backup_result_dns_no">自訂 DNS：備份中沒有。</string>
+    <string name="backup_result_prefs_yes">偏好設定：已還原。</string>
+    <string name="backup_result_prefs_no">偏好設定：備份中沒有。</string>
+    <string name="traffic_today">今日 ↑ %1$s ↓ %2$s</string>
+    <string name="traffic_daily_note">僅統計 App 開啟期間的流量。</string>
+    <string name="traffic_last_7_days">近 7 日</string>
+    <string name="traffic_not_running">未啟動，啟動代理後開始統計。</string>
+    <string name="version_official">（正式版）</string>
 </resources>
