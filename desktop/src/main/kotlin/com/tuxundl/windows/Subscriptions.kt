@@ -177,4 +177,17 @@ object SubscriptionStore {
         profileFile(sub).delete()
         return list.filterNot { it.id == sub.id }
     }
+
+    /**
+     * Replace the whole subscription list (backup restore). Fetched
+     * configs of subscriptions that do not survive the restore are
+     * removed; restored subscriptions re-fetch on the next update.
+     */
+    fun replaceAll(list: List<Subscription>) {
+        val keep = list.map { it.id }.toSet()
+        load().forEach { old ->
+            if (old.id !in keep) profileFile(old).delete()
+        }
+        save(list)
+    }
 }

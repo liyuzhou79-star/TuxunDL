@@ -196,6 +196,71 @@ internal fun SettingsPage() {
 
         Spacer(Modifier.height(28.dp))
 
+        Text(text = "数据备份", color = Color.White, fontSize = 16.sp)
+        Spacer(Modifier.height(4.dp))
+        Text(
+            text = "把订阅列表和全部设置导出成一个 JSON 文件，换电脑或重装时导入回来。订阅的配置文件不在备份里，导入后到订阅页点「更新全部」重新拉取一次，再选一下当前订阅就行。",
+            color = TextDim,
+            fontSize = 13.sp,
+        )
+        Spacer(Modifier.height(10.dp))
+        Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+            Text(
+                text = "导出备份",
+                color = Color.White,
+                fontSize = 15.sp,
+                modifier = Modifier
+                    .clip(RoundedCornerShape(8.dp))
+                    .background(Indigo)
+                    .clickable {
+                        val file = pickBackupFile(save = true)
+                        if (file != null) {
+                            BackupManager.export(file)
+                                .onSuccess { count ->
+                                    note = "备份已导出到 ${file.name}" +
+                                        "（含 $count 个订阅）"
+                                }
+                                .onFailure {
+                                    note = "导出失败：${it.message}"
+                                }
+                        }
+                    }
+                    .padding(horizontal = 16.dp, vertical = 10.dp),
+            )
+            Text(
+                text = "导入备份",
+                color = Color.White,
+                fontSize = 15.sp,
+                modifier = Modifier
+                    .clip(RoundedCornerShape(8.dp))
+                    .background(PanelDark)
+                    .clickable {
+                        val file = pickBackupFile(save = false)
+                        if (file != null) {
+                            BackupManager.import(file)
+                                .onSuccess { count ->
+                                    tun = SettingsStore.tunMode()
+                                    autoStart = SettingsStore.autoStart()
+                                    autoConnect = SettingsStore.autoConnect()
+                                    closeToTray = SettingsStore.closeToTray()
+                                    intervalHours =
+                                        SettingsStore.autoUpdateIntervalHours()
+                                    portText =
+                                        SettingsStore.mixedPort().toString()
+                                    note = "已恢复 $count 个订阅和全部设置；" +
+                                        "请到订阅页点「更新全部」重新拉取配置"
+                                }
+                                .onFailure {
+                                    note = "导入失败：${it.message}"
+                                }
+                        }
+                    }
+                    .padding(horizontal = 16.dp, vertical = 10.dp),
+            )
+        }
+
+        Spacer(Modifier.height(28.dp))
+
         Text(text = "检查更新", color = Color.White, fontSize = 16.sp)
         Spacer(Modifier.height(4.dp))
         Text(

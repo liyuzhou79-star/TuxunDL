@@ -94,6 +94,19 @@ object SettingsStore {
         )
     }
 
+    /** All settings as one JSON object, for backup export. */
+    fun snapshot(): kotlinx.serialization.json.JsonObject =
+        kotlinx.serialization.json.JsonObject(read())
+
+    /** Replace all settings at once, for backup restore. */
+    fun restore(snapshot: kotlinx.serialization.json.JsonObject) {
+        CoreBridge.workDir.mkdirs()
+        file.writeText(snapshot.toString())
+        // The auto-start registry entry is a side effect of its
+        // setting; re-apply it so a restored value actually takes hold.
+        applyAutoStart(autoStart())
+    }
+
     private fun applyAutoStart(value: Boolean) {
         if (!Elevation.isWindows()) return
         val key = "HKCU\\Software\\Microsoft\\Windows\\CurrentVersion\\Run"
