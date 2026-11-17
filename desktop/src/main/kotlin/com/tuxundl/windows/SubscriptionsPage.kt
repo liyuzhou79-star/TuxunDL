@@ -24,6 +24,7 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
@@ -60,6 +61,7 @@ fun SubscriptionsPage() {
     var url by remember { mutableStateOf("") }
     var status by remember { mutableStateOf<String?>(null) }
     var busy by remember { mutableStateOf(false) }
+    var updateAllProgress by remember { mutableStateOf<Pair<Int, Int>?>(null) }
     val scope = rememberCoroutineScope()
 
     fun persist() = SubscriptionStore.save(subscriptions.toList())
@@ -81,12 +83,71 @@ fun SubscriptionsPage() {
             .fillMaxSize()
             .padding(28.dp),
     ) {
-        Text(
-            text = "订阅",
-            color = Color.White,
-            fontSize = 22.sp,
-            fontWeight = FontWeight.Bold,
-        )
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Text(
+                text = "订阅",
+                color = Color.White,
+                fontSize = 22.sp,
+                fontWeight = FontWeight.Bold,
+            )
+
+            Spacer(Modifier.weight(1f))
+
+            Button(
+                enabled = !busy && updateAllProgress == null &&
+                    subscriptions.isNotEmpty(),
+                onClick = {
+                    val targets = subscriptions.toList()
+                    busy = true
+                    scope.launch {
+                        var failures = 0
+                        targets.forEachIndexed { index, sub ->
+                            updateAllProgress = index to targets.size
+                            status = "正在更新 ${sub.name}" +
+                                "（${index + 1}/${targets.size}）…"
+                            // Refresh the live profile too when this
+                            // subscription is the active one, same as
+                            // the automatic updater does.
+                            val wasActive = runCatching {
+                                val active = CoreBridge.profileFile()
+                                active.exists() && active.readText() ==
+                                    SubscriptionStore.profileFile(sub).readText()
+                            }.getOrDefault(false)
+                            SubscriptionStore.fetch(sub)
+                                .onSuccess { fetched ->
+                                    val i = subscriptions.indexOfFirst {
+                                        it.id == sub.id
+                                    }
+                                    if (i >= 0) subscriptions[i] = fetched
+                                    if (wasActive) {
+                                        SubscriptionStore.activate(fetched)
+                                    }
+                                }
+                                .onFailure { failures++ }
+                            updateAllProgress = (index + 1) to targets.size
+                        }
+                        persist()
+                        status = if (failures == 0) {
+                            "全部更新完成（共 ${targets.size} 个）"
+                        } else {
+                            "更新完成：成功 ${targets.size - failures} 个，" +
+                                "失败 $failures 个"
+                        }
+                        updateAllProgress = null
+                        busy = false
+                    }
+                },
+            ) {
+                Text(
+                    text = updateAllProgress?.let { (done, total) ->
+                        "更新中 $done/$total"
+                    } ?: "更新全部",
+                )
+            }
+        }
 
         Spacer(Modifier.height(16.dp))
 
