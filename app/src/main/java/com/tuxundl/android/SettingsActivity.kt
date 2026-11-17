@@ -9,12 +9,16 @@ import com.tuxundl.android.common.util.intent
 import com.tuxundl.android.design.SettingsDesign
 import com.tuxundl.android.design.model.DarkMode
 import com.tuxundl.android.ui.SettingsScreen
+import com.tuxundl.android.ui.SettingsUiState
 import com.tuxundl.android.ui.theme.TuxunDLTheme
+import com.tuxundl.android.util.UpdateChecker
 import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.isActive
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.selects.select
 
 class SettingsActivity : BaseActivity<SettingsDesign>() {
+    private val uiState = SettingsUiState()
     private val uiRequests = Channel<SettingsDesign.Request>(Channel.UNLIMITED)
 
     override suspend fun main() {
@@ -35,8 +39,39 @@ class SettingsActivity : BaseActivity<SettingsDesign>() {
                             startActivity(MetaFeatureSettingsActivity::class.intent)
                         SettingsDesign.Request.StartAppearance ->
                             startActivity(AppearanceActivity::class.intent)
+                        SettingsDesign.Request.StartRules ->
+                            startActivity(RulesActivity::class.intent)
+                        SettingsDesign.Request.CheckUpdate ->
+                            checkUpdate()
                     }
                 }
+            }
+        }
+    }
+
+    private fun checkUpdate() {
+        if (uiState.checkingUpdate) return
+
+        launch {
+            uiState.checkingUpdate = true
+
+            val info = UpdateChecker.fetchLatest()
+
+            uiState.checkingUpdate = false
+
+            val current = packageManager
+                .getPackageInfo(packageName, 0).versionName ?: ""
+
+            when {
+                info == null ->
+                    uiState.updateMessage = getString(R.string.update_check_failed)
+                UpdateChecker.isNewer(info.version, current) -> {
+                    uiState.updateMessage =
+                        getString(R.string.update_new_found, info.version)
+                    uiState.updateDownloadUrl = info.downloadUrl ?: info.pageUrl
+                }
+                else ->
+                    uiState.updateMessage = getString(R.string.update_latest)
             }
         }
     }
@@ -55,6 +90,7 @@ class SettingsActivity : BaseActivity<SettingsDesign>() {
             TuxunDLTheme(darkTheme = darkTheme, palette = uiStore.themePalette) {
                 Surface(color = MaterialTheme.colorScheme.background) {
                     SettingsScreen(
+                        state = uiState,
                         onRequest = { request -> uiRequests.trySend(request) },
                         onBack = { finish() },
                     )

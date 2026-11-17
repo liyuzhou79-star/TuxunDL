@@ -48,39 +48,39 @@ fun HelpScreen(
                 modifier = Modifier.padding(horizontal = 20.dp, vertical = 8.dp),
             )
 
-            CategoryHeader(text = stringResource(DesignR.string.document))
+            SectionCard(title = stringResource(DesignR.string.document)) {
+                ClickRow(
+                    title = stringResource(DesignR.string.clash_wiki),
+                    summary = stringResource(DesignR.string.clash_wiki_url),
+                    onClick = {
+                        openLink(Uri.parse(context.getString(DesignR.string.clash_wiki_url)))
+                    },
+                )
+                ClickRow(
+                    title = stringResource(DesignR.string.clash_meta_wiki),
+                    summary = stringResource(DesignR.string.clash_meta_wiki_url),
+                    onClick = {
+                        openLink(Uri.parse(context.getString(DesignR.string.clash_meta_wiki_url)))
+                    },
+                )
+            }
 
-            ClickRow(
-                title = stringResource(DesignR.string.clash_wiki),
-                summary = stringResource(DesignR.string.clash_wiki_url),
-                onClick = {
-                    openLink(Uri.parse(context.getString(DesignR.string.clash_wiki_url)))
-                },
-            )
-            ClickRow(
-                title = stringResource(DesignR.string.clash_meta_wiki),
-                summary = stringResource(DesignR.string.clash_meta_wiki_url),
-                onClick = {
-                    openLink(Uri.parse(context.getString(DesignR.string.clash_meta_wiki_url)))
-                },
-            )
-
-            CategoryHeader(text = stringResource(DesignR.string.sources))
-
-            ClickRow(
-                title = stringResource(DesignR.string.clash_meta_core),
-                summary = stringResource(DesignR.string.clash_meta_core_url),
-                onClick = {
-                    openLink(Uri.parse(context.getString(DesignR.string.clash_meta_core_url)))
-                },
-            )
-            ClickRow(
-                title = stringResource(DesignR.string.clash_meta_for_android),
-                summary = stringResource(DesignR.string.meta_github_url),
-                onClick = {
-                    openLink(Uri.parse(context.getString(DesignR.string.meta_github_url)))
-                },
-            )
+            SectionCard(title = stringResource(DesignR.string.sources)) {
+                ClickRow(
+                    title = stringResource(DesignR.string.clash_meta_core),
+                    summary = stringResource(DesignR.string.clash_meta_core_url),
+                    onClick = {
+                        openLink(Uri.parse(context.getString(DesignR.string.clash_meta_core_url)))
+                    },
+                )
+                ClickRow(
+                    title = stringResource(DesignR.string.clash_meta_for_android),
+                    summary = stringResource(DesignR.string.meta_github_url),
+                    onClick = {
+                        openLink(Uri.parse(context.getString(DesignR.string.meta_github_url)))
+                    },
+                )
+            }
         }
     }
 }

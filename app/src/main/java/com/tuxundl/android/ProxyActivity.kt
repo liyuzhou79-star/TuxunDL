@@ -6,6 +6,7 @@ import androidx.activity.compose.setContent
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.SnackbarDuration
 import androidx.compose.material3.Surface
+import com.tuxundl.android.common.util.intent
 import com.tuxundl.android.core.Clash
 import com.tuxundl.android.core.model.ProxySort
 import com.tuxundl.android.design.ProxyDesign
@@ -31,6 +32,7 @@ class ProxyActivity : BaseActivity<ProxyDesign>() {
     private sealed interface Action {
         data class SetSort(val sort: ProxySort) : Action
         data class SetExcludeNotSelectable(val exclude: Boolean) : Action
+        data class ToggleFavorite(val group: String, val node: String) : Action
     }
 
     override suspend fun main() {
@@ -56,6 +58,7 @@ class ProxyActivity : BaseActivity<ProxyDesign>() {
         uiState.mode = withClash { queryOverride(Clash.OverrideSlot.Session).mode }
         uiState.sort = uiStore.proxySort
         uiState.excludeNotSelectable = uiStore.proxyExcludeNotSelectable
+        uiState.favorites = uiStore.favoriteProxies
 
         reloadNames()
 
@@ -90,6 +93,15 @@ class ProxyActivity : BaseActivity<ProxyDesign>() {
                             uiState.excludeNotSelectable = it.exclude
 
                             reloadNames()
+                        }
+                        is Action.ToggleFavorite -> {
+                            val key = "${it.group}|${it.node}"
+                            val updated = uiState.favorites.toMutableSet().apply {
+                                if (!add(key)) remove(key)
+                            }
+
+                            uiStore.favoriteProxies = updated
+                            uiState.favorites = updated
                         }
                     }
                 }
@@ -202,6 +214,10 @@ class ProxyActivity : BaseActivity<ProxyDesign>() {
                             uiActions.trySend(Action.SetExcludeNotSelectable(exclude))
                         },
                         onExpandedGroupChange = { name -> uiStore.proxyLastGroup = name },
+                        onToggleFavorite = { group, node ->
+                            uiActions.trySend(Action.ToggleFavorite(group, node))
+                        },
+                        onOpenRules = { startActivity(RulesActivity::class.intent) },
                         onBack = { finish() },
                     )
                 }

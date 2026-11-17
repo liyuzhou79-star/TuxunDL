@@ -11,7 +11,6 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
-import androidx.compose.material3.Card
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
@@ -65,6 +64,7 @@ fun NewProfileScreen(
         ) {
             items(state.providers) { provider ->
                 ProviderCard(
+                    modifier = Modifier.animateItem(),
                     provider = provider,
                     onClick = {
                         if (provider is ProfileProvider.QR) {
@@ -93,9 +93,10 @@ private fun ProviderCard(
     provider: ProfileProvider,
     onClick: () -> Unit,
     onLongClick: () -> Boolean,
+    modifier: Modifier = Modifier,
 ) {
-    Card(
-        modifier = Modifier
+    TuxunCard(
+        modifier = modifier
             .fillMaxWidth()
             .combinedClickable(
                 onClick = onClick,

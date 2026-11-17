@@ -113,7 +113,7 @@
     <string name="cancel">Cancel</string>
     <string name="reset">Reset</string>
 
-    <string name="clash_logcat">Clash Logcat</string>
+    <string name="clash_logcat">TuxunDL Logcat</string>
     <string name="history">History</string>
     <string name="logcat">Logcat</string>
 
@@ -127,7 +127,7 @@
     <string name="override">Override</string>
 
     <string name="auto_restart">Auto Restart</string>
-    <string name="allow_clash_auto_restart">Allow clash auto restart</string>
+    <string name="allow_clash_auto_restart">Allow TuxunDL auto restart</string>
 
     <string name="route_system_traffic">Route System Traffic</string>
     <string name="routing_via_vpn_service">Auto routing all system traffic via VpnService</string>
@@ -149,7 +149,7 @@
     <string name="access_control_packages">Access Control Packages</string>
     <string name="access_control_packages_summary">Configure access permission for apps</string>
 
-    <string name="options_unavailable">Options Unavailable until Clash Stopped</string>
+    <string name="options_unavailable">Options unavailable until the proxy is stopped</string>
 
     <string name="general">General</string>
     <string name="dns">DNS</string>
@@ -232,7 +232,7 @@
     <string name="feedback">Feedback</string>
     <string name="sources">Sources</string>
     <string name="donate">Donate</string>
-    <string name="clash_wiki">Clash Wiki</string>
+    <string name="clash_wiki">Config Wiki</string>
     <string name="github_issues">Github Issues</string>
     <string name="google_play">Google Play</string>
     <string name="clash_meta_core">TuxunDL Core</string>
@@ -240,7 +240,7 @@
     <string name="meta_github_url" translatable="false">https://github.com/liyuzhou79-star/TuxunDL</string>
     <string name="clash_meta_core_url" translatable="false">https://github.com/MetaCubeX/Clash.Meta</string>
 
-    <string name="tips_properties"><![CDATA[Accept Only <strong>Clash Config</strong>(including <strong>Proxy</strong>/<strong>Rules</strong>)]]></string>
+    <string name="tips_properties"><![CDATA[Accept Only <strong>Proxy Config</strong>(including <strong>Proxy</strong>/<strong>Rules</strong>)]]></string>
     <string name="tips_help"><![CDATA[TuxunDL is a <strong>freeware</strong> and we do <strong>NOT</strong> provide any service for it]]></string>
 
     <string name="google_play_url" translatable="false">https://play.google.com/store/apps/details?id=com.tuxundl.android</string>
@@ -357,8 +357,8 @@
     <string name="toast_profile_updated_complete">Update profile %s completed</string>
     <string name="toast_profile_updated_failed">Update profile %1$s failed: %2$s</string>
     <string name="external_control_activity">External Control</string>
-    <string name="external_control_started">Clash.Meta service started</string>
-    <string name="external_control_stopped">Clash.Meta service stopped</string>
+    <string name="external_control_started">TuxunDL service started</string>
+    <string name="external_control_stopped">TuxunDL service stopped</string>
 
     <string name="hide_app_icon_title">Hide App Icon</string>
     <string name="hide_app_icon_desc">You can dial *#*#8898635#*#* to open this App</string>

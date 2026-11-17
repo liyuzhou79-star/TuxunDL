@@ -1,5 +1,12 @@
 package com.tuxundl.android.ui
 
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.animateContentSize
+import androidx.compose.animation.expandVertically
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.shrinkVertically
+import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -13,7 +20,6 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material3.Card
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
@@ -37,9 +43,11 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
+import com.tuxundl.android.R
 import com.tuxundl.android.core.model.Proxy
 import com.tuxundl.android.core.model.ProxySort
 import com.tuxundl.android.core.model.TunnelState
@@ -76,10 +84,13 @@ class ProxyUiState {
     var sort by mutableStateOf(ProxySort.Default)
     var excludeNotSelectable by mutableStateOf(false)
 
+    /** Favorite nodes as "group|node" keys (mirrors UiStore.favoriteProxies). */
+    var favorites by mutableStateOf<Set<String>>(emptySet())
+
     val snackbarHostState = SnackbarHostState()
 }
 
-@OptIn(ExperimentalMaterial3Api::class)
+@OptIn(ExperimentalMaterial3Api::class, ExperimentalFoundationApi::class)
 @Composable
 fun ProxyScreen(
     state: ProxyUiState,
@@ -87,6 +98,8 @@ fun ProxyScreen(
     onSortChange: (ProxySort) -> Unit,
     onExcludeNotSelectableChange: (Boolean) -> Unit,
     onExpandedGroupChange: (String) -> Unit,
+    onToggleFavorite: (group: String, node: String) -> Unit,
+    onOpenRules: () -> Unit,
     onBack: () -> Unit,
 ) {
     Scaffold(
@@ -108,6 +121,7 @@ fun ProxyScreen(
                         onRequest = onRequest,
                         onSortChange = onSortChange,
                         onExcludeNotSelectableChange = onExcludeNotSelectableChange,
+                        onOpenRules = onOpenRules,
                     )
                 },
             )
@@ -150,6 +164,7 @@ fun ProxyScreen(
                         GroupCard(
                             group = group,
                             links = links,
+                            favorites = state.favorites,
                             onToggleExpand = {
                                 group.expanded = !group.expanded
                                 if (group.expanded) {
@@ -160,6 +175,10 @@ fun ProxyScreen(
                             onSelect = { name ->
                                 onRequest(ProxyDesign.Request.Select(index, name))
                             },
+                            onToggleFavorite = { node ->
+                                onToggleFavorite(group.name, node)
+                            },
+                            modifier = Modifier.animateItem(),
                         )
                     }
                 }
@@ -175,6 +194,7 @@ private fun ProxyOverflowMenu(
     onRequest: (ProxyDesign.Request) -> Unit,
     onSortChange: (ProxySort) -> Unit,
     onExcludeNotSelectableChange: (Boolean) -> Unit,
+    onOpenRules: () -> Unit,
 ) {
     var expanded by remember { mutableStateOf(false) }
 
@@ -190,6 +210,14 @@ private fun ProxyOverflowMenu(
             expanded = expanded,
             onDismissRequest = { expanded = false },
         ) {
+            // Custom routing rules editor
+            DropdownMenuItem(
+                text = { Text(text = stringResource(R.string.custom_rules)) },
+                onClick = {
+                    expanded = false
+                    onOpenRules()
+                },
+            )
             // Mode: "do not modify" (the three modes live in the segmented row)
             DropdownMenuItem(
                 text = { Text(text = stringResource(DesignR.string.dont_modify)) },
@@ -296,12 +324,27 @@ private fun ModeSelector(
 private fun GroupCard(
     group: ProxyGroupUiState,
     links: Map<String, String>,
+    favorites: Set<String>,
     onToggleExpand: () -> Unit,
     onUrlTest: () -> Unit,
     onSelect: (String) -> Unit,
+    onToggleFavorite: (String) -> Unit,
+    modifier: Modifier = Modifier,
 ) {
-    Card(modifier = Modifier.fillMaxWidth()) {
-        Column(modifier = Modifier.fillMaxWidth()) {
+    // Favorites first; sortedBy is stable, so each partition keeps its
+    // original relative order.
+    val sortedProxies = remember(group.proxies, favorites) {
+        group.proxies.sortedBy { proxy ->
+            if ("${group.name}|${proxy.name}" in favorites) 0 else 1
+        }
+    }
+
+    TuxunCard(modifier = modifier.fillMaxWidth()) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .animateContentSize(),
+        ) {
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
@@ -347,7 +390,11 @@ private fun GroupCard(
                 }
             }
 
-            if (group.expanded) {
+            AnimatedVisibility(
+                visible = group.expanded,
+                enter = expandVertically() + fadeIn(),
+                exit = shrinkVertically() + fadeOut(),
+            ) {
                 if (!group.loaded) {
                     Box(
                         modifier = Modifier
@@ -365,12 +412,14 @@ private fun GroupCard(
                             .padding(bottom = 12.dp),
                         verticalArrangement = Arrangement.spacedBy(4.dp),
                     ) {
-                        group.proxies.forEach { proxy ->
+                        sortedProxies.forEach { proxy ->
                             ProxyRow(
                                 proxy = proxy,
                                 selected = proxy.name == group.now,
                                 links = links,
                                 enabled = group.selectable,
+                                favorite = "${group.name}|${proxy.name}" in favorites,
+                                onToggleFavorite = { onToggleFavorite(proxy.name) },
                                 onClick = { onSelect(proxy.name) },
                             )
                         }
@@ -387,6 +436,8 @@ private fun ProxyRow(
     selected: Boolean,
     links: Map<String, String>,
     enabled: Boolean,
+    favorite: Boolean,
+    onToggleFavorite: () -> Unit,
     onClick: () -> Unit,
 ) {
     val title = if (proxy.isGroup) proxy.name else proxy.title
@@ -441,6 +492,27 @@ private fun ProxyRow(
                 painter = painterResource(DesignR.drawable.ic_outline_check_circle),
                 contentDescription = null,
                 tint = MaterialTheme.colorScheme.primary,
+                modifier = Modifier.size(20.dp),
+            )
+        }
+        IconButton(
+            onClick = onToggleFavorite,
+            modifier = Modifier.size(36.dp),
+        ) {
+            Icon(
+                painter = painterResource(
+                    if (favorite) {
+                        DesignR.drawable.ic_baseline_star
+                    } else {
+                        DesignR.drawable.ic_outline_star
+                    },
+                ),
+                contentDescription = stringResource(R.string.favorite),
+                tint = if (favorite) {
+                    Color(0xFFFFB300)
+                } else {
+                    MaterialTheme.colorScheme.onSurfaceVariant
+                },
                 modifier = Modifier.size(20.dp),
             )
         }

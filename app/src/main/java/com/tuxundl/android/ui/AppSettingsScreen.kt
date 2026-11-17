@@ -59,70 +59,70 @@ fun AppSettingsScreen(
                 .verticalScroll(rememberScrollState())
                 .padding(vertical = 8.dp),
         ) {
-            CategoryHeader(text = stringResource(DesignR.string.behavior))
+            SectionCard(title = stringResource(DesignR.string.behavior)) {
+                SwitchRow(
+                    title = stringResource(DesignR.string.auto_restart),
+                    summary = stringResource(DesignR.string.allow_clash_auto_restart),
+                    checked = autoRestart,
+                    onCheckedChange = {
+                        autoRestart = it
+                        behavior.autoRestart = it
+                    },
+                )
+            }
 
-            SwitchRow(
-                title = stringResource(DesignR.string.auto_restart),
-                summary = stringResource(DesignR.string.allow_clash_auto_restart),
-                checked = autoRestart,
-                onCheckedChange = {
-                    autoRestart = it
-                    behavior.autoRestart = it
-                },
-            )
+            SectionCard(title = stringResource(DesignR.string.interface_)) {
+                SelectRow(
+                    title = stringResource(DesignR.string.dark_mode),
+                    options = listOf(
+                        stringResource(DesignR.string.follow_system_android_10),
+                        stringResource(DesignR.string.always_light),
+                        stringResource(DesignR.string.always_dark),
+                    ),
+                    selectedIndex = DarkMode.values().indexOf(darkMode),
+                    onSelect = { index ->
+                        val mode = DarkMode.values()[index]
+                        darkMode = mode
+                        uiStore.darkMode = mode
+                        onRecreateAll()
+                    },
+                )
 
-            CategoryHeader(text = stringResource(DesignR.string.interface_))
+                SwitchRow(
+                    title = stringResource(DesignR.string.hide_app_icon_title),
+                    summary = stringResource(DesignR.string.hide_app_icon_desc),
+                    checked = hideAppIcon,
+                    onCheckedChange = {
+                        hideAppIcon = it
+                        uiStore.hideAppIcon = it
+                        onHideIconChange(it)
+                    },
+                )
 
-            SelectRow(
-                title = stringResource(DesignR.string.dark_mode),
-                options = listOf(
-                    stringResource(DesignR.string.follow_system_android_10),
-                    stringResource(DesignR.string.always_light),
-                    stringResource(DesignR.string.always_dark),
-                ),
-                selectedIndex = DarkMode.values().indexOf(darkMode),
-                onSelect = { index ->
-                    val mode = DarkMode.values()[index]
-                    darkMode = mode
-                    uiStore.darkMode = mode
-                    onRecreateAll()
-                },
-            )
+                SwitchRow(
+                    title = stringResource(DesignR.string.hide_from_recents_title),
+                    summary = stringResource(DesignR.string.hide_from_recents_desc),
+                    checked = hideFromRecents,
+                    onCheckedChange = {
+                        hideFromRecents = it
+                        uiStore.hideFromRecents = it
+                        onRecreateAll()
+                    },
+                )
+            }
 
-            SwitchRow(
-                title = stringResource(DesignR.string.hide_app_icon_title),
-                summary = stringResource(DesignR.string.hide_app_icon_desc),
-                checked = hideAppIcon,
-                onCheckedChange = {
-                    hideAppIcon = it
-                    uiStore.hideAppIcon = it
-                    onHideIconChange(it)
-                },
-            )
-
-            SwitchRow(
-                title = stringResource(DesignR.string.hide_from_recents_title),
-                summary = stringResource(DesignR.string.hide_from_recents_desc),
-                checked = hideFromRecents,
-                onCheckedChange = {
-                    hideFromRecents = it
-                    uiStore.hideFromRecents = it
-                    onRecreateAll()
-                },
-            )
-
-            CategoryHeader(text = stringResource(DesignR.string.service))
-
-            SwitchRow(
-                title = stringResource(DesignR.string.show_traffic),
-                summary = stringResource(DesignR.string.show_traffic_summary),
-                checked = dynamicNotification,
-                enabled = !running,
-                onCheckedChange = {
-                    dynamicNotification = it
-                    srvStore.dynamicNotification = it
-                },
-            )
+            SectionCard(title = stringResource(DesignR.string.service)) {
+                SwitchRow(
+                    title = stringResource(DesignR.string.show_traffic),
+                    summary = stringResource(DesignR.string.show_traffic_summary),
+                    checked = dynamicNotification,
+                    enabled = !running,
+                    onCheckedChange = {
+                        dynamicNotification = it
+                        srvStore.dynamicNotification = it
+                    },
+                )
+            }
         }
     }
 }

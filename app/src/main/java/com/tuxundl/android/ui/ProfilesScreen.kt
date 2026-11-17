@@ -15,7 +15,6 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material3.AlertDialog
-import androidx.compose.material3.Card
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FloatingActionButton
@@ -74,7 +73,7 @@ class ProfilesUiState {
     val snackbarHostState = SnackbarHostState()
 }
 
-@OptIn(ExperimentalMaterial3Api::class)
+@OptIn(ExperimentalMaterial3Api::class, androidx.compose.foundation.ExperimentalFoundationApi::class)
 @Composable
 fun ProfilesScreen(
     state: ProfilesUiState,
@@ -137,6 +136,7 @@ fun ProfilesScreen(
         ) {
             items(state.profiles, key = { it.uuid }) { profile ->
                 ProfileCard(
+                    modifier = Modifier.animateItem(),
                     profile = profile,
                     now = state.now,
                     onClick = { onRequest(ProfilesDesign.Request.Active(profile)) },
@@ -187,12 +187,13 @@ private fun ProfileCard(
     now: Long,
     onClick: () -> Unit,
     onMenu: () -> Unit,
+    modifier: Modifier = Modifier,
 ) {
     val context = LocalContext.current
 
-    Card(
+    TuxunCard(
         onClick = onClick,
-        modifier = Modifier.fillMaxWidth(),
+        modifier = modifier.fillMaxWidth(),
     ) {
         Row(
             modifier = Modifier

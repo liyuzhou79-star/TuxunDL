@@ -11,7 +11,6 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
-import androidx.compose.material3.Card
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -81,172 +80,172 @@ fun MetaFeatureSettingsScreen(
                 .verticalScroll(rememberScrollState())
                 .padding(vertical = 8.dp),
         ) {
-            CategoryHeader(text = stringResource(DesignR.string.age_key_category))
+            SectionCard(title = stringResource(DesignR.string.age_key_category)) {
+                ClickRow(
+                    title = stringResource(DesignR.string.age_key_type_x25519),
+                    summary = stringResource(DesignR.string.age_key_generate_summary),
+                    onClick = { ageHelperHybrid = false },
+                )
+                ClickRow(
+                    title = stringResource(DesignR.string.age_key_type_hybrid),
+                    summary = stringResource(DesignR.string.age_key_generate_summary),
+                    onClick = { ageHelperHybrid = true },
+                )
+            }
 
-            ClickRow(
-                title = stringResource(DesignR.string.age_key_type_x25519),
-                summary = stringResource(DesignR.string.age_key_generate_summary),
-                onClick = { ageHelperHybrid = false },
-            )
-            ClickRow(
-                title = stringResource(DesignR.string.age_key_type_hybrid),
-                summary = stringResource(DesignR.string.age_key_generate_summary),
-                onClick = { ageHelperHybrid = true },
-            )
+            SectionCard(title = stringResource(DesignR.string.settings)) {
+                OverrideBoolSelectRow(
+                    title = stringResource(DesignR.string.unified_delay),
+                    get = { configuration.unifiedDelay },
+                    set = { configuration.unifiedDelay = it },
+                )
+                OverrideBoolSelectRow(
+                    title = stringResource(DesignR.string.geodata_mode),
+                    get = { configuration.geodataMode },
+                    set = { configuration.geodataMode = it },
+                )
+                OverrideBoolSelectRow(
+                    title = stringResource(DesignR.string.tcp_concurrent),
+                    get = { configuration.tcpConcurrent },
+                    set = { configuration.tcpConcurrent = it },
+                )
+                OverrideSelectRow(
+                    title = stringResource(DesignR.string.find_process_mode),
+                    options = listOf(
+                        null,
+                        ConfigurationOverride.FindProcessMode.Off,
+                        ConfigurationOverride.FindProcessMode.Strict,
+                        ConfigurationOverride.FindProcessMode.Always,
+                    ),
+                    labels = listOf(
+                        stringResource(DesignR.string.dont_modify),
+                        stringResource(DesignR.string.off),
+                        stringResource(DesignR.string.strict),
+                        stringResource(DesignR.string.always),
+                    ),
+                    get = { configuration.findProcessMode },
+                    set = { configuration.findProcessMode = it },
+                )
+            }
 
-            CategoryHeader(text = stringResource(DesignR.string.settings))
+            SectionCard(title = stringResource(DesignR.string.sniffer_setting)) {
+                OverrideBoolSelectRow(
+                    title = stringResource(DesignR.string.strategy),
+                    get = { configuration.sniffer.enable },
+                    set = {
+                        configuration.sniffer.enable = it
+                        snifferEnable = it
+                    },
+                )
+                OverrideListRow(
+                    title = stringResource(DesignR.string.sniff_http_ports),
+                    get = { configuration.sniffer.sniff.http.ports },
+                    set = { configuration.sniffer.sniff.http.ports = it },
+                    placeholder = dontModify,
+                    enabled = snifferDepsEnabled,
+                )
+                OverrideBoolSelectRow(
+                    title = stringResource(DesignR.string.sniff_http_override_destination),
+                    get = { configuration.sniffer.sniff.http.overrideDestination },
+                    set = { configuration.sniffer.sniff.http.overrideDestination = it },
+                    enabled = snifferDepsEnabled,
+                )
+                OverrideListRow(
+                    title = stringResource(DesignR.string.sniff_tls_ports),
+                    get = { configuration.sniffer.sniff.tls.ports },
+                    set = { configuration.sniffer.sniff.tls.ports = it },
+                    placeholder = dontModify,
+                    enabled = snifferDepsEnabled,
+                )
+                OverrideBoolSelectRow(
+                    title = stringResource(DesignR.string.sniff_tls_override_destination),
+                    get = { configuration.sniffer.sniff.tls.overrideDestination },
+                    set = { configuration.sniffer.sniff.tls.overrideDestination = it },
+                    enabled = snifferDepsEnabled,
+                )
+                OverrideListRow(
+                    title = stringResource(DesignR.string.sniff_quic_ports),
+                    get = { configuration.sniffer.sniff.quic.ports },
+                    set = { configuration.sniffer.sniff.quic.ports = it },
+                    placeholder = dontModify,
+                    enabled = snifferDepsEnabled,
+                )
+                OverrideBoolSelectRow(
+                    title = stringResource(DesignR.string.sniff_quic_override_destination),
+                    get = { configuration.sniffer.sniff.quic.overrideDestination },
+                    set = { configuration.sniffer.sniff.quic.overrideDestination = it },
+                    enabled = snifferDepsEnabled,
+                )
+                OverrideBoolSelectRow(
+                    title = stringResource(DesignR.string.force_dns_mapping),
+                    get = { configuration.sniffer.forceDnsMapping },
+                    set = { configuration.sniffer.forceDnsMapping = it },
+                    enabled = snifferDepsEnabled,
+                )
+                OverrideBoolSelectRow(
+                    title = stringResource(DesignR.string.parse_pure_ip),
+                    get = { configuration.sniffer.parsePureIp },
+                    set = { configuration.sniffer.parsePureIp = it },
+                    enabled = snifferDepsEnabled,
+                )
+                OverrideBoolSelectRow(
+                    title = stringResource(DesignR.string.override_destination),
+                    get = { configuration.sniffer.overrideDestination },
+                    set = { configuration.sniffer.overrideDestination = it },
+                    enabled = snifferDepsEnabled,
+                )
+                OverrideListRow(
+                    title = stringResource(DesignR.string.force_domain),
+                    get = { configuration.sniffer.forceDomain },
+                    set = { configuration.sniffer.forceDomain = it },
+                    placeholder = dontModify,
+                    enabled = snifferDepsEnabled,
+                )
+                OverrideListRow(
+                    title = stringResource(DesignR.string.skip_domain),
+                    get = { configuration.sniffer.skipDomain },
+                    set = { configuration.sniffer.skipDomain = it },
+                    placeholder = dontModify,
+                    enabled = snifferDepsEnabled,
+                )
+                OverrideListRow(
+                    title = stringResource(DesignR.string.skip_src_address),
+                    get = { configuration.sniffer.skipSrcAddress },
+                    set = { configuration.sniffer.skipSrcAddress = it },
+                    placeholder = dontModify,
+                    enabled = snifferDepsEnabled,
+                )
+                OverrideListRow(
+                    title = stringResource(DesignR.string.skip_dst_address),
+                    get = { configuration.sniffer.skipDstAddress },
+                    set = { configuration.sniffer.skipDstAddress = it },
+                    placeholder = dontModify,
+                    enabled = snifferDepsEnabled,
+                )
+            }
 
-            OverrideBoolSelectRow(
-                title = stringResource(DesignR.string.unified_delay),
-                get = { configuration.unifiedDelay },
-                set = { configuration.unifiedDelay = it },
-            )
-            OverrideBoolSelectRow(
-                title = stringResource(DesignR.string.geodata_mode),
-                get = { configuration.geodataMode },
-                set = { configuration.geodataMode = it },
-            )
-            OverrideBoolSelectRow(
-                title = stringResource(DesignR.string.tcp_concurrent),
-                get = { configuration.tcpConcurrent },
-                set = { configuration.tcpConcurrent = it },
-            )
-            OverrideSelectRow(
-                title = stringResource(DesignR.string.find_process_mode),
-                options = listOf(
-                    null,
-                    ConfigurationOverride.FindProcessMode.Off,
-                    ConfigurationOverride.FindProcessMode.Strict,
-                    ConfigurationOverride.FindProcessMode.Always,
-                ),
-                labels = listOf(
-                    stringResource(DesignR.string.dont_modify),
-                    stringResource(DesignR.string.off),
-                    stringResource(DesignR.string.strict),
-                    stringResource(DesignR.string.always),
-                ),
-                get = { configuration.findProcessMode },
-                set = { configuration.findProcessMode = it },
-            )
-
-            CategoryHeader(text = stringResource(DesignR.string.sniffer_setting))
-
-            OverrideBoolSelectRow(
-                title = stringResource(DesignR.string.strategy),
-                get = { configuration.sniffer.enable },
-                set = {
-                    configuration.sniffer.enable = it
-                    snifferEnable = it
-                },
-            )
-            OverrideListRow(
-                title = stringResource(DesignR.string.sniff_http_ports),
-                get = { configuration.sniffer.sniff.http.ports },
-                set = { configuration.sniffer.sniff.http.ports = it },
-                placeholder = dontModify,
-                enabled = snifferDepsEnabled,
-            )
-            OverrideBoolSelectRow(
-                title = stringResource(DesignR.string.sniff_http_override_destination),
-                get = { configuration.sniffer.sniff.http.overrideDestination },
-                set = { configuration.sniffer.sniff.http.overrideDestination = it },
-                enabled = snifferDepsEnabled,
-            )
-            OverrideListRow(
-                title = stringResource(DesignR.string.sniff_tls_ports),
-                get = { configuration.sniffer.sniff.tls.ports },
-                set = { configuration.sniffer.sniff.tls.ports = it },
-                placeholder = dontModify,
-                enabled = snifferDepsEnabled,
-            )
-            OverrideBoolSelectRow(
-                title = stringResource(DesignR.string.sniff_tls_override_destination),
-                get = { configuration.sniffer.sniff.tls.overrideDestination },
-                set = { configuration.sniffer.sniff.tls.overrideDestination = it },
-                enabled = snifferDepsEnabled,
-            )
-            OverrideListRow(
-                title = stringResource(DesignR.string.sniff_quic_ports),
-                get = { configuration.sniffer.sniff.quic.ports },
-                set = { configuration.sniffer.sniff.quic.ports = it },
-                placeholder = dontModify,
-                enabled = snifferDepsEnabled,
-            )
-            OverrideBoolSelectRow(
-                title = stringResource(DesignR.string.sniff_quic_override_destination),
-                get = { configuration.sniffer.sniff.quic.overrideDestination },
-                set = { configuration.sniffer.sniff.quic.overrideDestination = it },
-                enabled = snifferDepsEnabled,
-            )
-            OverrideBoolSelectRow(
-                title = stringResource(DesignR.string.force_dns_mapping),
-                get = { configuration.sniffer.forceDnsMapping },
-                set = { configuration.sniffer.forceDnsMapping = it },
-                enabled = snifferDepsEnabled,
-            )
-            OverrideBoolSelectRow(
-                title = stringResource(DesignR.string.parse_pure_ip),
-                get = { configuration.sniffer.parsePureIp },
-                set = { configuration.sniffer.parsePureIp = it },
-                enabled = snifferDepsEnabled,
-            )
-            OverrideBoolSelectRow(
-                title = stringResource(DesignR.string.override_destination),
-                get = { configuration.sniffer.overrideDestination },
-                set = { configuration.sniffer.overrideDestination = it },
-                enabled = snifferDepsEnabled,
-            )
-            OverrideListRow(
-                title = stringResource(DesignR.string.force_domain),
-                get = { configuration.sniffer.forceDomain },
-                set = { configuration.sniffer.forceDomain = it },
-                placeholder = dontModify,
-                enabled = snifferDepsEnabled,
-            )
-            OverrideListRow(
-                title = stringResource(DesignR.string.skip_domain),
-                get = { configuration.sniffer.skipDomain },
-                set = { configuration.sniffer.skipDomain = it },
-                placeholder = dontModify,
-                enabled = snifferDepsEnabled,
-            )
-            OverrideListRow(
-                title = stringResource(DesignR.string.skip_src_address),
-                get = { configuration.sniffer.skipSrcAddress },
-                set = { configuration.sniffer.skipSrcAddress = it },
-                placeholder = dontModify,
-                enabled = snifferDepsEnabled,
-            )
-            OverrideListRow(
-                title = stringResource(DesignR.string.skip_dst_address),
-                get = { configuration.sniffer.skipDstAddress },
-                set = { configuration.sniffer.skipDstAddress = it },
-                placeholder = dontModify,
-                enabled = snifferDepsEnabled,
-            )
-
-            CategoryHeader(text = stringResource(DesignR.string.geox_files))
-
-            ClickRow(
-                title = stringResource(DesignR.string.import_geoip_file),
-                summary = stringResource(DesignR.string.press_to_import),
-                onClick = { onRequest(MetaFeatureSettingsDesign.Request.ImportGeoIp) },
-            )
-            ClickRow(
-                title = stringResource(DesignR.string.import_geosite_file),
-                summary = stringResource(DesignR.string.press_to_import),
-                onClick = { onRequest(MetaFeatureSettingsDesign.Request.ImportGeoSite) },
-            )
-            ClickRow(
-                title = stringResource(DesignR.string.import_country_file),
-                summary = stringResource(DesignR.string.press_to_import),
-                onClick = { onRequest(MetaFeatureSettingsDesign.Request.ImportCountry) },
-            )
-            ClickRow(
-                title = stringResource(DesignR.string.import_asn_file),
-                summary = stringResource(DesignR.string.press_to_import),
-                onClick = { onRequest(MetaFeatureSettingsDesign.Request.ImportASN) },
-            )
+            SectionCard(title = stringResource(DesignR.string.geox_files)) {
+                ClickRow(
+                    title = stringResource(DesignR.string.import_geoip_file),
+                    summary = stringResource(DesignR.string.press_to_import),
+                    onClick = { onRequest(MetaFeatureSettingsDesign.Request.ImportGeoIp) },
+                )
+                ClickRow(
+                    title = stringResource(DesignR.string.import_geosite_file),
+                    summary = stringResource(DesignR.string.press_to_import),
+                    onClick = { onRequest(MetaFeatureSettingsDesign.Request.ImportGeoSite) },
+                )
+                ClickRow(
+                    title = stringResource(DesignR.string.import_country_file),
+                    summary = stringResource(DesignR.string.press_to_import),
+                    onClick = { onRequest(MetaFeatureSettingsDesign.Request.ImportCountry) },
+                )
+                ClickRow(
+                    title = stringResource(DesignR.string.import_asn_file),
+                    summary = stringResource(DesignR.string.press_to_import),
+                    onClick = { onRequest(MetaFeatureSettingsDesign.Request.ImportASN) },
+                )
+            }
         }
     }
 

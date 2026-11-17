@@ -25,6 +25,7 @@ import com.tuxundl.android.design.model.DarkMode
 import com.tuxundl.android.ui.MainScreen
 import com.tuxundl.android.ui.MainUiState
 import com.tuxundl.android.ui.theme.TuxunDLTheme
+import com.tuxundl.android.util.UpdateChecker
 import com.tuxundl.android.util.startClashService
 import com.tuxundl.android.util.stopClashService
 import com.tuxundl.android.util.withClash
@@ -45,6 +46,7 @@ class MainActivity : BaseActivity<MainDesign>() {
 
     override suspend fun main() {
         fetch()
+        checkUpdateOnStartup()
 
         val ticker = ticker(TimeUnit.SECONDS.toMillis(1))
 
@@ -52,9 +54,16 @@ class MainActivity : BaseActivity<MainDesign>() {
             select<Unit> {
                 events.onReceive {
                     when (it) {
+                        Event.ClashStart -> {
+                            uiStore.runningSince = System.currentTimeMillis()
+                            fetch()
+                        }
+                        Event.ClashStop -> {
+                            uiStore.runningSince = 0L
+                            fetch()
+                        }
                         Event.ActivityStart,
                         Event.ServiceRecreated,
-                        Event.ClashStop, Event.ClashStart,
                         Event.ProfileLoaded, Event.ProfileChanged -> fetch()
                         else -> Unit
                     }
@@ -104,6 +113,53 @@ class MainActivity : BaseActivity<MainDesign>() {
                             startActivity(HelpActivity::class.intent)
                         MainDesign.Request.OpenAbout ->
                             uiState.aboutVersion = queryAppVersionName()
+                        MainDesign.Request.TestCurrentGroup -> {
+                            val group = uiState.mainGroupName
+
+                            if (group != null && !uiState.testingNode) {
+                                uiState.testingNode = true
+
+                                launch {
+                                    try {
+                                        withClash { healthCheck(group) }
+                                        fetchCurrentNode()
+                                    } catch (e: Exception) {
+                                        // Core stopped mid-test: keep last delay.
+                                    } finally {
+                                        uiState.testingNode = false
+                                    }
+                                }
+                            }
+                        }
+                        MainDesign.Request.TestAllGroups -> {
+                            if (!uiState.testingAll) {
+                                uiState.testingAll = true
+
+                                launch {
+                                    try {
+                                        val names = withClash {
+                                            queryProxyGroupNames(false)
+                                        }
+
+                                        for (name in names) {
+                                            withClash { healthCheck(name) }
+                                        }
+
+                                        fetchCurrentNode()
+                                    } catch (e: Exception) {
+                                        // Core stopped mid-test: keep last delays.
+                                    } finally {
+                                        uiState.testingAll = false
+                                    }
+                                }
+                            }
+                        }
+                        MainDesign.Request.DismissUpdate -> {
+                            uiState.updateInfo?.let {
+                                uiStore.dismissedUpdate = it.version
+                            }
+                            uiState.updateInfo = null
+                        }
                     }
                 }
                 if (clashRunning) {
@@ -117,6 +173,11 @@ class MainActivity : BaseActivity<MainDesign>() {
 
     private suspend fun fetch() {
         uiState.clashRunning = clashRunning
+        uiState.runningSince = uiStore.runningSince
+
+        if (!clashRunning) {
+            uiState.connectedMillis = 0L
+        }
 
         uiState.showTraffic = uiStore.showTrafficCard
         uiState.showProxy = uiStore.showProxyCard
@@ -135,11 +196,64 @@ class MainActivity : BaseActivity<MainDesign>() {
 
         val profileName = withProfile { queryActive()?.name }
         uiState.profileName = profileName
+
+        fetchCurrentNode()
+    }
+
+    /**
+     * Find the main Selector group (the first one, like the proxy screen
+     * lists them) and mirror its current node + delay into the UI state
+     * for the home screen's node tile.
+     */
+    private suspend fun fetchCurrentNode() {
+        val result = runCatching {
+            withClash {
+                var found: Triple<String, String, Int>? = null
+
+                for (name in queryProxyGroupNames(false)) {
+                    val group = queryProxyGroup(name, uiStore.proxySort)
+
+                    if (group.type == "Selector") {
+                        val delay = group.proxies
+                            .firstOrNull { it.name == group.now }?.delay ?: -1
+
+                        found = Triple(name, group.now, delay)
+                        break
+                    }
+                }
+
+                found
+            }
+        }.getOrNull()
+
+        uiState.mainGroupName = result?.first
+        uiState.currentNodeName = result?.second
+        uiState.currentNodeDelay = result?.third ?: -1
+    }
+
+    /** One silent update check per activity start; failures stay invisible. */
+    private fun checkUpdateOnStartup() {
+        launch {
+            val info = UpdateChecker.fetchLatest() ?: return@launch
+            val current = packageManager
+                .getPackageInfo(packageName, 0).versionName ?: return@launch
+
+            if (UpdateChecker.isNewer(info.version, current) &&
+                uiStore.dismissedUpdate != info.version
+            ) {
+                uiState.updateInfo = info
+            }
+        }
     }
 
     private suspend fun fetchTraffic() {
         val total = withClash { queryTrafficTotal() }
         uiState.traffic = total
+
+        val since = uiStore.runningSince
+        uiState.runningSince = since
+        uiState.connectedMillis =
+            if (since > 0L) System.currentTimeMillis() - since else 0L
     }
 
     private suspend fun startClash() {

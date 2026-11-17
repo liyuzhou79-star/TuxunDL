@@ -78,100 +78,100 @@ fun AppearanceScreen(
                 .verticalScroll(rememberScrollState())
                 .padding(vertical = 8.dp),
         ) {
-            CategoryHeader(text = stringResource(R.string.theme_palette))
+            SectionCard(title = stringResource(R.string.theme_palette)) {
+                PaletteRow(
+                    name = stringResource(R.string.theme_default),
+                    palette = ThemePalette.Default,
+                    darkTheme = darkTheme,
+                    selected = palette == ThemePalette.Default,
+                    onClick = {
+                        palette = ThemePalette.Default
+                        onPaletteChange(ThemePalette.Default)
+                    },
+                )
+                PaletteRow(
+                    name = stringResource(R.string.theme_blue),
+                    palette = ThemePalette.Blue,
+                    darkTheme = darkTheme,
+                    selected = palette == ThemePalette.Blue,
+                    onClick = {
+                        palette = ThemePalette.Blue
+                        onPaletteChange(ThemePalette.Blue)
+                    },
+                )
+                PaletteRow(
+                    name = stringResource(R.string.theme_sakura),
+                    palette = ThemePalette.Sakura,
+                    darkTheme = darkTheme,
+                    selected = palette == ThemePalette.Sakura,
+                    onClick = {
+                        palette = ThemePalette.Sakura
+                        onPaletteChange(ThemePalette.Sakura)
+                    },
+                )
+                PaletteRow(
+                    name = stringResource(R.string.theme_mono),
+                    palette = ThemePalette.Mono,
+                    darkTheme = darkTheme,
+                    selected = palette == ThemePalette.Mono,
+                    onClick = {
+                        palette = ThemePalette.Mono
+                        onPaletteChange(ThemePalette.Mono)
+                    },
+                )
+            }
 
-            PaletteRow(
-                name = stringResource(R.string.theme_default),
-                palette = ThemePalette.Default,
-                darkTheme = darkTheme,
-                selected = palette == ThemePalette.Default,
-                onClick = {
-                    palette = ThemePalette.Default
-                    onPaletteChange(ThemePalette.Default)
-                },
-            )
-            PaletteRow(
-                name = stringResource(R.string.theme_blue),
-                palette = ThemePalette.Blue,
-                darkTheme = darkTheme,
-                selected = palette == ThemePalette.Blue,
-                onClick = {
-                    palette = ThemePalette.Blue
-                    onPaletteChange(ThemePalette.Blue)
-                },
-            )
-            PaletteRow(
-                name = stringResource(R.string.theme_sakura),
-                palette = ThemePalette.Sakura,
-                darkTheme = darkTheme,
-                selected = palette == ThemePalette.Sakura,
-                onClick = {
-                    palette = ThemePalette.Sakura
-                    onPaletteChange(ThemePalette.Sakura)
-                },
-            )
-            PaletteRow(
-                name = stringResource(R.string.theme_mono),
-                palette = ThemePalette.Mono,
-                darkTheme = darkTheme,
-                selected = palette == ThemePalette.Mono,
-                onClick = {
-                    palette = ThemePalette.Mono
-                    onPaletteChange(ThemePalette.Mono)
-                },
-            )
+            SectionCard(title = stringResource(DesignR.string.dark_mode)) {
+                SelectRow(
+                    title = stringResource(DesignR.string.dark_mode),
+                    options = listOf(
+                        stringResource(DesignR.string.follow_system_android_10),
+                        stringResource(DesignR.string.always_light),
+                        stringResource(DesignR.string.always_dark),
+                    ),
+                    selectedIndex = DarkMode.values().indexOf(darkMode),
+                    onSelect = { index ->
+                        val mode = DarkMode.values()[index]
+                        darkMode = mode
+                        onDarkModeChange(mode)
+                    },
+                )
+            }
 
-            CategoryHeader(text = stringResource(DesignR.string.dark_mode))
-
-            SelectRow(
-                title = stringResource(DesignR.string.dark_mode),
-                options = listOf(
-                    stringResource(DesignR.string.follow_system_android_10),
-                    stringResource(DesignR.string.always_light),
-                    stringResource(DesignR.string.always_dark),
-                ),
-                selectedIndex = DarkMode.values().indexOf(darkMode),
-                onSelect = { index ->
-                    val mode = DarkMode.values()[index]
-                    darkMode = mode
-                    onDarkModeChange(mode)
-                },
-            )
-
-            CategoryHeader(text = stringResource(R.string.home_cards))
-
-            SwitchRow(
-                title = stringResource(R.string.card_traffic),
-                checked = showTraffic,
-                onCheckedChange = {
-                    showTraffic = it
-                    uiStore.showTrafficCard = it
-                },
-            )
-            SwitchRow(
-                title = stringResource(R.string.card_proxy),
-                checked = showProxy,
-                onCheckedChange = {
-                    showProxy = it
-                    uiStore.showProxyCard = it
-                },
-            )
-            SwitchRow(
-                title = stringResource(R.string.card_profile),
-                checked = showProfile,
-                onCheckedChange = {
-                    showProfile = it
-                    uiStore.showProfileCard = it
-                },
-            )
-            SwitchRow(
-                title = stringResource(R.string.card_providers),
-                checked = showProviders,
-                onCheckedChange = {
-                    showProviders = it
-                    uiStore.showProvidersCard = it
-                },
-            )
+            SectionCard(title = stringResource(R.string.home_cards)) {
+                SwitchRow(
+                    title = stringResource(R.string.card_traffic),
+                    checked = showTraffic,
+                    onCheckedChange = {
+                        showTraffic = it
+                        uiStore.showTrafficCard = it
+                    },
+                )
+                SwitchRow(
+                    title = stringResource(R.string.card_proxy),
+                    checked = showProxy,
+                    onCheckedChange = {
+                        showProxy = it
+                        uiStore.showProxyCard = it
+                    },
+                )
+                SwitchRow(
+                    title = stringResource(R.string.card_profile),
+                    checked = showProfile,
+                    onCheckedChange = {
+                        showProfile = it
+                        uiStore.showProfileCard = it
+                    },
+                )
+                SwitchRow(
+                    title = stringResource(R.string.card_providers),
+                    checked = showProviders,
+                    onCheckedChange = {
+                        showProviders = it
+                        uiStore.showProvidersCard = it
+                    },
+                )
+            }
         }
     }
 }

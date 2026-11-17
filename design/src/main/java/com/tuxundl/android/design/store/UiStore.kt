@@ -105,6 +105,24 @@ class UiStore(context: Context) {
         defaultValue = false,
     )
 
+    /** Favorite proxy nodes, stored as "group|node" keys; favorites pin to the top of their group. */
+    var favoriteProxies: Set<String> by store.stringSet(
+        key = "favorite_proxies",
+        defaultValue = emptySet()
+    )
+
+    /** Epoch millis when the current connection started; 0 = not running. */
+    var runningSince: Long by store.long(
+        key = "running_since",
+        defaultValue = 0L
+    )
+
+    /** Release version the user dismissed on the home update card; that version stays hidden. */
+    var dismissedUpdate: String by store.string(
+        key = "dismissed_update",
+        defaultValue = ""
+    )
+
     companion object {
         private const val PREFERENCE_NAME = "ui"
 

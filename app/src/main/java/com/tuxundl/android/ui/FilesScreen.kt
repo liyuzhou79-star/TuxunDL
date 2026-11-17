@@ -9,7 +9,6 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
-import androidx.compose.material3.Card
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -97,8 +96,9 @@ fun FilesScreen(
             verticalArrangement = Arrangement.spacedBy(12.dp),
         ) {
             items(state.files, key = { it.id }) { file ->
-                Card(
+                TuxunCard(
                     modifier = Modifier
+                        .animateItem()
                         .fillMaxWidth()
                         .clickable {
                             if (file.isDirectory) {

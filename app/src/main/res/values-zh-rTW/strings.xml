@@ -1,0 +1,25 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="custom_rules">分流規則</string>
+    <string name="rules_no_profile">未選擇設定檔，請先選擇設定檔再編輯它的規則。</string>
+    <string name="rules_empty">還沒有自定義規則，點右上角 + 新增一條。</string>
+    <string name="rules_saved">已儲存，重啟代理後生效。</string>
+    <string name="rule_add">新增規則</string>
+    <string name="rule_edit">編輯規則</string>
+    <string name="rule_type">類型</string>
+    <string name="rule_payload">內容</string>
+    <string name="rule_target">目標</string>
+    <string name="rule_no_resolve">不解析 (no-resolve)</string>
+    <string name="rule_custom_target_hint">或直接輸入分組名</string>
+    <string name="current_node">目前節點</string>
+    <string name="test_all">全部測速</string>
+    <string name="connected_for">已連接 %1$s</string>
+    <string name="favorite">收藏</string>
+    <string name="check_update">檢查更新</string>
+    <string name="update_available">有新版本 v%1$s</string>
+    <string name="update_download">下載</string>
+    <string name="update_checking">正在檢查更新…</string>
+    <string name="update_latest">已是最新版本。</string>
+    <string name="update_check_failed">檢查更新失敗，請檢查網路後重試。</string>
+    <string name="update_new_found">發現新版本 v%1$s。</string>
+</resources>

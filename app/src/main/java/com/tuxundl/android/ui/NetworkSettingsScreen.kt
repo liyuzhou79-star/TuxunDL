@@ -87,106 +87,106 @@ fun NetworkSettingsScreen(
                 },
             )
 
-            CategoryHeader(text = stringResource(DesignR.string.vpn_service_options))
-
-            SwitchRow(
-                title = stringResource(DesignR.string.bypass_private_network),
-                summary = stringResource(DesignR.string.bypass_private_network_summary),
-                checked = bypassPrivateNetwork,
-                enabled = depsEnabled,
-                onCheckedChange = {
-                    bypassPrivateNetwork = it
-                    srvStore.bypassPrivateNetwork = it
-                },
-            )
-
-            SwitchRow(
-                title = stringResource(DesignR.string.dns_hijacking),
-                summary = stringResource(DesignR.string.dns_hijacking_summary),
-                checked = dnsHijacking,
-                enabled = depsEnabled,
-                onCheckedChange = {
-                    dnsHijacking = it
-                    srvStore.dnsHijacking = it
-                },
-            )
-
-            SwitchRow(
-                title = stringResource(DesignR.string.allow_bypass),
-                summary = stringResource(DesignR.string.allow_bypass_summary),
-                checked = allowBypass,
-                enabled = depsEnabled,
-                onCheckedChange = {
-                    allowBypass = it
-                    srvStore.allowBypass = it
-                },
-            )
-
-            SwitchRow(
-                title = stringResource(DesignR.string.allow_ipv6),
-                summary = stringResource(DesignR.string.allow_ipv6_summary),
-                checked = allowIpv6,
-                enabled = depsEnabled,
-                onCheckedChange = {
-                    allowIpv6 = it
-                    srvStore.allowIpv6 = it
-                },
-            )
-
-            if (Build.VERSION.SDK_INT >= 29) {
+            SectionCard(title = stringResource(DesignR.string.vpn_service_options)) {
                 SwitchRow(
-                    title = stringResource(DesignR.string.system_proxy),
-                    summary = stringResource(DesignR.string.system_proxy_summary),
-                    checked = systemProxy,
+                    title = stringResource(DesignR.string.bypass_private_network),
+                    summary = stringResource(DesignR.string.bypass_private_network_summary),
+                    checked = bypassPrivateNetwork,
                     enabled = depsEnabled,
                     onCheckedChange = {
-                        systemProxy = it
-                        srvStore.systemProxy = it
+                        bypassPrivateNetwork = it
+                        srvStore.bypassPrivateNetwork = it
                     },
                 )
+
+                SwitchRow(
+                    title = stringResource(DesignR.string.dns_hijacking),
+                    summary = stringResource(DesignR.string.dns_hijacking_summary),
+                    checked = dnsHijacking,
+                    enabled = depsEnabled,
+                    onCheckedChange = {
+                        dnsHijacking = it
+                        srvStore.dnsHijacking = it
+                    },
+                )
+
+                SwitchRow(
+                    title = stringResource(DesignR.string.allow_bypass),
+                    summary = stringResource(DesignR.string.allow_bypass_summary),
+                    checked = allowBypass,
+                    enabled = depsEnabled,
+                    onCheckedChange = {
+                        allowBypass = it
+                        srvStore.allowBypass = it
+                    },
+                )
+
+                SwitchRow(
+                    title = stringResource(DesignR.string.allow_ipv6),
+                    summary = stringResource(DesignR.string.allow_ipv6_summary),
+                    checked = allowIpv6,
+                    enabled = depsEnabled,
+                    onCheckedChange = {
+                        allowIpv6 = it
+                        srvStore.allowIpv6 = it
+                    },
+                )
+
+                if (Build.VERSION.SDK_INT >= 29) {
+                    SwitchRow(
+                        title = stringResource(DesignR.string.system_proxy),
+                        summary = stringResource(DesignR.string.system_proxy_summary),
+                        checked = systemProxy,
+                        enabled = depsEnabled,
+                        onCheckedChange = {
+                            systemProxy = it
+                            srvStore.systemProxy = it
+                        },
+                    )
+                }
+
+                SelectRow(
+                    title = stringResource(DesignR.string.tun_stack_mode),
+                    options = listOf(
+                        stringResource(DesignR.string.tun_stack_system),
+                        stringResource(DesignR.string.tun_stack_gvisor),
+                        stringResource(DesignR.string.tun_stack_mixed),
+                        stringResource(DesignR.string.tun_stack_mips),
+                    ),
+                    selectedIndex = listOf("system", "gvisor", "mixed", "mips")
+                        .indexOf(tunStackMode).coerceAtLeast(0),
+                    enabled = depsEnabled,
+                    onSelect = { index ->
+                        val value = listOf("system", "gvisor", "mixed", "mips")[index]
+                        tunStackMode = value
+                        srvStore.tunStackMode = value
+                    },
+                )
+
+                SelectRow(
+                    title = stringResource(DesignR.string.access_control_mode),
+                    options = listOf(
+                        stringResource(DesignR.string.allow_all_apps),
+                        stringResource(DesignR.string.allow_selected_apps),
+                        stringResource(DesignR.string.deny_selected_apps),
+                    ),
+                    selectedIndex = AccessControlMode.values().indexOf(accessControlMode),
+                    enabled = depsEnabled,
+                    onSelect = { index ->
+                        val value = AccessControlMode.values()[index]
+                        accessControlMode = value
+                        srvStore.accessControlMode = value
+                    },
+                )
+
+                // The old design never disabled this entry with the VPN
+                // dependencies, so it stays clickable in every state.
+                ClickRow(
+                    title = stringResource(DesignR.string.access_control_packages),
+                    summary = stringResource(DesignR.string.access_control_packages_summary),
+                    onClick = { onRequest(NetworkSettingsDesign.Request.StartAccessControlList) },
+                )
             }
-
-            SelectRow(
-                title = stringResource(DesignR.string.tun_stack_mode),
-                options = listOf(
-                    stringResource(DesignR.string.tun_stack_system),
-                    stringResource(DesignR.string.tun_stack_gvisor),
-                    stringResource(DesignR.string.tun_stack_mixed),
-                    stringResource(DesignR.string.tun_stack_mips),
-                ),
-                selectedIndex = listOf("system", "gvisor", "mixed", "mips")
-                    .indexOf(tunStackMode).coerceAtLeast(0),
-                enabled = depsEnabled,
-                onSelect = { index ->
-                    val value = listOf("system", "gvisor", "mixed", "mips")[index]
-                    tunStackMode = value
-                    srvStore.tunStackMode = value
-                },
-            )
-
-            SelectRow(
-                title = stringResource(DesignR.string.access_control_mode),
-                options = listOf(
-                    stringResource(DesignR.string.allow_all_apps),
-                    stringResource(DesignR.string.allow_selected_apps),
-                    stringResource(DesignR.string.deny_selected_apps),
-                ),
-                selectedIndex = AccessControlMode.values().indexOf(accessControlMode),
-                enabled = depsEnabled,
-                onSelect = { index ->
-                    val value = AccessControlMode.values()[index]
-                    accessControlMode = value
-                    srvStore.accessControlMode = value
-                },
-            )
-
-            // The old design never disabled this entry with the VPN
-            // dependencies, so it stays clickable in every state.
-            ClickRow(
-                title = stringResource(DesignR.string.access_control_packages),
-                summary = stringResource(DesignR.string.access_control_packages_summary),
-                onClick = { onRequest(NetworkSettingsDesign.Request.StartAccessControlList) },
-            )
         }
     }
 }

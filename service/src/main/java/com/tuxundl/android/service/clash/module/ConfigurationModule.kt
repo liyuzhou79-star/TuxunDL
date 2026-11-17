@@ -9,6 +9,7 @@ import com.tuxundl.android.service.data.ImportedDao
 import com.tuxundl.android.service.data.SelectionDao
 import com.tuxundl.android.service.store.ServiceStore
 import com.tuxundl.android.service.util.importedDir
+import com.tuxundl.android.service.util.injectCustomRules
 import com.tuxundl.android.service.util.sendProfileLoaded
 import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.selects.select
@@ -57,7 +58,13 @@ class ConfigurationModule(service: Service) : Module<ConfigurationModule.LoadExc
 
                 Clash.setAgeSecretKey(active.ageSecretKey?.takeIf { it.isNotBlank() })
 
-                Clash.load(service.importedDir.resolve(active.uuid.toString())).await()
+                val profileDir = service.importedDir.resolve(active.uuid.toString())
+
+                // Splice the user's custom routing rules into config.yaml
+                // before the core reads it (no-op when there are none).
+                injectCustomRules(service, profileDir, active.uuid)
+
+                Clash.load(profileDir).await()
 
                 val remove = SelectionDao().querySelections(active.uuid)
                     .filterNot { Clash.patchSelector(it.proxy, it.selected) }

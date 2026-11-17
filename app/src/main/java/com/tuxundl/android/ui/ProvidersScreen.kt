@@ -11,7 +11,6 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.itemsIndexed
-import androidx.compose.material3.Card
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
@@ -96,7 +95,7 @@ fun ProvidersScreen(
             verticalArrangement = Arrangement.spacedBy(12.dp),
         ) {
             itemsIndexed(state.providers) { index, provider ->
-                Card(modifier = Modifier.fillMaxWidth()) {
+                TuxunCard(modifier = Modifier.fillMaxWidth().animateItem()) {
                     Row(
                         modifier = Modifier
                             .fillMaxWidth()

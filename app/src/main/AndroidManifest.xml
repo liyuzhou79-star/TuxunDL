@@ -134,6 +134,11 @@
             android:exported="false"
             android:label="@string/proxy" />
         <activity
+            android:name=".RulesActivity"
+            android:configChanges="uiMode"
+            android:exported="false"
+            android:label="@string/custom_rules" />
+        <activity
             android:name=".ProvidersActivity"
             android:configChanges="uiMode"
             android:exported="false"

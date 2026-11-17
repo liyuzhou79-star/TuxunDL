@@ -1,15 +1,29 @@
 package com.tuxundl.android.ui
 
+import android.content.Intent
+import android.net.Uri
 import android.os.SystemClock
 import androidx.annotation.DrawableRes
 import androidx.annotation.StringRes
+import androidx.compose.animation.AnimatedContent
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.animateContentSize
 import androidx.compose.animation.core.FastOutSlowInEasing
 import androidx.compose.animation.core.LinearEasing
 import androidx.compose.animation.core.RepeatMode
+import androidx.compose.animation.core.animateColorAsState
+import androidx.compose.animation.core.animateDpAsState
 import androidx.compose.animation.core.animateFloat
 import androidx.compose.animation.core.infiniteRepeatable
 import androidx.compose.animation.core.rememberInfiniteTransition
+import androidx.compose.animation.core.spring
 import androidx.compose.animation.core.tween
+import androidx.compose.animation.expandVertically
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.shrinkVertically
+import androidx.compose.animation.slideInVertically
+import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -26,11 +40,13 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.AlertDialog
-import androidx.compose.material3.Card
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.SegmentedButton
@@ -52,6 +68,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextOverflow
@@ -61,6 +78,7 @@ import com.tuxundl.android.core.model.TunnelState
 import com.tuxundl.android.core.util.trafficDownload
 import com.tuxundl.android.core.util.trafficUpload
 import com.tuxundl.android.design.MainDesign
+import com.tuxundl.android.util.UpdateInfo
 import kotlinx.coroutines.delay
 import kotlin.math.roundToLong
 import com.tuxundl.android.design.R as DesignR
@@ -89,6 +107,20 @@ class MainUiState {
     var showProfile by mutableStateOf(true)
     var showProviders by mutableStateOf(true)
 
+    /** Main selector group and its current node, for the node tile. */
+    var mainGroupName by mutableStateOf<String?>(null)
+    var currentNodeName by mutableStateOf<String?>(null)
+    var currentNodeDelay by mutableStateOf(-1)
+    var testingNode by mutableStateOf(false)
+    var testingAll by mutableStateOf(false)
+
+    /** Connection duration: runningSince mirrors UiStore, connectedMillis is refreshed per second. */
+    var runningSince by mutableStateOf(0L)
+    var connectedMillis by mutableStateOf(0L)
+
+    /** Non-null while the "new version available" card should be shown. */
+    var updateInfo by mutableStateOf<UpdateInfo?>(null)
+
     val snackbarHostState = SnackbarHostState()
 }
 
@@ -114,11 +146,33 @@ fun MainScreen(
                 .padding(horizontal = 16.dp, vertical = 20.dp),
             verticalArrangement = Arrangement.spacedBy(20.dp),
         ) {
+            UpdateCard(state = state, onRequest = onRequest)
+
             Box(
                 modifier = Modifier.fillMaxWidth(),
                 contentAlignment = Alignment.Center,
             ) {
                 PowerCircle(state = state, onRequest = onRequest)
+            }
+
+            AnimatedVisibility(
+                visible = state.clashRunning && state.connectedMillis > 0L,
+                enter = fadeIn() + expandVertically(),
+                exit = fadeOut() + shrinkVertically(),
+            ) {
+                Box(
+                    modifier = Modifier.fillMaxWidth(),
+                    contentAlignment = Alignment.Center,
+                ) {
+                    Text(
+                        text = stringResource(
+                            R.string.connected_for,
+                            formatDuration(state.connectedMillis),
+                        ),
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                }
             }
 
             ModeSelector(state = state, onRequest = onRequest)
@@ -142,6 +196,80 @@ fun MainScreen(
             },
         )
     }
+}
+
+/**
+ * "New version available" card pinned to the top of the home screen.
+ * Download opens the release APK (or page) in the browser; the close
+ * button dismisses this version for good (handled by MainActivity).
+ */
+@Composable
+private fun UpdateCard(
+    state: MainUiState,
+    onRequest: (MainDesign.Request) -> Unit,
+) {
+    val info = state.updateInfo
+
+    AnimatedVisibility(
+        visible = info != null,
+        enter = fadeIn() + expandVertically(),
+        exit = fadeOut() + shrinkVertically(),
+    ) {
+        if (info == null) return@AnimatedVisibility
+
+        val context = LocalContext.current
+        val targetUrl = info.downloadUrl ?: info.pageUrl
+
+        TuxunCard(
+            shape = RoundedCornerShape(TuxunCardCornerLarge),
+            modifier = Modifier.fillMaxWidth(),
+        ) {
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(start = 16.dp, top = 8.dp, bottom = 8.dp, end = 4.dp),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+            ) {
+                Icon(
+                    painter = painterResource(DesignR.drawable.ic_baseline_update),
+                    contentDescription = null,
+                    tint = MaterialTheme.colorScheme.primary,
+                )
+                Text(
+                    text = stringResource(R.string.update_available, info.version),
+                    style = MaterialTheme.typography.titleMedium,
+                    modifier = Modifier.weight(1f),
+                )
+                if (targetUrl != null) {
+                    TextButton(
+                        onClick = {
+                            context.startActivity(
+                                Intent(Intent.ACTION_VIEW, Uri.parse(targetUrl)),
+                            )
+                        },
+                    ) {
+                        Text(text = stringResource(R.string.update_download))
+                    }
+                }
+                IconButton(onClick = { onRequest(MainDesign.Request.DismissUpdate) }) {
+                    Icon(
+                        painter = painterResource(DesignR.drawable.ic_baseline_close),
+                        contentDescription = null,
+                    )
+                }
+            }
+        }
+    }
+}
+
+private fun formatDuration(millis: Long): String {
+    val totalSeconds = millis / 1000
+    val hours = totalSeconds / 3600
+    val minutes = (totalSeconds % 3600) / 60
+    val seconds = totalSeconds % 60
+
+    return "%d:%02d:%02d".format(hours, minutes, seconds)
 }
 
 /**
@@ -218,6 +346,24 @@ private fun PowerCircle(
     val track = MaterialTheme.colorScheme.outlineVariant
     val contentColor = if (running) onPrimary else primary
 
+    // Smooth the start/stop flip: the disc grows a touch, fills with the
+    // theme colour and its content cross-fades instead of snapping.
+    val circleColor by animateColorAsState(
+        targetValue = if (running) primary else MaterialTheme.colorScheme.surface,
+        animationSpec = tween(durationMillis = 450),
+        label = "circleColor",
+    )
+    val circleSize by animateDpAsState(
+        targetValue = if (running) 204.dp else 196.dp,
+        animationSpec = spring(dampingRatio = 0.85f, stiffness = 260f),
+        label = "circleSize",
+    )
+    val animatedContentColor by animateColorAsState(
+        targetValue = contentColor,
+        animationSpec = tween(durationMillis = 450),
+        label = "circleContentColor",
+    )
+
     Box(
         modifier = Modifier.size(224.dp),
         contentAlignment = Alignment.Center,
@@ -242,11 +388,9 @@ private fun PowerCircle(
 
         Box(
             modifier = Modifier
-                .size(200.dp)
+                .size(circleSize)
                 .clip(CircleShape)
-                .background(
-                    if (running) primary else MaterialTheme.colorScheme.surface,
-                )
+                .background(circleColor)
                 .then(
                     if (running) {
                         Modifier
@@ -265,25 +409,39 @@ private fun PowerCircle(
                 Icon(
                     painter = painterResource(R.drawable.ic_toggle_on),
                     contentDescription = null,
-                    tint = contentColor,
+                    tint = animatedContentColor,
                     modifier = Modifier.size(54.dp),
                 )
-                Text(
-                    text = stringResource(
-                        if (running) DesignR.string.running else DesignR.string.stopped,
-                    ),
-                    style = MaterialTheme.typography.headlineSmall,
-                    color = if (running) onPrimary else MaterialTheme.colorScheme.onSurface,
-                )
-                Text(
-                    text = if (running) {
-                        "↑ $upSpeed   ↓ $downSpeed"
-                    } else {
-                        stringResource(DesignR.string.tap_to_start)
+                AnimatedContent(
+                    targetState = running,
+                    transitionSpec = {
+                        (fadeIn(tween(250)) + slideInVertically { it / 3 })
+                            .togetherWith(fadeOut(tween(150)))
                     },
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = contentColor,
-                )
+                    label = "powerStatus",
+                ) { isRunning ->
+                    Column(
+                        horizontalAlignment = Alignment.CenterHorizontally,
+                        verticalArrangement = Arrangement.spacedBy(6.dp),
+                    ) {
+                        Text(
+                            text = stringResource(
+                                if (isRunning) DesignR.string.running else DesignR.string.stopped,
+                            ),
+                            style = MaterialTheme.typography.headlineSmall,
+                            color = if (isRunning) onPrimary else MaterialTheme.colorScheme.onSurface,
+                        )
+                        Text(
+                            text = if (isRunning) {
+                                "↑ $upSpeed   ↓ $downSpeed"
+                            } else {
+                                stringResource(DesignR.string.tap_to_start)
+                            },
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = animatedContentColor,
+                        )
+                    }
+                }
             }
         }
     }
@@ -321,6 +479,9 @@ private class HomeTile(
     val lines: List<String>,
     /** Null = display-only tile (traffic totals), not clickable. */
     val request: MainDesign.Request?,
+    /** Optional small delay-test button in the tile's header row. */
+    val testRequest: MainDesign.Request? = null,
+    val testing: Boolean = false,
 )
 
 /** Two-column grid of small info tiles under the power circle. */
@@ -331,6 +492,27 @@ private fun InfoTiles(
 ) {
     val tiles = mutableListOf<HomeTile>()
 
+    // Current node tile: always shown when a main selector group exists,
+    // independent of the card toggles (it is the most-glanced info).
+    val nodeName = state.currentNodeName
+    if (nodeName != null) {
+        tiles += HomeTile(
+            icon = DesignR.drawable.ic_baseline_vpn_lock,
+            title = R.string.current_node,
+            lines = listOf(
+                nodeName,
+                if (state.currentNodeDelay > 0) {
+                    "${state.currentNodeDelay} ms"
+                } else {
+                    "-"
+                },
+            ),
+            request = MainDesign.Request.OpenProxy,
+            testRequest = MainDesign.Request.TestCurrentGroup,
+            testing = state.testingNode,
+        )
+    }
+
     if (state.showTraffic) {
         tiles += HomeTile(
             icon = DesignR.drawable.ic_baseline_swap_vert,
@@ -340,6 +522,8 @@ private fun InfoTiles(
                 "↓ ${state.traffic.trafficDownload()}",
             ),
             request = null,
+            testRequest = MainDesign.Request.TestAllGroups,
+            testing = state.testingAll,
         )
     }
     if (state.showProxy) {
@@ -373,7 +557,10 @@ private fun InfoTiles(
 
     if (tiles.isEmpty()) return
 
-    Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+    Column(
+        modifier = Modifier.animateContentSize(),
+        verticalArrangement = Arrangement.spacedBy(12.dp),
+    ) {
         tiles.chunked(2).forEach { rowTiles ->
             Row(
                 modifier = Modifier.fillMaxWidth(),
@@ -404,32 +591,56 @@ private fun InfoTile(
     val cardModifier = modifier.heightIn(min = 108.dp)
 
     if (tile.request != null) {
-        Card(
+        TuxunCard(
             onClick = { onRequest(tile.request) },
             modifier = cardModifier,
         ) {
-            TileContent(tile)
+            TileContent(tile, onRequest)
         }
     } else {
-        Card(modifier = cardModifier) {
-            TileContent(tile)
+        TuxunCard(modifier = cardModifier) {
+            TileContent(tile, onRequest)
         }
     }
 }
 
 @Composable
-private fun TileContent(tile: HomeTile) {
+private fun TileContent(
+    tile: HomeTile,
+    onRequest: (MainDesign.Request) -> Unit,
+) {
     Column(
         modifier = Modifier
             .fillMaxWidth()
             .padding(16.dp),
         verticalArrangement = Arrangement.spacedBy(6.dp),
     ) {
-        Icon(
-            painter = painterResource(tile.icon),
-            contentDescription = null,
-            tint = MaterialTheme.colorScheme.primary,
-        )
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Icon(
+                painter = painterResource(tile.icon),
+                contentDescription = null,
+                tint = MaterialTheme.colorScheme.primary,
+            )
+            Spacer(modifier = Modifier.weight(1f))
+            if (tile.testing) {
+                CircularProgressIndicator(modifier = Modifier.size(20.dp))
+            } else if (tile.testRequest != null) {
+                IconButton(
+                    onClick = { onRequest(tile.testRequest) },
+                    modifier = Modifier.size(32.dp),
+                ) {
+                    Icon(
+                        painter = painterResource(DesignR.drawable.ic_baseline_flash_on),
+                        contentDescription = stringResource(R.string.test_all),
+                        tint = MaterialTheme.colorScheme.primary,
+                        modifier = Modifier.size(20.dp),
+                    )
+                }
+            }
+        }
         Text(
             text = stringResource(tile.title),
             style = MaterialTheme.typography.titleMedium,
@@ -497,7 +708,7 @@ private fun NavTile(
     onRequest: (MainDesign.Request) -> Unit,
     modifier: Modifier = Modifier,
 ) {
-    Card(
+    TuxunCard(
         onClick = { onRequest(request) },
         modifier = modifier,
     ) {

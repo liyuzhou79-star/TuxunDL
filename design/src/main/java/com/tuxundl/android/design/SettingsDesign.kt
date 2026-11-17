@@ -10,7 +10,7 @@ import com.tuxundl.android.design.util.root
 
 class SettingsDesign(context: Context) : Design<SettingsDesign.Request>(context) {
     enum class Request {
-        StartApp, StartNetwork, StartOverride, StartMetaFeature, StartAppearance,
+        StartApp, StartNetwork, StartOverride, StartMetaFeature, StartAppearance, StartRules, CheckUpdate,
     }
 
     private val binding = DesignSettingsBinding

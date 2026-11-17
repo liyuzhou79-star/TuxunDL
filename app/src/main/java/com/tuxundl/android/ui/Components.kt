@@ -2,7 +2,9 @@ package com.tuxundl.android.ui
 
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.ColumnScope
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
@@ -14,7 +16,6 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.material3.AlertDialog
-import androidx.compose.material3.Card
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -71,6 +72,24 @@ fun CategoryHeader(text: String) {
         color = MaterialTheme.colorScheme.primary,
         modifier = Modifier.padding(start = 16.dp, end = 16.dp, top = 20.dp, bottom = 4.dp),
     )
+}
+
+/**
+ * A settings section: the category header plus its rows grouped into
+ * one outlined [TuxunCard], so every settings page shares the same
+ * contour language as the home and proxy screens.
+ */
+@Composable
+fun SectionCard(
+    title: String,
+    content: @Composable ColumnScope.() -> Unit,
+) {
+    CategoryHeader(text = title)
+    Box(modifier = Modifier.padding(horizontal = 16.dp)) {
+        TuxunCard(modifier = Modifier.fillMaxWidth()) {
+            Column(content = content)
+        }
+    }
 }
 
 @Composable

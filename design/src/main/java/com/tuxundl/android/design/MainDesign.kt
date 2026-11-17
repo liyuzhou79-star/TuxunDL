@@ -26,6 +26,15 @@ class MainDesign(context: Context) : Design<MainDesign.Request>(context) {
 
         /** Switch the tunnel mode (session override), like ProxyDesign.PatchMode. */
         data class SetMode(val mode: TunnelState.Mode) : Request()
+
+        /** Run a delay test on the main selector group only. */
+        object TestCurrentGroup : Request()
+
+        /** Run a delay test on every proxy group. */
+        object TestAllGroups : Request()
+
+        /** Dismiss the "new version" card for the version it announced. */
+        object DismissUpdate : Request()
     }
 
     private val binding = DesignMainBinding
