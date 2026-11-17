@@ -83,6 +83,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.scale
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Rect
+import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Path
@@ -1073,7 +1074,7 @@ private fun DraggableHomeItem(
             .onGloballyPositioned { coordinates ->
                 drag.bounds[key] = Rect(
                     offset = coordinates.positionInRoot() - drag.containerOrigin,
-                    size = coordinates.size.toSize(),
+                    size = Size(coordinates.size.width.toFloat(), coordinates.size.height.toFloat()),
                 )
             }
             .graphicsLayer {
@@ -1432,7 +1433,7 @@ private fun HomeCards(
                                     drag.bounds["bricks"] = Rect(
                                         offset = coordinates.positionInRoot() -
                                             drag.containerOrigin,
-                                        size = coordinates.size.toSize(),
+                                        size = Size(coordinates.size.width.toFloat(), coordinates.size.height.toFloat()),
                                     )
                                 },
                             verticalArrangement = Arrangement.spacedBy(12.dp),

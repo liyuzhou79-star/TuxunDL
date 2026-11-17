@@ -180,9 +180,10 @@ fun TrafficAdvancedDialog(
                             text = stringResource(R.string.traffic_quality_title),
                             style = MaterialTheme.typography.titleMedium,
                         )
+                        val qualityColor = ratingColor(summary.rating)
                         Row(verticalAlignment = Alignment.CenterVertically) {
                             Canvas(modifier = Modifier.size(12.dp)) {
-                                drawCircle(color = ratingColor(summary.rating))
+                                drawCircle(color = qualityColor)
                             }
                             Spacer(modifier = Modifier.width(8.dp))
                             Text(
@@ -376,6 +377,7 @@ private fun SavedConnectionRow(
                 modifier = Modifier.weight(1f),
                 verticalArrangement = Arrangement.spacedBy(4.dp),
             ) {
+                val savedRatingColor = ratingColor(rating)
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Text(
                         text = timeFormat.format(Date(connection.savedAtMillis)),
@@ -383,7 +385,7 @@ private fun SavedConnectionRow(
                     )
                     Spacer(modifier = Modifier.width(10.dp))
                     Canvas(modifier = Modifier.size(9.dp)) {
-                        drawCircle(color = ratingColor(rating))
+                        drawCircle(color = savedRatingColor)
                     }
                     Spacer(modifier = Modifier.width(5.dp))
                     Text(
