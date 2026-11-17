@@ -86,8 +86,21 @@ class SettingsActivity : BaseActivity<SettingsDesign>() {
                 is UpdateCheckResult.UpdateAvailable ->
                     // Same full-screen page as the startup check.
                     uiState.updatePageInfo = result.info
-                is UpdateCheckResult.UpToDate ->
-                    uiState.updateMessage = getString(R.string.update_latest)
+                is UpdateCheckResult.UpToDate -> {
+                    val base = getString(R.string.update_latest)
+                    // Cross-platform hint (1.2.3): when a Windows
+                    // release exists, say so — phone users may not
+                    // know there is a desktop edition on the same
+                    // release page.
+                    uiState.updateMessage = if (result.windows != null) {
+                        base + "\n" + getString(
+                            R.string.update_windows_hint,
+                            result.windows.version,
+                        )
+                    } else {
+                        base
+                    }
+                }
                 is UpdateCheckResult.Failed ->
                     uiState.updateMessage = when (val failure = result.failure) {
                         UpdateFailure.Network ->

@@ -25,6 +25,14 @@ data class UpdateInfo(
     val notes: String = "",
 )
 
+/** The newest Windows-edition release, for the cross-platform hint. */
+data class WindowsInfo(
+    /** Version without the "win-v" prefix, e.g. "1.0.1". */
+    val version: String,
+    /** The Windows release page URL. */
+    val pageUrl: String?,
+)
+
 /** Why an update check failed, in user-presentable terms. */
 sealed interface UpdateFailure {
     /** The request never completed (offline, blocked, timed out). */
@@ -51,8 +59,16 @@ sealed interface UpdateFailure {
  * off) was indistinguishable from — and displayed as — a generic error.
  */
 sealed interface UpdateCheckResult {
-    data class UpdateAvailable(val info: UpdateInfo) : UpdateCheckResult
-    data class UpToDate(val latestVersion: String) : UpdateCheckResult
+    data class UpdateAvailable(
+        val info: UpdateInfo,
+        val windows: WindowsInfo? = null,
+    ) : UpdateCheckResult
+
+    data class UpToDate(
+        val latestVersion: String,
+        val windows: WindowsInfo? = null,
+    ) : UpdateCheckResult
+
     data class Failed(val failure: UpdateFailure) : UpdateCheckResult
 }
 
@@ -76,18 +92,30 @@ sealed interface UpdateCheckResult {
  * releases; anything else in the list is skipped, and a non-Android
  * `/releases/latest` answer is rejected instead of being mistaken for
  * an Android update (or for "already up to date").
+ *
+ * Cross-platform hint (1.2.3): the same list scan also remembers the
+ * newest Windows release, and the result carries it along so the
+ * settings page can mention that a Windows edition exists and is on
+ * the same release page. It never affects the Android verdict.
  */
 object UpdateChecker {
     private const val RELEASES_URL =
-        "https://api.github.com/repos/liyuzhou79-star/TuxunDL/releases?per_page=5"
+        "https://api.github.com/repos/liyuzhou79-star/TuxunDL/releases?per_page=10"
     private const val LATEST_URL =
         "https://api.github.com/repos/liyuzhou79-star/TuxunDL/releases/latest"
 
     /** Android release tags look like `v1.2.2`; Windows uses `win-v…`. */
     private val ANDROID_TAG = Regex("""^v\d+\.\d+\.\d+$""")
 
+    /** Windows release tags look like `win-v1.0.1`. */
+    private val WINDOWS_TAG = Regex("""^win-v(\d+\.\d+\.\d+)$""")
+
     private sealed interface FetchOutcome {
-        data class Ok(val info: UpdateInfo) : FetchOutcome
+        data class Ok(
+            val info: UpdateInfo,
+            val windows: WindowsInfo? = null,
+        ) : FetchOutcome
+
         data class Error(val failure: UpdateFailure) : FetchOutcome
     }
 
@@ -113,9 +141,9 @@ object UpdateChecker {
                 val info = outcome.info
 
                 if (isNewer(info.version, currentVersion)) {
-                    UpdateCheckResult.UpdateAvailable(info)
+                    UpdateCheckResult.UpdateAvailable(info, outcome.windows)
                 } else {
-                    UpdateCheckResult.UpToDate(info.version)
+                    UpdateCheckResult.UpToDate(info.version, outcome.windows)
                 }
             }
         }
@@ -134,6 +162,13 @@ object UpdateChecker {
             return FetchOutcome.Error(UpdateFailure.Parse)
         }
 
+        // One pass over the newest-first list: the first Android tag
+        // is the newest Android release, the first `win-v` tag is the
+        // newest Windows release. Both are reported; only the Android
+        // one decides the update verdict.
+        var android: UpdateInfo? = null
+        var windows: WindowsInfo? = null
+
         for (i in 0 until releases.length()) {
             val json = releases.getJSONObject(i)
 
@@ -141,16 +176,28 @@ object UpdateChecker {
 
             val tag = json.optString("tag_name")
 
-            // Skip other platforms' releases (e.g. Windows `win-v1.0.0`)
-            // and keep looking for the newest Android release.
-            if (!ANDROID_TAG.matches(tag)) continue
+            if (android == null && ANDROID_TAG.matches(tag)) {
+                android = infoFrom(json, tag.removePrefix("v"))
+            }
 
-            val version = tag.removePrefix("v")
+            if (windows == null) {
+                WINDOWS_TAG.matchEntire(tag)?.let { match ->
+                    windows = WindowsInfo(
+                        version = match.groupValues[1],
+                        pageUrl = json.optString("html_url")
+                            .takeIf { it.isNotEmpty() },
+                    )
+                }
+            }
 
-            return FetchOutcome.Ok(infoFrom(json, version))
+            if (android != null && windows != null) break
         }
 
-        return FetchOutcome.Error(UpdateFailure.Parse)
+        return if (android != null) {
+            FetchOutcome.Ok(android, windows)
+        } else {
+            FetchOutcome.Error(UpdateFailure.Parse)
+        }
     }
 
     private fun parseLatestBody(body: String): FetchOutcome {
