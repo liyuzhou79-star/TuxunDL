@@ -67,12 +67,22 @@ fun main() = application {
     // also restores the user's system proxy.
     Tray(
         icon = trayIcon,
-        tooltip = "TuxunDL",
+        tooltip = if (CoreBridge.running) "TuxunDL — 已连接" else "TuxunDL — 未连接",
         onAction = { windowVisible = true },
         menu = {
             Item(
                 text = "打开主界面",
                 onClick = { windowVisible = true },
+            )
+            Item(
+                text = if (CoreBridge.running) "断开连接" else "连接（打开主界面）",
+                onClick = {
+                    if (CoreBridge.running) {
+                        CoreBridge.stop()
+                    } else {
+                        windowVisible = true
+                    }
+                },
             )
             Separator()
             Item(
@@ -175,7 +185,7 @@ private fun Sidebar(selected: Int, onSelect: (Int) -> Unit) {
         Spacer(Modifier.weight(1f))
 
         Text(
-            text = "Windows 版 v1.0.0",
+            text = "Windows 版 v${WindowsUpdateCheck.CURRENT_VERSION}",
             color = TextDim,
             fontSize = 12.sp,
         )
@@ -184,7 +194,9 @@ private fun Sidebar(selected: Int, onSelect: (Int) -> Unit) {
 
 @Composable
 private fun HomePage() {
-    var connected by remember { mutableStateOf(false) }
+    // Connection state lives in CoreBridge (Compose state), so this
+    // page and the tray menu never disagree about it.
+    val connected = CoreBridge.running
     var busy by remember { mutableStateOf(false) }
     var statusNote by remember { mutableStateOf<String?>(null) }
     var currentNode by remember { mutableStateOf<String?>(null) }
@@ -242,21 +254,29 @@ private fun HomePage() {
                 if (busy) return@PowerButton
                 scope.launch {
                     busy = true
-                    if (connected) {
+                    if (CoreBridge.running) {
                         CoreBridge.stop()
-                        connected = false
                         statusNote = null
                     } else {
                         val profile = CoreBridge.profileFile()
                         if (!profile.exists()) {
                             statusNote = "还没有订阅配置，先到订阅页添加"
+                        } else if (SettingsStore.tunMode() &&
+                            Elevation.isWindows() &&
+                            !Elevation.isElevated()
+                        ) {
+                            // TUN needs administrator rights: restart
+                            // elevated; Windows shows its UAC prompt.
+                            statusNote = "TUN 需要管理员权限，正在以管理员身份重启…"
+                            busy = false
+                            Elevation.relaunchElevated()
+                            return@launch
                         } else {
                             val ok = CoreBridge.start(
                                 profileYaml = profile.readText(),
                                 tunMode = SettingsStore.tunMode(),
                                 mixedPort = SettingsStore.mixedPort(),
                             )
-                            connected = ok
                             statusNote = if (ok) {
                                 null
                             } else {

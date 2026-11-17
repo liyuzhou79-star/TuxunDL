@@ -61,7 +61,7 @@ internal fun SettingsPage() {
         Text(text = "连接模式", color = Color.White, fontSize = 16.sp)
         Spacer(Modifier.height(4.dp))
         Text(
-            text = "系统代理不用管理员权限；TUN 接管全部流量，需要以管理员身份运行本程序（提权启动在后续版本补齐）。",
+            text = "系统代理不用管理员权限；TUN 接管全部流量，点连接时会自动请求管理员权限并重启本程序（系统会弹确认框）。",
             color = TextDim,
             fontSize = 13.sp,
         )
