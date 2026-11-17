@@ -83,6 +83,52 @@ fun NewProfileScreen(
                     },
                 )
             }
+
+            item {
+                AlbumScanCard(
+                    modifier = Modifier.animateItem(),
+                    onClick = { onRequest(NewProfileDesign.Request.ScanFromAlbum) },
+                )
+            }
+        }
+    }
+}
+
+/** Pick an image from the album and scan the QR code inside it. */
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun AlbumScanCard(
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    TuxunCard(
+        onClick = onClick,
+        modifier = modifier.fillMaxWidth(),
+    ) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 20.dp, vertical = 16.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(16.dp),
+        ) {
+            androidx.compose.material3.Icon(
+                painter = androidx.compose.ui.res.painterResource(DesignR.drawable.ic_baseline_image),
+                contentDescription = null,
+                tint = MaterialTheme.colorScheme.primary,
+                modifier = Modifier.size(32.dp),
+            )
+            Column {
+                Text(
+                    text = stringResource(com.tuxundl.android.R.string.import_from_album),
+                    style = MaterialTheme.typography.titleMedium,
+                )
+                Text(
+                    text = stringResource(com.tuxundl.android.R.string.import_from_album_summary),
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
         }
     }
 }

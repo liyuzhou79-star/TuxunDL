@@ -17,6 +17,7 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.RadioButton
 import androidx.compose.material3.Scaffold
@@ -62,6 +63,50 @@ fun AppearanceScreen(
     var showProxy by remember { mutableStateOf(uiStore.showProxyCard) }
     var showProfile by remember { mutableStateOf(uiStore.showProfileCard) }
     var showProviders by remember { mutableStateOf(uiStore.showProvidersCard) }
+    var showMonitor by remember { mutableStateOf(uiStore.showTrafficMonitorCard) }
+    var cardOrder by remember { mutableStateOf(parseHomeCardOrder(uiStore.homeCardOrder)) }
+
+    fun checkedOf(key: String): Boolean = when (key) {
+        "monitor" -> showMonitor
+        "traffic" -> showTraffic
+        "proxy" -> showProxy
+        "profile" -> showProfile
+        else -> showProviders
+    }
+
+    fun setChecked(key: String, value: Boolean) {
+        when (key) {
+            "monitor" -> {
+                showMonitor = value
+                uiStore.showTrafficMonitorCard = value
+            }
+            "traffic" -> {
+                showTraffic = value
+                uiStore.showTrafficCard = value
+            }
+            "proxy" -> {
+                showProxy = value
+                uiStore.showProxyCard = value
+            }
+            "profile" -> {
+                showProfile = value
+                uiStore.showProfileCard = value
+            }
+            else -> {
+                showProviders = value
+                uiStore.showProvidersCard = value
+            }
+        }
+    }
+
+    fun moveCard(from: Int, to: Int) {
+        if (to !in cardOrder.indices) return
+
+        cardOrder = cardOrder.toMutableList().apply {
+            add(to, removeAt(from))
+        }
+        uiStore.homeCardOrder = cardOrder.joinToString(",")
+    }
 
     Scaffold(
         topBar = {
@@ -139,40 +184,81 @@ fun AppearanceScreen(
             }
 
             SectionCard(title = stringResource(R.string.home_cards)) {
-                SwitchRow(
-                    title = stringResource(R.string.card_traffic),
-                    checked = showTraffic,
-                    onCheckedChange = {
-                        showTraffic = it
-                        uiStore.showTrafficCard = it
-                    },
-                )
-                SwitchRow(
-                    title = stringResource(R.string.card_proxy),
-                    checked = showProxy,
-                    onCheckedChange = {
-                        showProxy = it
-                        uiStore.showProxyCard = it
-                    },
-                )
-                SwitchRow(
-                    title = stringResource(R.string.card_profile),
-                    checked = showProfile,
-                    onCheckedChange = {
-                        showProfile = it
-                        uiStore.showProfileCard = it
-                    },
-                )
-                SwitchRow(
-                    title = stringResource(R.string.card_providers),
-                    checked = showProviders,
-                    onCheckedChange = {
-                        showProviders = it
-                        uiStore.showProvidersCard = it
-                    },
-                )
+                cardOrder.forEachIndexed { index, key ->
+                    CardOrderRow(
+                        title = stringResource(
+                            when (key) {
+                                "monitor" -> R.string.card_traffic_monitor
+                                "traffic" -> R.string.card_traffic
+                                "proxy" -> R.string.card_proxy
+                                "profile" -> R.string.card_profile
+                                else -> R.string.card_providers
+                            },
+                        ),
+                        checked = checkedOf(key),
+                        onCheckedChange = { setChecked(key, it) },
+                        canMoveUp = index > 0,
+                        canMoveDown = index < cardOrder.lastIndex,
+                        onMoveUp = { moveCard(index, index - 1) },
+                        onMoveDown = { moveCard(index, index + 1) },
+                    )
+                }
             }
         }
+    }
+}
+
+/** All orderable home cards, in their default display order. */
+private val HOME_CARD_KEYS =
+    listOf("monitor", "traffic", "proxy", "profile", "providers")
+
+private fun parseHomeCardOrder(stored: String): List<String> {
+    val parsed = stored.split(",")
+        .map { it.trim() }
+        .filter { it in HOME_CARD_KEYS }
+        .distinct()
+
+    return parsed + HOME_CARD_KEYS.filter { it !in parsed }
+}
+
+/** One home-card row in Appearance: visibility switch plus up/down order buttons. */
+@Composable
+private fun CardOrderRow(
+    title: String,
+    checked: Boolean,
+    onCheckedChange: (Boolean) -> Unit,
+    canMoveUp: Boolean,
+    canMoveDown: Boolean,
+    onMoveUp: () -> Unit,
+    onMoveDown: () -> Unit,
+) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(start = 16.dp, end = 4.dp, top = 4.dp, bottom = 4.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Text(
+            text = title,
+            style = MaterialTheme.typography.bodyLarge,
+            modifier = Modifier.weight(1f),
+        )
+        IconButton(onClick = onMoveUp, enabled = canMoveUp) {
+            Icon(
+                painter = painterResource(DesignR.drawable.ic_baseline_arrow_upward),
+                contentDescription = stringResource(R.string.move_up),
+            )
+        }
+        IconButton(onClick = onMoveDown, enabled = canMoveDown) {
+            Icon(
+                painter = painterResource(DesignR.drawable.ic_baseline_arrow_downward),
+                contentDescription = stringResource(R.string.move_down),
+            )
+        }
+        androidx.compose.material3.Switch(
+            checked = checked,
+            onCheckedChange = onCheckedChange,
+        )
     }
 }
 

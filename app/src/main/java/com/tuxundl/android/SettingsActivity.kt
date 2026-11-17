@@ -41,6 +41,10 @@ class SettingsActivity : BaseActivity<SettingsDesign>() {
                             startActivity(AppearanceActivity::class.intent)
                         SettingsDesign.Request.StartRules ->
                             startActivity(RulesActivity::class.intent)
+                        SettingsDesign.Request.StartAccessControl ->
+                            startActivity(AccessControlActivity::class.intent)
+                        SettingsDesign.Request.StartCustomDns ->
+                            startActivity(DnsSettingsActivity::class.intent)
                         SettingsDesign.Request.CheckUpdate ->
                             checkUpdate()
                     }

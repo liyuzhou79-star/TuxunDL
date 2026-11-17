@@ -14,6 +14,7 @@ import androidx.compose.animation.core.RepeatMode
 import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.core.animateDpAsState
 import androidx.compose.animation.core.animateFloat
+import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.infiniteRepeatable
 import androidx.compose.animation.core.rememberInfiniteTransition
 import androidx.compose.animation.core.spring
@@ -35,6 +36,7 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
@@ -47,6 +49,7 @@ import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
+import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.SegmentedButton
@@ -66,7 +69,13 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.StrokeCap
+import androidx.compose.ui.graphics.StrokeJoin
+import androidx.compose.ui.graphics.drawscope.DrawScope
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
@@ -78,6 +87,8 @@ import com.tuxundl.android.core.model.TunnelState
 import com.tuxundl.android.core.util.trafficDownload
 import com.tuxundl.android.core.util.trafficUpload
 import com.tuxundl.android.design.MainDesign
+import com.tuxundl.android.design.util.toBytesString
+import com.tuxundl.android.design.util.toDateStr
 import com.tuxundl.android.util.UpdateInfo
 import kotlinx.coroutines.delay
 import kotlin.math.roundToLong
@@ -121,8 +132,34 @@ class MainUiState {
     /** Non-null while the "new version available" card should be shown. */
     var updateInfo by mutableStateOf<UpdateInfo?>(null)
 
+    /** False until the first-run disclaimer is accepted (gate screen). */
+    var disclaimerAccepted by mutableStateOf(false)
+
+    /**
+     * Per-second traffic rates (bytes/s) for the monitor chart, oldest
+     * first, capped at 60 samples by MainActivity.
+     */
+    var trafficSamples by mutableStateOf<List<TrafficSample>>(emptyList())
+
+    /** Whether the traffic monitor card is shown (Appearance toggle). */
+    var showTrafficMonitor by mutableStateOf(true)
+
+    /** Home card order (keys: traffic, proxy, profile, providers, monitor). */
+    var cardOrder by mutableStateOf(
+        listOf("monitor", "traffic", "proxy", "profile", "providers"),
+    )
+
+    /** Active profile's subscription usage; totals of 0 mean "no data". */
+    var subUpload by mutableStateOf(0L)
+    var subDownload by mutableStateOf(0L)
+    var subTotal by mutableStateOf(0L)
+    var subExpire by mutableStateOf(0L)
+
     val snackbarHostState = SnackbarHostState()
 }
+
+/** One second of traffic: upload/download rates in bytes per second. */
+data class TrafficSample(val upRate: Long, val downRate: Long)
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -155,29 +192,9 @@ fun MainScreen(
                 PowerCircle(state = state, onRequest = onRequest)
             }
 
-            AnimatedVisibility(
-                visible = state.clashRunning && state.connectedMillis > 0L,
-                enter = fadeIn() + expandVertically(),
-                exit = fadeOut() + shrinkVertically(),
-            ) {
-                Box(
-                    modifier = Modifier.fillMaxWidth(),
-                    contentAlignment = Alignment.Center,
-                ) {
-                    Text(
-                        text = stringResource(
-                            R.string.connected_for,
-                            formatDuration(state.connectedMillis),
-                        ),
-                        style = MaterialTheme.typography.bodyMedium,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    )
-                }
-            }
-
             ModeSelector(state = state, onRequest = onRequest)
 
-            InfoTiles(state = state, onRequest = onRequest)
+            HomeCards(state = state, onRequest = onRequest)
 
             BottomNavRow(onRequest = onRequest)
         }
@@ -484,19 +501,77 @@ private class HomeTile(
     val testing: Boolean = false,
 )
 
-/** Two-column grid of small info tiles under the power circle. */
+/** One block of the ordered home-card area: the monitor card or a row of tiles. */
+private sealed interface HomeBlock {
+    object Monitor : HomeBlock
+    data class TileRow(val tiles: List<HomeTile>) : HomeBlock
+}
+
+/**
+ * The orderable home cards under the mode selector.
+ *
+ * Blocks follow MainUiState.cardOrder (Appearance settings): the traffic
+ * monitor renders as a full-width card in sequence, the other cards as
+ * two-column tile rows. The current-node tile is pinned as the first tile
+ * of the first tile row. The subscription card rides directly under the
+ * monitor card; when the monitor is hidden it sits above this whole area
+ * instead (rendered by [MainScreen] through [SubscriptionCard] placement
+ * in the plan below).
+ */
 @Composable
-private fun InfoTiles(
+private fun HomeCards(
     state: MainUiState,
     onRequest: (MainDesign.Request) -> Unit,
 ) {
-    val tiles = mutableListOf<HomeTile>()
+    val tilesByKey = mutableMapOf<String, HomeTile>()
+
+    if (state.showTraffic) {
+        tilesByKey["traffic"] = HomeTile(
+            icon = DesignR.drawable.ic_baseline_swap_vert,
+            title = R.string.traffic,
+            lines = listOf(
+                "↑ ${state.traffic.trafficUpload()}",
+                "↓ ${state.traffic.trafficDownload()}",
+            ),
+            request = null,
+            testRequest = MainDesign.Request.TestAllGroups,
+            testing = state.testingAll,
+        )
+    }
+    if (state.showProxy) {
+        tilesByKey["proxy"] = HomeTile(
+            icon = DesignR.drawable.ic_baseline_apps,
+            title = DesignR.string.proxy,
+            lines = listOf(modeText(state.mode)),
+            request = MainDesign.Request.OpenProxy,
+        )
+    }
+    if (state.showProfile) {
+        tilesByKey["profile"] = HomeTile(
+            icon = DesignR.drawable.ic_baseline_view_list,
+            title = DesignR.string.profile,
+            lines = listOf(
+                state.profileName?.let {
+                    stringResource(DesignR.string.format_profile_activated, it)
+                } ?: stringResource(DesignR.string.not_selected),
+            ),
+            request = MainDesign.Request.OpenProfiles,
+        )
+    }
+    if (state.showProviders && state.clashRunning && state.hasProviders) {
+        tilesByKey["providers"] = HomeTile(
+            icon = DesignR.drawable.ic_baseline_extension,
+            title = DesignR.string.providers,
+            lines = emptyList(),
+            request = MainDesign.Request.OpenProviders,
+        )
+    }
 
     // Current node tile: always shown when a main selector group exists,
     // independent of the card toggles (it is the most-glanced info).
     val nodeName = state.currentNodeName
-    if (nodeName != null) {
-        tiles += HomeTile(
+    val nodeTile = if (nodeName != null) {
+        HomeTile(
             icon = DesignR.drawable.ic_baseline_vpn_lock,
             title = R.string.current_node,
             lines = listOf(
@@ -511,72 +586,302 @@ private fun InfoTiles(
             testRequest = MainDesign.Request.TestCurrentGroup,
             testing = state.testingNode,
         )
+    } else {
+        null
     }
 
-    if (state.showTraffic) {
-        tiles += HomeTile(
-            icon = DesignR.drawable.ic_baseline_swap_vert,
-            title = R.string.traffic,
-            lines = listOf(
-                "↑ ${state.traffic.trafficUpload()}",
-                "↓ ${state.traffic.trafficDownload()}",
-            ),
-            request = null,
-            testRequest = MainDesign.Request.TestAllGroups,
-            testing = state.testingAll,
-        )
-    }
-    if (state.showProxy) {
-        tiles += HomeTile(
-            icon = DesignR.drawable.ic_baseline_apps,
-            title = DesignR.string.proxy,
-            lines = listOf(modeText(state.mode)),
-            request = MainDesign.Request.OpenProxy,
-        )
-    }
-    if (state.showProfile) {
-        tiles += HomeTile(
-            icon = DesignR.drawable.ic_baseline_view_list,
-            title = DesignR.string.profile,
-            lines = listOf(
-                state.profileName?.let {
-                    stringResource(DesignR.string.format_profile_activated, it)
-                } ?: stringResource(DesignR.string.not_selected),
-            ),
-            request = MainDesign.Request.OpenProfiles,
-        )
-    }
-    if (state.showProviders && state.clashRunning && state.hasProviders) {
-        tiles += HomeTile(
-            icon = DesignR.drawable.ic_baseline_extension,
-            title = DesignR.string.providers,
-            lines = emptyList(),
-            request = MainDesign.Request.OpenProviders,
-        )
+    // Build the render plan in the stored order.
+    val blocks = mutableListOf<HomeBlock>()
+    val buffer = mutableListOf<HomeTile>()
+    var nodePending = nodeTile != null
+
+    fun flushTiles() {
+        if (nodePending && nodeTile != null) {
+            buffer.add(0, nodeTile)
+            nodePending = false
+        }
+        buffer.chunked(2).forEach { blocks += HomeBlock.TileRow(it) }
+        buffer.clear()
     }
 
-    if (tiles.isEmpty()) return
+    for (key in state.cardOrder) {
+        if (key == "monitor") {
+            if (state.showTrafficMonitor) {
+                flushTiles()
+                blocks += HomeBlock.Monitor
+            }
+        } else {
+            tilesByKey[key]?.let { buffer += it }
+        }
+    }
+    flushTiles()
+
+    if (blocks.isEmpty() && state.subTotal <= 1L) return
 
     Column(
         modifier = Modifier.animateContentSize(),
         verticalArrangement = Arrangement.spacedBy(12.dp),
     ) {
-        tiles.chunked(2).forEach { rowTiles ->
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(12.dp),
-            ) {
-                rowTiles.forEach { tile ->
-                    InfoTile(
-                        tile = tile,
-                        onRequest = onRequest,
-                        modifier = Modifier.weight(1f),
-                    )
+        // Monitor hidden: the subscription card takes the monitor's
+        // place, right above the tile rows.
+        if (!state.showTrafficMonitor) {
+            SubscriptionCard(state = state)
+        }
+
+        blocks.forEach { block ->
+            when (block) {
+                HomeBlock.Monitor -> {
+                    TrafficMonitorCard(state = state)
+                    SubscriptionCard(state = state)
                 }
-                if (rowTiles.size == 1) {
-                    Spacer(modifier = Modifier.weight(1f))
+                is HomeBlock.TileRow -> {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(12.dp),
+                    ) {
+                        block.tiles.forEach { tile ->
+                            InfoTile(
+                                tile = tile,
+                                onRequest = onRequest,
+                                modifier = Modifier.weight(1f),
+                            )
+                        }
+                        if (block.tiles.size == 1) {
+                            Spacer(modifier = Modifier.weight(1f))
+                        }
+                    }
                 }
             }
+        }
+    }
+}
+
+/**
+ * Traffic monitor: a live rate chart (last 60 one-second samples) with a
+ * gradient fill, the forwarded totals and the connection duration.
+ *
+ * On first composition the lines sweep in from the left (the draw
+ * progress animates 0 -> 1) so the chart draws itself head-to-tail.
+ */
+@Composable
+private fun TrafficMonitorCard(state: MainUiState) {
+    TuxunCard(
+        shape = RoundedCornerShape(TuxunCardCornerLarge),
+        modifier = Modifier.fillMaxWidth(),
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(16.dp),
+            verticalArrangement = Arrangement.spacedBy(10.dp),
+        ) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Icon(
+                    painter = painterResource(DesignR.drawable.ic_baseline_swap_vert),
+                    contentDescription = null,
+                    tint = MaterialTheme.colorScheme.primary,
+                )
+                Spacer(modifier = Modifier.size(8.dp))
+                Text(
+                    text = stringResource(R.string.traffic_monitor),
+                    style = MaterialTheme.typography.titleMedium,
+                    modifier = Modifier.weight(1f),
+                )
+                if (state.clashRunning && state.connectedMillis > 0L) {
+                    Text(
+                        text = stringResource(
+                            R.string.connected_for,
+                            formatDuration(state.connectedMillis),
+                        ),
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                }
+            }
+
+            TrafficChart(
+                samples = state.trafficSamples,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(96.dp),
+            )
+
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+            ) {
+                Text(
+                    text = "↓ ${state.traffic.trafficDownload()}",
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.primary,
+                )
+                Text(
+                    text = "↑ ${state.traffic.trafficUpload()}",
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.tertiary,
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun TrafficChart(
+    samples: List<TrafficSample>,
+    modifier: Modifier = Modifier,
+) {
+    val downColor = MaterialTheme.colorScheme.primary
+    val upColor = MaterialTheme.colorScheme.tertiary
+    val baselineColor = MaterialTheme.colorScheme.outlineVariant
+
+    var sweepTarget by remember { mutableStateOf(0f) }
+    val sweep by animateFloatAsState(
+        targetValue = sweepTarget,
+        animationSpec = tween(durationMillis = 1400, easing = FastOutSlowInEasing),
+        label = "chartSweep",
+    )
+    LaunchedEffect(Unit) {
+        sweepTarget = 1f
+    }
+
+    Canvas(modifier = modifier) {
+        drawLine(
+            color = baselineColor,
+            start = Offset(0f, size.height - 1f),
+            end = Offset(size.width, size.height - 1f),
+            strokeWidth = 1.dp.toPx(),
+        )
+
+        if (samples.size < 2) return@Canvas
+
+        val maxRate = samples.maxOf { maxOf(it.upRate, it.downRate) }
+            .coerceAtLeast(1)
+            .toFloat()
+        val usableHeight = size.height - 6.dp.toPx()
+
+        fun pointsOf(up: Boolean): List<Offset> = samples.mapIndexed { index, sample ->
+            val rate = if (up) sample.upRate else sample.downRate
+            Offset(
+                x = size.width * index / (samples.size - 1),
+                y = size.height - (rate / maxRate) * usableHeight,
+            )
+        }
+
+        drawSeries(pointsOf(up = false), downColor, sweep)
+        drawSeries(pointsOf(up = true), upColor, sweep)
+    }
+}
+
+/** Draw one rate series, revealing only the first [sweep] fraction of it. */
+private fun DrawScope.drawSeries(points: List<Offset>, color: Color, sweep: Float) {
+    if (points.size < 2 || sweep <= 0f) return
+
+    val segments = points.size - 1
+    val cutoff = (sweep.coerceIn(0f, 1f) * segments)
+    val fullSegments = cutoff.toInt()
+    val fraction = cutoff - fullSegments
+
+    val visible = mutableListOf<Offset>()
+    visible += points[0]
+    for (i in 1..fullSegments.coerceAtMost(segments)) {
+        visible += points[i]
+    }
+    if (fraction > 0f && fullSegments < segments) {
+        val from = points[fullSegments]
+        val to = points[fullSegments + 1]
+        visible += Offset(
+            x = from.x + (to.x - from.x) * fraction,
+            y = from.y + (to.y - from.y) * fraction,
+        )
+    }
+    if (visible.size < 2) return
+
+    val linePath = Path().apply {
+        moveTo(visible.first().x, visible.first().y)
+        for (i in 1 until visible.size) {
+            lineTo(visible[i].x, visible[i].y)
+        }
+    }
+
+    val fillPath = Path().apply {
+        addPath(linePath)
+        lineTo(visible.last().x, size.height)
+        lineTo(visible.first().x, size.height)
+        close()
+    }
+
+    drawPath(
+        path = fillPath,
+        brush = Brush.verticalGradient(
+            colors = listOf(color.copy(alpha = 0.32f), color.copy(alpha = 0f)),
+            startY = 0f,
+            endY = size.height,
+        ),
+    )
+    drawPath(
+        path = linePath,
+        color = color,
+        style = Stroke(
+            width = 2.dp.toPx(),
+            cap = StrokeCap.Round,
+            join = StrokeJoin.Round,
+        ),
+    )
+}
+
+/**
+ * Active profile's subscription usage (from the subscription-userinfo the
+ * profile manager already tracks): used / total with a progress bar and
+ * the expiry date. Renders nothing when the profile carries no data.
+ */
+@Composable
+private fun SubscriptionCard(state: MainUiState) {
+    if (state.subTotal <= 1L) return
+
+    val used = state.subUpload + state.subDownload
+
+    TuxunCard(
+        shape = RoundedCornerShape(TuxunCardCornerLarge),
+        modifier = Modifier.fillMaxWidth(),
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(16.dp),
+            verticalArrangement = Arrangement.spacedBy(8.dp),
+        ) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Icon(
+                    painter = painterResource(DesignR.drawable.ic_baseline_view_list),
+                    contentDescription = null,
+                    tint = MaterialTheme.colorScheme.primary,
+                )
+                Spacer(modifier = Modifier.size(8.dp))
+                Text(
+                    text = stringResource(R.string.subscription),
+                    style = MaterialTheme.typography.titleMedium,
+                    modifier = Modifier.weight(1f),
+                )
+                if (state.subExpire > 0L) {
+                    Text(
+                        text = stringResource(
+                            R.string.subscription_expires,
+                            state.subExpire.toDateStr(),
+                        ),
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                }
+            }
+            Text(
+                text = "${used.toBytesString()} / ${state.subTotal.toBytesString()}",
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+            LinearProgressIndicator(
+                progress = (used.toFloat() / state.subTotal.toFloat()).coerceIn(0f, 1f),
+                modifier = Modifier.fillMaxWidth(),
+            )
         }
     }
 }
@@ -766,10 +1071,10 @@ private fun decodeTrafficHalf(half: Long): Long {
     return scaled / 100
 }
 
-private fun trafficUploadBytes(traffic: Long): Long =
+internal fun trafficUploadBytes(traffic: Long): Long =
     decodeTrafficHalf(traffic ushr 32)
 
-private fun trafficDownloadBytes(traffic: Long): Long =
+internal fun trafficDownloadBytes(traffic: Long): Long =
     decodeTrafficHalf(traffic and 0xFFFFFFFF)
 
 private fun formatSpeed(bytesPerSecond: Long): String {

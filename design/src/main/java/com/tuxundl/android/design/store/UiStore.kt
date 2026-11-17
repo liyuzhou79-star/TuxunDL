@@ -123,6 +123,26 @@ class UiStore(context: Context) {
         defaultValue = ""
     )
 
+    /** Whether the first-run disclaimer has been accepted; false shows the gate screen. */
+    var disclaimerAccepted: Boolean by store.boolean(
+        key = "disclaimer_accepted",
+        defaultValue = false
+    )
+
+    var showTrafficMonitorCard: Boolean by store.boolean(
+        key = "show_traffic_monitor_card",
+        defaultValue = true
+    )
+
+    /**
+     * Home card order as a comma-separated list of card keys
+     * (traffic, proxy, profile, providers, monitor). Empty = default order.
+     */
+    var homeCardOrder: String by store.string(
+        key = "home_card_order",
+        defaultValue = ""
+    )
+
     companion object {
         private const val PREFERENCE_NAME = "ui"
 

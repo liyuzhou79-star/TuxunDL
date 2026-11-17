@@ -11,7 +11,7 @@
     <string name="theme_mono">灰黑</string>
     <string name="home_cards">首页卡片</string>
     <string name="card_traffic">流量卡片</string>
-    <string name="card_proxy">代理卡片</string>
+    <string name="card_proxy">节点选择卡片</string>
     <string name="card_profile">设定档卡片</string>
     <string name="card_providers">Providers 卡片</string>
     <string name="add">添加</string>
@@ -37,4 +37,28 @@
     <string name="update_latest">已是最新版本。</string>
     <string name="update_check_failed">检查更新失败，请检查网络后重试。</string>
     <string name="update_new_found">发现新版本 v%1$s。</string>
+    <string name="import_from_album">从相簿选取图片</string>
+    <string name="import_from_album_summary">扫描相簿图片中的 QR 图码</string>
+    <string name="import_from_album_failed">图片中没有找到 QR 图码</string>
+    <string name="per_app_proxy">分应用代理</string>
+    <string name="custom_dns">自定义 DNS</string>
+    <string name="dns_enable">启用自定义 DNS</string>
+    <string name="dns_summary">加载设定档时覆盖其中的 DNS 设置</string>
+    <string name="dns_nameserver">Nameserver</string>
+    <string name="dns_nameserver_hint">每行一个，例如 223.5.5.5</string>
+    <string name="dns_fallback">Fallback</string>
+    <string name="dns_fallback_hint">每行一个，例如 1.1.1.1</string>
+    <string name="dns_saved">已保存，重启代理后生效。</string>
+    <string name="card_traffic_monitor">流量监控卡片</string>
+    <string name="traffic_monitor">流量监控</string>
+    <string name="subscription">订阅</string>
+    <string name="subscription_expires">到期 %1$s</string>
+    <string name="profile_details">设定档详情</string>
+    <string name="move_up">上移</string>
+    <string name="move_down">下移</string>
+    <string name="disclaimer_title">免责声明与使用协议</string>
+    <string name="disclaimer_body">TuxunDL 是一款开源免费工具，仅供学习与技术交流使用。\n\n本软件本身不提供任何代理或网络服务，也不出售、不分发任何节点或订阅。使用到的节点、订阅与设定档，均由使用者自行提供，使用者须对其来源与使用行为自行负责。\n\n使用者应遵守所在地之法律法规，不得将本软件用于任何违法用途。因使用本软件所产生的一切后果，由使用者自行承担，开发者不负任何责任。\n\n点击「同意并继续」即代表你已阅读、理解并接受以上内容。</string>
+    <string name="disclaimer_agree">我已阅读并同意以上内容</string>
+    <string name="disclaimer_continue">同意并继续</string>
+    <string name="disclaimer_disagree">不同意</string>
 </resources>

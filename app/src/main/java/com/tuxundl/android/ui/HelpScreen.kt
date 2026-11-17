@@ -41,7 +41,7 @@ fun HelpScreen(
                 .verticalScroll(rememberScrollState())
                 .padding(vertical = 8.dp),
         ) {
-            Text(
+            HtmlText(
                 text = stringResource(DesignR.string.tips_help),
                 style = MaterialTheme.typography.bodyMedium,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,

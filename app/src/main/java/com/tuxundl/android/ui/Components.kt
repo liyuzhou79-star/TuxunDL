@@ -35,8 +35,17 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.text.AnnotatedString
+import androidx.compose.ui.text.SpanStyle
+import androidx.compose.ui.text.TextStyle
+import androidx.compose.ui.text.buildAnnotatedString
+import androidx.compose.ui.text.font.FontStyle
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextDecoration
+import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
@@ -73,6 +82,80 @@ fun CategoryHeader(text: String) {
         color = MaterialTheme.colorScheme.primary,
         modifier = Modifier.padding(start = 16.dp, end = 16.dp, top = 20.dp, bottom = 4.dp),
     )
+}
+
+/**
+ * Text for the legacy string resources that carry light HTML markup
+ * (they are CDATA strings with <strong>/<b>/<i>/<u>/<br> inside, written
+ * for the old Html.fromHtml designs). <strong>/<b> become bold spans,
+ * <i> italic, <u> underlined and <br> a newline; every other tag is
+ * dropped, so raw markup never leaks onto a Compose screen.
+ */
+@Composable
+fun HtmlText(
+    text: String,
+    style: TextStyle,
+    color: Color,
+    modifier: Modifier = Modifier,
+) {
+    Text(
+        text = remember(text) { parseSimpleHtml(text) },
+        style = style,
+        color = color,
+        modifier = modifier,
+    )
+}
+
+private val HTML_TAG = Regex("<[^>]*>")
+
+private fun parseSimpleHtml(source: String): AnnotatedString {
+    val unescaped = source
+        .replace("&lt;", "<")
+        .replace("&gt;", ">")
+        .replace("&quot;", "\"")
+        .replace("&#39;", "'")
+        .replace("&amp;", "&")
+
+    return buildAnnotatedString {
+        var bold = 0
+        var italic = 0
+        var underline = 0
+        var index = 0
+
+        fun appendText(chunk: String) {
+            if (chunk.isEmpty()) return
+
+            val style = SpanStyle(
+                fontWeight = if (bold > 0) FontWeight.Bold else null,
+                fontStyle = if (italic > 0) FontStyle.Italic else null,
+                textDecoration = if (underline > 0) TextDecoration.Underline else null,
+            )
+
+            if (bold > 0 || italic > 0 || underline > 0) {
+                withStyle(style) { append(chunk) }
+            } else {
+                append(chunk)
+            }
+        }
+
+        for (match in HTML_TAG.findAll(unescaped)) {
+            appendText(unescaped.substring(index, match.range.first))
+            index = match.range.last + 1
+
+            when (match.value.lowercase().replace(" ", "")) {
+                "<strong>", "<b>" -> bold++
+                "</strong>", "</b>" -> if (bold > 0) bold--
+                "<i>", "<em>" -> italic++
+                "</i>", "</em>" -> if (italic > 0) italic--
+                "<u>" -> underline++
+                "</u>" -> if (underline > 0) underline--
+                "<br>", "<br/>", "</p>" -> append("\n")
+                else -> Unit // drop every other tag
+            }
+        }
+
+        appendText(unescaped.substring(index))
+    }
 }
 
 /**

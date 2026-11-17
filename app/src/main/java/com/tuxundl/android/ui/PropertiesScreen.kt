@@ -1,5 +1,6 @@
 package com.tuxundl.android.ui
 
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
@@ -29,6 +30,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
+import com.tuxundl.android.R
 import com.tuxundl.android.design.PropertiesDesign
 import com.tuxundl.android.design.util.ValidatorAgeSecretKey
 import com.tuxundl.android.design.util.ValidatorAutoUpdateInterval
@@ -109,51 +111,64 @@ fun PropertiesScreen(
                 .fillMaxSize()
                 .padding(padding)
                 .verticalScroll(rememberScrollState())
-                .padding(vertical = 8.dp),
+                .padding(bottom = 16.dp),
         ) {
-            Text(
-                text = stringResource(DesignR.string.tips_properties),
-                style = MaterialTheme.typography.bodyMedium,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp),
-            )
+            // The acceptance hint gets its own card so it no longer sits
+            // flush against the field rows below it.
+            Box(modifier = Modifier.padding(start = 16.dp, end = 16.dp, top = 16.dp)) {
+                TuxunCard(modifier = Modifier.fillMaxWidth()) {
+                    HtmlText(
+                        text = stringResource(DesignR.string.tips_properties),
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        modifier = Modifier.padding(horizontal = 16.dp, vertical = 14.dp),
+                    )
+                }
+            }
 
             if (profile != null) {
-                ValueRow(
-                    title = stringResource(DesignR.string.name),
-                    value = profile.name,
-                    onClick = { state.editField = PropertiesUiState.Field.Name },
-                )
-                ValueRow(
-                    title = stringResource(DesignR.string.url),
-                    value = profile.source,
-                    onClick = {
-                        if (profile.type != Profile.Type.External) {
-                            state.editField = PropertiesUiState.Field.Url
-                        }
-                    },
-                )
-                ValueRow(
-                    title = stringResource(DesignR.string.age_secret_key),
-                    value = profile.ageSecretKey,
-                    onClick = { state.editField = PropertiesUiState.Field.AgeSecretKey },
-                )
-                ValueRow(
-                    title = stringResource(DesignR.string.auto_update),
-                    value = if (profile.interval == 0L) {
-                        stringResource(DesignR.string.disabled)
-                    } else {
-                        stringResource(
-                            DesignR.string.format_minutes,
-                            TimeUnit.MILLISECONDS.toMinutes(profile.interval),
-                        )
-                    },
-                    onClick = { state.editField = PropertiesUiState.Field.Interval },
-                )
-                ClickRow(
-                    title = stringResource(DesignR.string.browse_files),
-                    onClick = { onRequest(PropertiesDesign.Request.BrowseFiles) },
-                )
+                SectionCard(title = stringResource(R.string.profile_details)) {
+                    ValueRow(
+                        title = stringResource(DesignR.string.name),
+                        value = profile.name,
+                        onClick = { state.editField = PropertiesUiState.Field.Name },
+                    )
+                    ValueRow(
+                        title = stringResource(DesignR.string.url),
+                        value = profile.source,
+                        onClick = {
+                            if (profile.type != Profile.Type.External) {
+                                state.editField = PropertiesUiState.Field.Url
+                            }
+                        },
+                    )
+                    ValueRow(
+                        title = stringResource(DesignR.string.age_secret_key),
+                        value = profile.ageSecretKey,
+                        onClick = { state.editField = PropertiesUiState.Field.AgeSecretKey },
+                    )
+                    ValueRow(
+                        title = stringResource(DesignR.string.auto_update),
+                        value = if (profile.interval == 0L) {
+                            stringResource(DesignR.string.disabled)
+                        } else {
+                            stringResource(
+                                DesignR.string.format_minutes,
+                                TimeUnit.MILLISECONDS.toMinutes(profile.interval),
+                            )
+                        },
+                        onClick = { state.editField = PropertiesUiState.Field.Interval },
+                    )
+                }
+
+                Spacer(modifier = Modifier.height(8.dp))
+
+                SectionCard(title = stringResource(DesignR.string.files)) {
+                    ClickRow(
+                        title = stringResource(DesignR.string.browse_files),
+                        onClick = { onRequest(PropertiesDesign.Request.BrowseFiles) },
+                    )
+                }
             }
         }
     }

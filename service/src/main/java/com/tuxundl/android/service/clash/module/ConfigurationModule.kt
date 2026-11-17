@@ -9,6 +9,7 @@ import com.tuxundl.android.service.data.ImportedDao
 import com.tuxundl.android.service.data.SelectionDao
 import com.tuxundl.android.service.store.ServiceStore
 import com.tuxundl.android.service.util.importedDir
+import com.tuxundl.android.service.util.injectCustomDns
 import com.tuxundl.android.service.util.injectCustomRules
 import com.tuxundl.android.service.util.sendProfileLoaded
 import kotlinx.coroutines.channels.Channel
@@ -63,6 +64,10 @@ class ConfigurationModule(service: Service) : Module<ConfigurationModule.LoadExc
                 // Splice the user's custom routing rules into config.yaml
                 // before the core reads it (no-op when there are none).
                 injectCustomRules(service, profileDir, active.uuid)
+
+                // Same for the custom DNS override: independent section,
+                // applied right after the rules, still before Clash.load.
+                injectCustomDns(service, profileDir)
 
                 Clash.load(profileDir).await()
 

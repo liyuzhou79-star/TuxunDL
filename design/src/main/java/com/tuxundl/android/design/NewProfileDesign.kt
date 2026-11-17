@@ -12,6 +12,7 @@ class NewProfileDesign(context: Context) : Design<NewProfileDesign.Request>(cont
         data class Create(val provider: ProfileProvider) : Request()
         data class OpenDetail(val provider: ProfileProvider.External) : Request()
         data class LaunchScanner(val provider: ProfileProvider.QR) : Request()
+        object ScanFromAlbum : Request()
     }
 
     private val binding = DesignNewProfileBinding

@@ -139,6 +139,11 @@
             android:exported="false"
             android:label="@string/custom_rules" />
         <activity
+            android:name=".DnsSettingsActivity"
+            android:configChanges="uiMode"
+            android:exported="false"
+            android:label="@string/custom_dns" />
+        <activity
             android:name=".ProvidersActivity"
             android:configChanges="uiMode"
             android:exported="false"

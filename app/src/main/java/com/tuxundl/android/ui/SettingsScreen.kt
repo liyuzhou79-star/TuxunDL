@@ -90,6 +90,16 @@ fun SettingsScreen(
                 onClick = { onRequest(SettingsDesign.Request.StartRules) },
             )
             SettingsEntryCard(
+                icon = DesignR.drawable.ic_baseline_apps,
+                title = stringResource(R.string.per_app_proxy),
+                onClick = { onRequest(SettingsDesign.Request.StartAccessControl) },
+            )
+            SettingsEntryCard(
+                icon = DesignR.drawable.ic_baseline_dns,
+                title = stringResource(R.string.custom_dns),
+                onClick = { onRequest(SettingsDesign.Request.StartCustomDns) },
+            )
+            SettingsEntryCard(
                 icon = DesignR.drawable.ic_baseline_meta,
                 title = stringResource(DesignR.string.meta_features),
                 onClick = { onRequest(SettingsDesign.Request.StartMetaFeature) },

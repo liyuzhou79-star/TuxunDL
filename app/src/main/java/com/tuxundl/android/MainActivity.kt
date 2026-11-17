@@ -5,6 +5,7 @@ import android.content.pm.PackageManager
 import android.content.res.Configuration
 import android.os.Build
 import android.os.Bundle
+import android.os.SystemClock
 import androidx.activity.compose.setContent
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.activity.result.contract.ActivityResultContracts.RequestPermission
@@ -22,9 +23,13 @@ import com.tuxundl.android.common.util.ticker
 import com.tuxundl.android.core.Clash
 import com.tuxundl.android.design.MainDesign
 import com.tuxundl.android.design.model.DarkMode
+import com.tuxundl.android.ui.DisclaimerScreen
 import com.tuxundl.android.ui.MainScreen
 import com.tuxundl.android.ui.MainUiState
+import com.tuxundl.android.ui.TrafficSample
 import com.tuxundl.android.ui.theme.TuxunDLTheme
+import com.tuxundl.android.ui.trafficDownloadBytes
+import com.tuxundl.android.ui.trafficUploadBytes
 import com.tuxundl.android.util.UpdateChecker
 import com.tuxundl.android.util.startClashService
 import com.tuxundl.android.util.stopClashService
@@ -38,11 +43,17 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.selects.select
 import kotlinx.coroutines.withContext
 import java.util.concurrent.TimeUnit
+import kotlin.math.roundToLong
 import com.tuxundl.android.design.R as DesignR
 
 class MainActivity : BaseActivity<MainDesign>() {
     private val uiState = MainUiState()
     private val uiRequests = Channel<MainDesign.Request>(Channel.UNLIMITED)
+
+    // Previous packed-total sample, for deriving per-second rates.
+    private var prevTrafficUp = 0L
+    private var prevTrafficDown = 0L
+    private var prevTrafficAt = 0L
 
     override suspend fun main() {
         fetch()
@@ -56,10 +67,13 @@ class MainActivity : BaseActivity<MainDesign>() {
                     when (it) {
                         Event.ClashStart -> {
                             uiStore.runningSince = System.currentTimeMillis()
+                            resetTrafficSampling()
                             fetch()
                         }
                         Event.ClashStop -> {
                             uiStore.runningSince = 0L
+                            resetTrafficSampling()
+                            uiState.trafficSamples = emptyList()
                             fetch()
                         }
                         Event.ActivityStart,
@@ -183,6 +197,8 @@ class MainActivity : BaseActivity<MainDesign>() {
         uiState.showProxy = uiStore.showProxyCard
         uiState.showProfile = uiStore.showProfileCard
         uiState.showProviders = uiStore.showProvidersCard
+        uiState.showTrafficMonitor = uiStore.showTrafficMonitorCard
+        uiState.cardOrder = parseCardOrder(uiStore.homeCardOrder)
 
         val state = withClash {
             queryTunnelState()
@@ -194,10 +210,24 @@ class MainActivity : BaseActivity<MainDesign>() {
         uiState.mode = state.mode
         uiState.hasProviders = providers.isNotEmpty()
 
-        val profileName = withProfile { queryActive()?.name }
-        uiState.profileName = profileName
+        val profile = withProfile { queryActive() }
+        uiState.profileName = profile?.name
+        uiState.subUpload = profile?.upload ?: 0L
+        uiState.subDownload = profile?.download ?: 0L
+        uiState.subTotal = profile?.total ?: 0L
+        uiState.subExpire = profile?.expire ?: 0L
 
         fetchCurrentNode()
+    }
+
+    /** Stored order first; any known key missing from it keeps the default tail order. */
+    private fun parseCardOrder(stored: String): List<String> {
+        val parsed = stored.split(",")
+            .map { it.trim() }
+            .filter { it in HOME_CARD_KEYS }
+            .distinct()
+
+        return parsed + HOME_CARD_KEYS.filter { it !in parsed }
     }
 
     /**
@@ -246,9 +276,37 @@ class MainActivity : BaseActivity<MainDesign>() {
         }
     }
 
+    private fun resetTrafficSampling() {
+        prevTrafficUp = 0L
+        prevTrafficDown = 0L
+        prevTrafficAt = 0L
+    }
+
     private suspend fun fetchTraffic() {
         val total = withClash { queryTrafficTotal() }
         uiState.traffic = total
+
+        // Per-second rates for the monitor chart. The Binder API exposes
+        // totals only (queryTrafficNow is not part of IClashManager), so
+        // the rate is the delta of the totals between ticks — the same
+        // derivation the power circle uses for its live speed.
+        val up = trafficUploadBytes(total)
+        val down = trafficDownloadBytes(total)
+        val now = SystemClock.elapsedRealtime()
+
+        if (prevTrafficAt != 0L && now > prevTrafficAt) {
+            val seconds = (now - prevTrafficAt) / 1000.0
+            val sample = TrafficSample(
+                upRate = ((up - prevTrafficUp).coerceAtLeast(0) / seconds).roundToLong(),
+                downRate = ((down - prevTrafficDown).coerceAtLeast(0) / seconds).roundToLong(),
+            )
+
+            uiState.trafficSamples = (uiState.trafficSamples + sample).takeLast(60)
+        }
+
+        prevTrafficUp = up
+        prevTrafficDown = down
+        prevTrafficAt = now
 
         val since = uiStore.runningSince
         uiState.runningSince = since
@@ -321,13 +379,25 @@ class MainActivity : BaseActivity<MainDesign>() {
             DarkMode.ForceDark -> true
         }
 
+        uiState.disclaimerAccepted = uiStore.disclaimerAccepted
+
         setContent {
             TuxunDLTheme(darkTheme = darkTheme, palette = uiStore.themePalette) {
                 Surface(color = MaterialTheme.colorScheme.background) {
-                    MainScreen(
-                        state = uiState,
-                        onRequest = { request -> uiRequests.trySend(request) },
-                    )
+                    if (uiState.disclaimerAccepted) {
+                        MainScreen(
+                            state = uiState,
+                            onRequest = { request -> uiRequests.trySend(request) },
+                        )
+                    } else {
+                        DisclaimerScreen(
+                            onAgree = {
+                                uiStore.disclaimerAccepted = true
+                                uiState.disclaimerAccepted = true
+                            },
+                            onDisagree = { finish() },
+                        )
+                    }
                 }
             }
         }
@@ -392,5 +462,11 @@ class MainActivity : BaseActivity<MainDesign>() {
             .build()
 
         ShortcutManagerCompat.setDynamicShortcuts(this, listOf(toggle, start, stop))
+    }
+
+    companion object {
+        /** All orderable home cards, in their default display order. */
+        private val HOME_CARD_KEYS =
+            listOf("monitor", "traffic", "proxy", "profile", "providers")
     }
 }
