@@ -126,6 +126,73 @@ class MihomoApi(private val base: String = "http://127.0.0.1:9090") {
         }
     }
 
+    /** One live connection as the connections page shows it. */
+    data class ConnectionInfo(
+        val id: String,
+        val target: String,
+        val network: String,
+        val node: String,
+        val download: Long,
+        val upload: Long,
+        val startedAt: String,
+        val rule: String,
+    )
+
+    /** The core's currently open connections, newest first. */
+    suspend fun connections(): List<ConnectionInfo> =
+        get("/connections")?.let { body ->
+            runCatching {
+                json.parseToJsonElement(body).jsonObject["connections"]
+                    ?.jsonArray
+                    ?.map { item ->
+                        val conn = item.jsonObject
+                        val meta = conn["metadata"]?.jsonObject
+                        val host = meta?.get("host")?.jsonPrimitive?.contentOrNull
+                            .orEmpty()
+                        val ip = meta?.get("destinationIP")?.jsonPrimitive
+                            ?.contentOrNull.orEmpty()
+                        val port = meta?.get("destinationPort")?.jsonPrimitive
+                            ?.contentOrNull.orEmpty()
+                        val shown = host.ifBlank { ip }
+                        ConnectionInfo(
+                            id = conn["id"]?.jsonPrimitive?.contentOrNull.orEmpty(),
+                            target = if (port.isBlank()) shown else "$shown:$port",
+                            network = meta?.get("network")?.jsonPrimitive
+                                ?.contentOrNull.orEmpty(),
+                            node = conn["chains"]?.jsonArray?.firstOrNull()
+                                ?.jsonPrimitive?.contentOrNull.orEmpty(),
+                            download = conn["download"]?.jsonPrimitive
+                                ?.longOrNull ?: 0L,
+                            upload = conn["upload"]?.jsonPrimitive
+                                ?.longOrNull ?: 0L,
+                            startedAt = conn["start"]?.jsonPrimitive
+                                ?.contentOrNull.orEmpty(),
+                            rule = conn["rule"]?.jsonPrimitive
+                                ?.contentOrNull.orEmpty(),
+                        )
+                    }
+                    ?.reversed()
+            }.getOrNull()
+        } ?: emptyList()
+
+    private suspend fun delete(path: String): Boolean =
+        withContext(Dispatchers.IO) {
+            runCatching {
+                val response = client.send(
+                    request(path).DELETE().build(),
+                    HttpResponse.BodyHandlers.ofString(),
+                )
+                response.statusCode() in listOf(200, 204)
+            }.getOrDefault(false)
+        }
+
+    /** Close one connection by id. */
+    suspend fun closeConnection(id: String): Boolean =
+        delete("/connections/$id")
+
+    /** Close every open connection. */
+    suspend fun closeAllConnections(): Boolean = delete("/connections")
+
     /** Cumulative (download, upload) bytes across all connections. */
     suspend fun totals(): Pair<Long, Long>? =
         get("/connections")?.let { body ->

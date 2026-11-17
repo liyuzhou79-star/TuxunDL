@@ -55,7 +55,8 @@ private val BgDark = Color(0xFF14141C)
 private val PanelDark = Color(0xFF1E1E2A)
 private val TextDim = Color(0xFF9A9AB0)
 
-private val NAV_ITEMS = listOf("首页", "节点", "订阅", "规则", "日志", "设置")
+private val NAV_ITEMS =
+    listOf("首页", "节点", "连接", "订阅", "规则", "日志", "设置")
 
 fun main() {
     // Refresh stale subscription configs in the background; the UI
@@ -149,10 +150,11 @@ internal fun App() {
             when (selectedNav) {
                 0 -> HomePage()
                 1 -> NodesPage()
-                2 -> SubscriptionsPage()
-                3 -> RulesPage()
-                4 -> LogsPage()
-                5 -> SettingsPage()
+                2 -> ConnectionsPage()
+                3 -> SubscriptionsPage()
+                4 -> RulesPage()
+                5 -> LogsPage()
+                6 -> SettingsPage()
                 else -> Text(
                     text = "${NAV_ITEMS[selectedNav]}（开发中）",
                     color = TextDim,
@@ -226,6 +228,9 @@ private fun HomePage() {
     var rateText by remember { mutableStateOf("↓ 0 B/s   ↑ 0 B/s") }
     var sessionText by remember { mutableStateOf("本次会话 0 B") }
     var durationText by remember { mutableStateOf("") }
+    // (down, up) bytes-per-second samples for the home traffic chart,
+    // one every two seconds, the last two minutes kept.
+    var samples by remember { mutableStateOf<List<Pair<Long, Long>>>(emptyList()) }
     val scope = rememberCoroutineScope()
 
     // While connected, poll the core every two seconds so the home
@@ -256,6 +261,7 @@ private fun HomePage() {
                 prevUp = up
                 rateText = "↓ ${fmtBytes(downRate)}/s   ↑ ${fmtBytes(upRate)}/s"
                 sessionText = "本次会话 ${fmtBytes(down + up)}"
+                samples = (samples + (downRate to upRate)).takeLast(60)
             }
             api.currentNode()?.let { currentNode = it }
             val elapsed = (System.currentTimeMillis() - startedAt) / 1000
@@ -351,6 +357,61 @@ private fun HomePage() {
                 sub = sessionText,
                 modifier = Modifier.weight(1f),
             )
+        }
+
+        if (connected) {
+            Spacer(Modifier.height(16.dp))
+            TrafficChart(samples = samples, modifier = Modifier.fillMaxWidth())
+        }
+    }
+}
+
+/**
+ * The last two minutes of traffic as two lines: download in indigo,
+ * upload in soft indigo, scaled to the busiest sample in the window.
+ */
+@Composable
+private fun TrafficChart(
+    samples: List<Pair<Long, Long>>,
+    modifier: Modifier = Modifier,
+) {
+    Column(
+        modifier = modifier
+            .clip(RoundedCornerShape(14.dp))
+            .background(PanelDark)
+            .padding(16.dp),
+    ) {
+        Row {
+            Text(
+                text = "实时流量",
+                color = TextDim,
+                fontSize = 13.sp,
+                modifier = Modifier.weight(1f),
+            )
+            Text(text = "↓ 下载", color = IndigoSoft, fontSize = 12.sp)
+            Text(text = "   ↑ 上传", color = Color(0xFF6E6E8C), fontSize = 12.sp)
+        }
+        Spacer(Modifier.height(10.dp))
+        androidx.compose.foundation.Canvas(
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(88.dp),
+        ) {
+            if (samples.size < 2) return@Canvas
+            val maxValue = samples.maxOf { maxOf(it.first, it.second) }
+                .coerceAtLeast(1L)
+                .toFloat()
+            fun line(values: List<Long>, color: Color) {
+                val path = androidx.compose.ui.graphics.Path()
+                values.forEachIndexed { index, value ->
+                    val x = size.width * index / (values.size - 1)
+                    val y = size.height - size.height * (value / maxValue) * 0.92f
+                    if (index == 0) path.moveTo(x, y) else path.lineTo(x, y)
+                }
+                drawPath(path, color, style = androidx.compose.ui.graphics.drawscope.Stroke(width = 2.5f))
+            }
+            line(samples.map { it.first }, IndigoSoft)
+            line(samples.map { it.second }, Color(0xFF6E6E8C))
         }
     }
 }

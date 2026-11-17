@@ -13,6 +13,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -50,6 +51,17 @@ internal fun RulesPage() {
     val scope = rememberCoroutineScope()
     var rules by remember { mutableStateOf<List<RuleRow>>(emptyList()) }
     var loaded by remember { mutableStateOf(false) }
+    var query by remember { mutableStateOf("") }
+
+    val shownRules = if (query.isBlank()) {
+        rules
+    } else {
+        rules.filter {
+            it.type.contains(query, ignoreCase = true) ||
+                it.payload.contains(query, ignoreCase = true) ||
+                it.proxy.contains(query, ignoreCase = true)
+        }
+    }
 
     fun refresh() {
         val api = CoreBridge.api ?: return
@@ -85,7 +97,11 @@ internal fun RulesPage() {
             verticalAlignment = Alignment.CenterVertically,
         ) {
             Text(
-                text = "规则（${rules.size}）",
+                text = if (query.isBlank()) {
+                    "规则（${rules.size}）"
+                } else {
+                    "规则（${shownRules.size}/${rules.size}）"
+                },
                 color = Color.White,
                 fontSize = 20.sp,
                 fontWeight = FontWeight.Bold,
@@ -101,6 +117,16 @@ internal fun RulesPage() {
             )
         }
 
+        Spacer(Modifier.height(12.dp))
+
+        OutlinedTextField(
+            value = query,
+            onValueChange = { query = it },
+            placeholder = { Text("搜索规则（域名、类型或走向）", color = TextDim, fontSize = 14.sp) },
+            singleLine = true,
+            modifier = Modifier.fillMaxWidth(),
+        )
+
         Spacer(Modifier.height(16.dp))
 
         if (loaded && rules.isEmpty()) {
@@ -110,9 +136,16 @@ internal fun RulesPage() {
                 fontSize = 15.sp,
             )
         }
+        if (loaded && rules.isNotEmpty() && shownRules.isEmpty()) {
+            Text(
+                text = "没有对得上的规则，换个关键词试试",
+                color = TextDim,
+                fontSize = 15.sp,
+            )
+        }
 
         LazyColumn(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-            items(rules) { rule ->
+            items(shownRules) { rule ->
                 Column {
                     Text(
                         text = "${rule.type}  ${rule.payload}".trim(),
