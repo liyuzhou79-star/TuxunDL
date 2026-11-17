@@ -138,6 +138,8 @@ class SettingsActivity : BaseActivity<SettingsDesign>() {
 
         uiState.trafficAlertEnabled = uiStore.trafficAlertEnabled
         uiState.trafficAlertThresholdGb = uiStore.trafficAlertThresholdGb
+        uiState.hapticsEnabled = uiStore.hapticsEnabled
+        uiState.hapticsStrength = uiStore.hapticsStrength
         uiState.appLanguage = uiStore.appLanguage
 
         val darkTheme = when (uiStore.darkMode) {
@@ -164,6 +166,30 @@ class SettingsActivity : BaseActivity<SettingsDesign>() {
                         onTrafficAlertThresholdChange = { gb ->
                             uiStore.trafficAlertThresholdGb = gb
                             uiState.trafficAlertThresholdGb = gb
+                        },
+                        onHapticsChange = { enabled ->
+                            uiStore.hapticsEnabled = enabled
+                            uiState.hapticsEnabled = enabled
+                            if (enabled) {
+                                com.tuxundl.android.util.Haptics.buzz(
+                                    this@SettingsActivity,
+                                    uiStore,
+                                    com.tuxundl.android.util.Haptics.Kind.Success,
+                                )
+                            }
+                        },
+                        onHapticsStrengthChange = { strength ->
+                            uiStore.hapticsStrength = strength
+                            uiState.hapticsStrength = strength
+                            // Preview the picked strength right away so
+                            // tuning it is felt, not guessed.
+                            if (uiStore.hapticsEnabled) {
+                                com.tuxundl.android.util.Haptics.buzz(
+                                    this@SettingsActivity,
+                                    strength,
+                                    com.tuxundl.android.util.Haptics.Kind.Tap,
+                                )
+                            }
                         },
                         onLanguageChange = { tag ->
                             uiStore.appLanguage = tag

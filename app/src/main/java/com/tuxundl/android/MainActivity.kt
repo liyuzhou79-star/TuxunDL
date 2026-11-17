@@ -121,6 +121,11 @@ class MainActivity : BaseActivity<MainDesign>() {
                     when (it) {
                         Event.ClashStart -> {
                             uiStore.runningSince = System.currentTimeMillis()
+                            com.tuxundl.android.util.Haptics.buzz(
+                                this@MainActivity,
+                                uiStore,
+                                com.tuxundl.android.util.Haptics.Kind.Success,
+                            )
                             resetTrafficSampling()
                             resetSessionStats()
                             fetch()
@@ -128,6 +133,11 @@ class MainActivity : BaseActivity<MainDesign>() {
                         }
                         Event.ClashStop -> {
                             uiStore.runningSince = 0L
+                            com.tuxundl.android.util.Haptics.buzz(
+                                this@MainActivity,
+                                uiStore,
+                                com.tuxundl.android.util.Haptics.Kind.Disconnect,
+                            )
                             resetTrafficSampling()
                             resetSessionStats()
                             uiState.trafficSamples = emptyList()

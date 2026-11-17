@@ -51,6 +51,12 @@
     <string name="windows_copy_link">复制链接</string>
     <string name="windows_copied">链接已复制，发到电脑上就能下载电脑版。</string>
     <string name="windows_check_failed">暂时查不到电脑版信息，请稍后再试。</string>
+    <string name="haptics">震动反馈</string>
+    <string name="haptics_summary">连接、断开、切节点和测速完成时震动一下</string>
+    <string name="haptics_strength">震动强度</string>
+    <string name="haptics_light">轻</string>
+    <string name="haptics_medium">中</string>
+    <string name="haptics_strong">强</string>
     <string name="update_check_failed">检查更新失败，请检查网络后重试。</string>
     <string name="update_new_found">发现新版本 v%1$s。</string>
     <string name="import_from_album">从相簿选取图片</string>

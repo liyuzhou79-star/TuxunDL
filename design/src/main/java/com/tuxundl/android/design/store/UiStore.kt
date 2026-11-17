@@ -228,6 +228,21 @@ class UiStore(context: Context) {
         defaultValue = false
     )
 
+    /**
+     * Haptic feedback for key actions (connect, disconnect, node
+     * select, speed-test finish). On by default (1.2.5).
+     */
+    var hapticsEnabled: Boolean by store.boolean(
+        key = "haptics_enabled",
+        defaultValue = true
+    )
+
+    /** Haptic strength: 0 = light, 1 = medium, 2 = strong (1.2.5). */
+    var hapticsStrength: Int by store.int(
+        key = "haptics_strength",
+        defaultValue = 1
+    )
+
     /** Remaining-traffic threshold (GiB) at which the alert fires. */
     var trafficAlertThresholdGb: Int by store.int(
         key = "traffic_alert_threshold_gb",

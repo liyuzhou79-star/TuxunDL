@@ -198,6 +198,12 @@ class ProxyActivity : BaseActivity<ProxyDesign>() {
                             }
 
                             uiState.groups.getOrNull(it.index)?.now = it.name
+
+                            com.tuxundl.android.util.Haptics.buzz(
+                                this@ProxyActivity,
+                                uiStore,
+                                com.tuxundl.android.util.Haptics.Kind.Tap,
+                            )
                         }
                         is ProxyDesign.Request.UrlTest -> {
                             val index = it.index
@@ -218,6 +224,12 @@ class ProxyActivity : BaseActivity<ProxyDesign>() {
                                 }
 
                                 uiRequests.send(ProxyDesign.Request.Reload(index))
+
+                                com.tuxundl.android.util.Haptics.buzz(
+                                    this@ProxyActivity,
+                                    uiStore,
+                                    com.tuxundl.android.util.Haptics.Kind.Success,
+                                )
                             }
                         }
                         is ProxyDesign.Request.PatchMode -> {

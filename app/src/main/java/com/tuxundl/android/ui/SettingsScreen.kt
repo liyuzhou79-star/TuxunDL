@@ -75,6 +75,12 @@ class SettingsUiState {
 
     /** Non-null while the Windows-edition dialog is shown (1.2.4). */
     var windowsInfo by mutableStateOf<WindowsInfo?>(null)
+
+    /** Haptic feedback switch (mirrors UiStore, 1.2.5). */
+    var hapticsEnabled by mutableStateOf(true)
+
+    /** Haptic strength 0 light / 1 medium / 2 strong (1.2.5). */
+    var hapticsStrength by mutableStateOf(1)
 }
 
 /**
@@ -100,11 +106,14 @@ fun SettingsScreen(
     onRequest: (SettingsDesign.Request) -> Unit,
     onTrafficAlertChange: (Boolean) -> Unit,
     onTrafficAlertThresholdChange: (Int) -> Unit,
+    onHapticsChange: (Boolean) -> Unit,
+    onHapticsStrengthChange: (Int) -> Unit,
     onLanguageChange: (String) -> Unit,
     onBack: () -> Unit,
 ) {
     var showLanguageDialog by remember { mutableStateOf(false) }
     var showThresholdDialog by remember { mutableStateOf(false) }
+    var showHapticsDialog by remember { mutableStateOf(false) }
     val screenContext = LocalContext.current
     val screenScope = rememberCoroutineScope()
 
@@ -200,6 +209,31 @@ fun SettingsScreen(
                     )
                 },
                 onClick = { showThresholdDialog = true },
+            )
+            SettingsSwitchCard(
+                icon = DesignR.drawable.ic_baseline_swap_vert,
+                title = stringResource(R.string.haptics),
+                summary = stringResource(R.string.haptics_summary),
+                checked = state.hapticsEnabled,
+                onCheckedChange = onHapticsChange,
+            )
+            SettingsEntryCard(
+                icon = DesignR.drawable.ic_baseline_swap_vert,
+                title = stringResource(R.string.haptics_strength),
+                trailing = {
+                    Text(
+                        text = stringResource(
+                            when (state.hapticsStrength) {
+                                0 -> R.string.haptics_light
+                                2 -> R.string.haptics_strong
+                                else -> R.string.haptics_medium
+                            },
+                        ),
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                },
+                onClick = { showHapticsDialog = true },
             )
 
             SettingsSectionTitle(
@@ -345,6 +379,17 @@ fun SettingsScreen(
         )
     }
 
+    if (showHapticsDialog) {
+        HapticsStrengthDialog(
+            current = state.hapticsStrength,
+            onSelect = { strength ->
+                showHapticsDialog = false
+                onHapticsStrengthChange(strength)
+            },
+            onDismiss = { showHapticsDialog = false },
+        )
+    }
+
     // A manual check that finds a release opens the same full-screen
     // update page as the startup check.
     val updatePageInfo = state.updatePageInfo
@@ -402,6 +447,41 @@ fun SettingsScreen(
             },
         )
     }
+}
+
+/** Single-choice haptic strength picker (light / medium / strong). */
+@Composable
+private fun HapticsStrengthDialog(
+    current: Int,
+    onSelect: (Int) -> Unit,
+    onDismiss: () -> Unit,
+) {
+    val options = listOf(
+        0 to R.string.haptics_light,
+        1 to R.string.haptics_medium,
+        2 to R.string.haptics_strong,
+    )
+
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text(text = stringResource(R.string.haptics_strength)) },
+        text = {
+            Column {
+                options.forEach { (value, label) ->
+                    LanguageOptionRow(
+                        label = stringResource(label),
+                        selected = current == value,
+                        onClick = { onSelect(value) },
+                    )
+                }
+            }
+        },
+        confirmButton = {
+            TextButton(onClick = onDismiss) {
+                Text(text = stringResource(DesignR.string.cancel))
+            }
+        },
+    )
 }
 
 /** The current language's list name; "" reads as "follow system". */
