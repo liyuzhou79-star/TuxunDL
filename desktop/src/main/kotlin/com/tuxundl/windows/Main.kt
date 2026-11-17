@@ -67,6 +67,16 @@ fun main() {
     var windowVisible by remember { mutableStateOf(true) }
     val trayIcon = painterResource("tray-icon.png")
 
+    // The tray menu names the current exit node while connected.
+    var trayNode by remember { mutableStateOf<String?>(null) }
+    LaunchedEffect(CoreBridge.running) {
+        trayNode = null
+        while (CoreBridge.running) {
+            CoreBridge.api?.currentNode()?.let { trayNode = it }
+            delay(5000)
+        }
+    }
+
     // Closing the window only hides it; the app lives in the tray and
     // the core keeps running, like every desktop proxy client. Quitting
     // happens from the tray menu and always stops the core first, which
@@ -90,6 +100,12 @@ fun main() {
                     }
                 },
             )
+            if (CoreBridge.running && trayNode != null) {
+                Item(
+                    text = "当前节点：$trayNode",
+                    onClick = { windowVisible = true },
+                )
+            }
             Separator()
             Item(
                 text = "退出",
@@ -209,6 +225,7 @@ private fun HomePage() {
     var currentNode by remember { mutableStateOf<String?>(null) }
     var rateText by remember { mutableStateOf("↓ 0 B/s   ↑ 0 B/s") }
     var sessionText by remember { mutableStateOf("本次会话 0 B") }
+    var durationText by remember { mutableStateOf("") }
     val scope = rememberCoroutineScope()
 
     // While connected, poll the core every two seconds so the home
@@ -218,8 +235,10 @@ private fun HomePage() {
             currentNode = null
             rateText = "↓ 0 B/s   ↑ 0 B/s"
             sessionText = "本次会话 0 B"
+            durationText = ""
             return@LaunchedEffect
         }
+        val startedAt = System.currentTimeMillis()
         var prevDown = 0L
         var prevUp = 0L
         var first = true
@@ -239,6 +258,10 @@ private fun HomePage() {
                 sessionText = "本次会话 ${fmtBytes(down + up)}"
             }
             api.currentNode()?.let { currentNode = it }
+            val elapsed = (System.currentTimeMillis() - startedAt) / 1000
+            durationText = " · %02d:%02d:%02d".format(
+                elapsed / 3600, elapsed / 60 % 60, elapsed % 60,
+            )
             delay(2000)
         }
     }
@@ -302,7 +325,7 @@ private fun HomePage() {
             text = when {
                 busy -> "处理中…"
                 statusNote != null -> statusNote!!
-                connected -> "已连接"
+                connected -> "已连接$durationText"
                 else -> "未连接"
             },
             color = if (connected) IndigoSoft else TextDim,

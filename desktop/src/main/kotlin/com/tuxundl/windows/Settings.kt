@@ -51,4 +51,32 @@ object SettingsStore {
     fun setMixedPort(value: Int) {
         write(mapOf("mixedPort" to kotlinx.serialization.json.JsonPrimitive(value)))
     }
+
+    /** Launch at Windows sign-in (HKCU Run key, per-user, no admin). */
+    fun autoStart(): Boolean =
+        read()["autoStart"]?.jsonPrimitive?.booleanOrNull ?: false
+
+    fun setAutoStart(value: Boolean) {
+        write(mapOf("autoStart" to kotlinx.serialization.json.JsonPrimitive(value)))
+        applyAutoStart(value)
+    }
+
+    private fun applyAutoStart(value: Boolean) {
+        if (!Elevation.isWindows()) return
+        val key = "HKCU\\Software\\Microsoft\\Windows\\CurrentVersion\\Run"
+        runCatching {
+            if (value) {
+                val exe = ProcessHandle.current().info().command().orElse("")
+                if (exe.isNotBlank()) {
+                    ProcessBuilder(
+                        "reg", "add", key, "/v", "TuxunDL", "/t", "REG_SZ",
+                        "/d", "\"$exe\"", "/f",
+                    ).start().waitFor()
+                }
+            } else {
+                ProcessBuilder("reg", "delete", key, "/v", "TuxunDL", "/f")
+                    .start().waitFor()
+            }
+        }
+    }
 }
