@@ -61,6 +61,7 @@ internal fun NodesPage() {
     var loaded by remember { mutableStateOf(false) }
     var query by remember { mutableStateOf("") }
     var sortByDelay by remember { mutableStateOf(false) }
+    var testingAll by remember { mutableStateOf(false) }
 
     fun refresh() {
         val api = CoreBridge.api ?: return
@@ -110,15 +111,39 @@ internal fun NodesPage() {
                 fontSize = 20.sp,
                 fontWeight = FontWeight.Bold,
             )
-            Text(
-                text = "刷新",
-                color = Indigo,
-                fontSize = 15.sp,
-                modifier = Modifier
-                    .clip(RoundedCornerShape(8.dp))
-                    .clickable { refresh() }
-                    .padding(horizontal = 10.dp, vertical = 6.dp),
-            )
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Text(
+                    text = if (testingAll) "测速中…" else "全部测速",
+                    color = if (testingAll) TextDim else Indigo,
+                    fontSize = 15.sp,
+                    modifier = Modifier
+                        .clip(RoundedCornerShape(8.dp))
+                        .clickable(enabled = !testingAll) {
+                            val api = CoreBridge.api ?: return@clickable
+                            testingAll = true
+                            scope.launch {
+                                // One core call per group; nodes the
+                                // core does not report count as failed.
+                                for (group in groups) {
+                                    val result = api.groupDelay(group.name)
+                                    delays = delays + group.members
+                                        .associateWith { result[it] }
+                                }
+                                testingAll = false
+                            }
+                        }
+                        .padding(horizontal = 10.dp, vertical = 6.dp),
+                )
+                Text(
+                    text = "刷新",
+                    color = Indigo,
+                    fontSize = 15.sp,
+                    modifier = Modifier
+                        .clip(RoundedCornerShape(8.dp))
+                        .clickable { refresh() }
+                        .padding(horizontal = 10.dp, vertical = 6.dp),
+                )
+            }
         }
 
         Spacer(Modifier.height(12.dp))

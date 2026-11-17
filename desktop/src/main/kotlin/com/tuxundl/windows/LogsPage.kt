@@ -13,6 +13,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
@@ -40,17 +41,28 @@ private val TextDim = Color(0xFF9A9AB0)
 internal fun LogsPage() {
     var source by remember { mutableStateOf("app") }
     var tick by remember { mutableStateOf(0) }
+    var query by remember { mutableStateOf("") }
 
     val file = File(
         CoreBridge.workDir,
         if (source == "app") "app.log" else "core.log",
     )
-    val text = remember(source, tick) {
+    val text = remember(source, tick, query) {
         if (!file.exists()) {
             "暂无日志"
         } else {
             runCatching {
-                file.readLines().takeLast(300).joinToString("\n")
+                val lines = file.readLines().takeLast(300)
+                val shown = if (query.isBlank()) {
+                    lines
+                } else {
+                    lines.filter { it.contains(query, ignoreCase = true) }
+                }
+                if (shown.isEmpty()) {
+                    "没有包含「$query」的日志行"
+                } else {
+                    shown.joinToString("\n")
+                }
             }.getOrDefault("日志读取失败")
         }
     }
@@ -73,7 +85,17 @@ internal fun LogsPage() {
             }
         }
 
-        Spacer(Modifier.height(16.dp))
+        Spacer(Modifier.height(12.dp))
+
+        OutlinedTextField(
+            value = query,
+            onValueChange = { query = it },
+            placeholder = { Text("搜索日志", color = TextDim, fontSize = 14.sp) },
+            singleLine = true,
+            modifier = Modifier.fillMaxWidth(),
+        )
+
+        Spacer(Modifier.height(12.dp))
 
         Column(
             modifier = Modifier

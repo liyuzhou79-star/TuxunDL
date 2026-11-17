@@ -114,6 +114,25 @@ class MihomoApi(private val base: String = "http://127.0.0.1:9090") {
             }.getOrDefault(false)
         }
 
+    /**
+     * Delay-test every node of a group in one call. Returns the raw
+     * name-to-delay map the core answers with; nodes missing from it
+     * failed the test.
+     */
+    suspend fun groupDelay(
+        group: String,
+        timeoutMs: Int = 5000,
+    ): Map<String, Long?> {
+        val encoded = URLEncoder.encode(group, "UTF-8").replace("+", "%20")
+        val url = URLEncoder.encode("http://www.gstatic.com/generate_204", "UTF-8")
+        return get("/group/$encoded/delay?timeout=$timeoutMs&url=$url")?.let { body ->
+            runCatching {
+                json.parseToJsonElement(body).jsonObject
+                    .mapValues { it.value.jsonPrimitive.longOrNull }
+            }.getOrNull()
+        } ?: emptyMap()
+    }
+
     /** One delay test for a node, in milliseconds; null on failure. */
     suspend fun delay(name: String, timeoutMs: Int = 5000): Long? {
         val encoded = URLEncoder.encode(name, "UTF-8").replace("+", "%20")
