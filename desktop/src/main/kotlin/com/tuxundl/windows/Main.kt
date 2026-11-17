@@ -60,7 +60,7 @@ fun main() = application {
 }
 
 @Composable
-private fun App() {
+internal fun App() {
     var selectedNav by remember { mutableStateOf(0) }
 
     Row(

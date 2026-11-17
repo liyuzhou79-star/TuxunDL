@@ -1,0 +1,42 @@
+name: Preview Windows UI
+
+# Renders the Windows edition's home page off-screen on a Linux runner
+# and uploads the PNG. This exists because development happens without
+# a Windows PC: the screenshot is how UI changes get eyeballed.
+on:
+  workflow_dispatch:
+  push:
+    paths:
+      - "desktop/**"
+      - ".github/workflows/preview-windows-ui.yaml"
+
+jobs:
+  Preview:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v6
+
+      - name: Setup Java
+        uses: actions/setup-java@v5
+        with:
+          distribution: "temurin"
+          java-version: 17
+
+      - name: Setup Gradle
+        uses: gradle/actions/setup-gradle@v5
+
+      - name: Install CJK font
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y fonts-noto-cjk
+
+      - name: Render home page
+        run: ./gradlew -p desktop previewHome --no-daemon --stacktrace
+
+      - name: Upload preview image
+        uses: actions/upload-artifact@v7
+        if: ${{ success() }}
+        with:
+          name: TuxunDL Windows UI preview
+          path: desktop/tuxundl-home.png
