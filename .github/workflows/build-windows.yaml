@@ -49,4 +49,9 @@ jobs:
         if: ${{ success() }}
         with:
           name: TuxunDL Windows installers
-          path: desktop/build/compose/binaries/main/*.{msi,exe}
+          # Installers land in per-format subfolders, and a missing
+          # file must fail loudly instead of warning into the void.
+          if-no-files-found: error
+          path: |
+            desktop/build/compose/binaries/main/msi/*.msi
+            desktop/build/compose/binaries/main/exe/*.exe
