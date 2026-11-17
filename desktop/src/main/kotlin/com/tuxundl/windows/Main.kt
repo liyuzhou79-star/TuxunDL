@@ -25,7 +25,9 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
+import kotlinx.coroutines.launch
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -140,6 +142,9 @@ private fun Sidebar(selected: Int, onSelect: (Int) -> Unit) {
 @Composable
 private fun HomePage() {
     var connected by remember { mutableStateOf(false) }
+    var busy by remember { mutableStateOf(false) }
+    var statusNote by remember { mutableStateOf<String?>(null) }
+    val scope = rememberCoroutineScope()
 
     Column(
         modifier = Modifier
@@ -155,13 +160,45 @@ private fun HomePage() {
 
         PowerButton(
             connected = connected,
-            onClick = { connected = !connected },
+            onClick = {
+                if (busy) return@PowerButton
+                scope.launch {
+                    busy = true
+                    if (connected) {
+                        CoreBridge.stop()
+                        connected = false
+                        statusNote = null
+                    } else {
+                        val profile = CoreBridge.profileFile()
+                        if (!profile.exists()) {
+                            statusNote = "还没有订阅配置，订阅页做好后在这里点连接"
+                        } else {
+                            val ok = CoreBridge.start(
+                                profileYaml = profile.readText(),
+                                tunMode = false,
+                            )
+                            connected = ok
+                            statusNote = if (ok) {
+                                null
+                            } else {
+                                "核心启动失败，细节在日志页"
+                            }
+                        }
+                    }
+                    busy = false
+                }
+            },
         )
 
         Spacer(Modifier.height(16.dp))
 
         Text(
-            text = if (connected) "已连接" else "未连接",
+            text = when {
+                busy -> "处理中…"
+                statusNote != null -> statusNote!!
+                connected -> "已连接"
+                else -> "未连接"
+            },
             color = if (connected) IndigoSoft else TextDim,
             fontSize = 17.sp,
             fontWeight = FontWeight.Medium,
