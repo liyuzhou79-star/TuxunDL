@@ -6,6 +6,7 @@ import kotlinx.coroutines.withContext
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.buildJsonObject
 import kotlinx.serialization.json.jsonObject
+import kotlinx.serialization.json.contentOrNull
 import kotlinx.serialization.json.jsonPrimitive
 import kotlinx.serialization.json.longOrNull
 import kotlinx.serialization.json.put
@@ -73,6 +74,17 @@ class MihomoApi(private val base: String = "http://127.0.0.1:9090") {
                     ?.mapValues { it.value.jsonObject }
             }.getOrNull()
         } ?: emptyMap()
+
+    /** The node traffic currently exits through, for the home page. */
+    suspend fun currentNode(): String? {
+        val all = proxies()
+        all["GLOBAL"]?.get("now")?.jsonPrimitive?.contentOrNull
+            ?.takeIf { it.isNotBlank() }
+            ?.let { return it }
+        return all.values.firstOrNull {
+            it["type"]?.jsonPrimitive?.content == "Selector"
+        }?.get("now")?.jsonPrimitive?.contentOrNull
+    }
 
     /** Switch the selected node of a proxy group. */
     suspend fun selectProxy(group: String, name: String): Boolean =

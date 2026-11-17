@@ -69,6 +69,13 @@ object CoreBridge {
 
         val exe = coreExecutable()
         if (!exe.exists()) {
+            // First run of the packaged app: unpack the core that
+            // ships inside the app resources (see the fetchCore task
+            // in build.gradle.kts).
+            extractBundled(exe.name, exe)
+            extractBundled("wintun.dll", File(exe.parentFile, "wintun.dll"))
+        }
+        if (!exe.exists()) {
             log("core executable not found at ${exe.absolutePath}")
             return@withContext false
         }
@@ -122,6 +129,18 @@ object CoreBridge {
         process = null
         api = null
         running = false
+    }
+
+    /** Copy a bundled core file out of the app resources, once. */
+    private fun extractBundled(fileName: String, target: File) {
+        if (target.exists()) return
+        val stream = CoreBridge::class.java
+            .getResourceAsStream("/core/$fileName") ?: return
+        target.parentFile?.mkdirs()
+        stream.use { input ->
+            target.outputStream().use { output -> input.copyTo(output) }
+        }
+        target.setExecutable(true)
     }
 
     private fun log(message: String) {

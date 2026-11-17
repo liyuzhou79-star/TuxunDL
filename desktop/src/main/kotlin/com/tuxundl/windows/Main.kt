@@ -1,5 +1,6 @@
 package com.tuxundl.windows
 
+import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -22,16 +23,22 @@ import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.StrokeCap
+import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.unit.dp
@@ -108,6 +115,7 @@ internal fun App() {
         Box(modifier = Modifier.fillMaxSize()) {
             when (selectedNav) {
                 0 -> HomePage()
+                1 -> NodesPage()
                 2 -> SubscriptionsPage()
                 else -> Text(
                     text = "${NAV_ITEMS[selectedNav]}（开发中）",
@@ -176,7 +184,42 @@ private fun HomePage() {
     var connected by remember { mutableStateOf(false) }
     var busy by remember { mutableStateOf(false) }
     var statusNote by remember { mutableStateOf<String?>(null) }
+    var currentNode by remember { mutableStateOf<String?>(null) }
+    var rateText by remember { mutableStateOf("↓ 0 B/s   ↑ 0 B/s") }
+    var sessionText by remember { mutableStateOf("本次会话 0 B") }
     val scope = rememberCoroutineScope()
+
+    // While connected, poll the core every two seconds so the home
+    // cards show the live exit node and traffic rates.
+    LaunchedEffect(connected) {
+        if (!connected) {
+            currentNode = null
+            rateText = "↓ 0 B/s   ↑ 0 B/s"
+            sessionText = "本次会话 0 B"
+            return@LaunchedEffect
+        }
+        var prevDown = 0L
+        var prevUp = 0L
+        var first = true
+        while (true) {
+            val api = CoreBridge.api ?: break
+            api.totals()?.let { (down, up) ->
+                if (first) {
+                    prevDown = down
+                    prevUp = up
+                    first = false
+                }
+                val downRate = (down - prevDown).coerceAtLeast(0) / 2
+                val upRate = (up - prevUp).coerceAtLeast(0) / 2
+                prevDown = down
+                prevUp = up
+                rateText = "↓ ${fmtBytes(downRate)}/s   ↑ ${fmtBytes(upRate)}/s"
+                sessionText = "本次会话 ${fmtBytes(down + up)}"
+            }
+            api.currentNode()?.let { currentNode = it }
+            delay(2000)
+        }
+    }
 
     Column(
         modifier = Modifier
@@ -244,14 +287,14 @@ private fun HomePage() {
         ) {
             InfoCard(
                 title = "当前节点",
-                main = if (connected) "—" else "尚未选择",
+                main = if (connected) (currentNode ?: "读取中…") else "尚未选择",
                 sub = "到节点页选择",
                 modifier = Modifier.weight(1f),
             )
             InfoCard(
                 title = "流量",
-                main = "↓ 0 B/s   ↑ 0 B/s",
-                sub = "本次会话 0 B",
+                main = rateText,
+                sub = sessionText,
                 modifier = Modifier.weight(1f),
             )
         }
@@ -273,13 +316,36 @@ private fun PowerButton(connected: Boolean, onClick: () -> Unit) {
             .clickable { onClick() },
         contentAlignment = Alignment.Center,
     ) {
-        // Power glyph drawn as text until the shared icon set is ported.
-        Text(
-            text = "⏻",
-            color = Color.White,
-            fontSize = 52.sp,
-        )
+        // The power symbol is drawn, not a font glyph: the ⏻ character
+        // is missing from common fonts and rendered as a tofu box.
+        Canvas(modifier = Modifier.size(56.dp)) {
+            val stroke = size.minDimension * 0.11f
+            val radius = size.minDimension * 0.36f
+            drawArc(
+                color = Color.White,
+                startAngle = -55f,
+                sweepAngle = 290f,
+                useCenter = false,
+                topLeft = Offset(center.x - radius, center.y - radius),
+                size = Size(radius * 2, radius * 2),
+                style = Stroke(width = stroke, cap = StrokeCap.Round),
+            )
+            drawLine(
+                color = Color.White,
+                start = Offset(center.x, center.y - radius * 1.28f),
+                end = Offset(center.x, center.y - radius * 0.1f),
+                strokeWidth = stroke,
+                cap = StrokeCap.Round,
+            )
+        }
     }
+}
+
+private fun fmtBytes(bytes: Long): String = when {
+    bytes < 1024 -> "$bytes B"
+    bytes < 1024 * 1024 -> "%.1f KB".format(bytes / 1024.0)
+    bytes < 1024 * 1024 * 1024 -> "%.1f MB".format(bytes / 1024.0 / 1024.0)
+    else -> "%.2f GB".format(bytes / 1024.0 / 1024.0 / 1024.0)
 }
 
 @Composable

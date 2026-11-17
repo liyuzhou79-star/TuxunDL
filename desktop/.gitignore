@@ -1,0 +1,3 @@
+# Core binaries are fetched at build time by the fetchCore task in
+# build.gradle.kts; they are never committed.
+src/main/resources/core/
