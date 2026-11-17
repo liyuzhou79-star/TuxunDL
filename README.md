@@ -144,6 +144,11 @@ Windows 版（獨立的 Gradle 構建，在 `desktop/` 目錄，與 Android 構�
 
 歡迎 issue 與 PR，請先看 [CONTRIBUTING.md](CONTRIBUTING.md)。安全問題請看 [SECURITY.md](SECURITY.md)。
 
+## 貢獻者 / Contributors
+
+- [liyuzhou79-star](https://github.com/liyuzhou79-star)
+- museai
+
 ## 致謝 / Credits
 
 - [mihomo](https://github.com/MetaCubeX/mihomo) — 代理核心（Android 與 Windows 版共用）
