@@ -57,7 +57,7 @@ object BackupManager {
  */
 internal fun pickBackupFile(save: Boolean): File? {
     val dialog = java.awt.FileDialog(
-        null,
+        null as java.awt.Frame?,
         if (save) "导出备份" else "导入备份",
         if (save) java.awt.FileDialog.SAVE else java.awt.FileDialog.LOAD,
     )
