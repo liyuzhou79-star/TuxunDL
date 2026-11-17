@@ -78,10 +78,12 @@ fun main() {
         }
     }
 
-    // Closing the window only hides it; the app lives in the tray and
-    // the core keeps running, like every desktop proxy client. Quitting
-    // happens from the tray menu and always stops the core first, which
-    // also restores the user's system proxy.
+    // Closing the window hides it to the tray by default (the
+    // "关闭时最小化到系统匣" setting, read fresh at close time); the
+    // app lives in the tray and the core keeps running, like every
+    // desktop proxy client. With the setting off, closing quits —
+    // stopping the core first, which also restores the system proxy.
+    // Quitting from the tray menu works either way.
     Tray(
         icon = trayIcon,
         tooltip = if (CoreBridge.running) "TuxunDL — 已连接" else "TuxunDL — 未连接",
@@ -120,7 +122,14 @@ fun main() {
 
     if (windowVisible) {
         Window(
-            onCloseRequest = { windowVisible = false },
+            onCloseRequest = {
+                if (SettingsStore.closeToTray()) {
+                    windowVisible = false
+                } else {
+                    CoreBridge.stop()
+                    exitApplication()
+                }
+            },
             title = "TuxunDL",
             icon = trayIcon,
         ) {

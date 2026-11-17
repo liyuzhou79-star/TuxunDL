@@ -44,6 +44,7 @@ internal fun SettingsPage() {
     var tun by remember { mutableStateOf(SettingsStore.tunMode()) }
     var autoStart by remember { mutableStateOf(SettingsStore.autoStart()) }
     var autoConnect by remember { mutableStateOf(SettingsStore.autoConnect()) }
+    var closeToTray by remember { mutableStateOf(SettingsStore.closeToTray()) }
     var portText by remember { mutableStateOf(SettingsStore.mixedPort().toString()) }
     var note by remember { mutableStateOf<String?>(null) }
     var updateText by remember { mutableStateOf<String?>(null) }
@@ -148,6 +149,26 @@ internal fun SettingsPage() {
             autoConnect = !autoConnect
             SettingsStore.setAutoConnect(autoConnect)
             note = if (autoConnect) "启动时自动连接已开启" else "启动时自动连接已关闭"
+        }
+
+        Spacer(Modifier.height(28.dp))
+
+        Text(text = "关闭时最小化到系统匣", color = Color.White, fontSize = 16.sp)
+        Spacer(Modifier.height(4.dp))
+        Text(
+            text = "开启时，点窗口的关闭按钮只是把窗口藏到系统匣，程序和连接继续在后台运行；从系统匣菜单可以重新打开主窗口或彻底退出。关掉后，点关闭会直接退出程序（退出前会先断开连接）。改动立刻生效，不用重启。",
+            color = TextDim,
+            fontSize = 13.sp,
+        )
+        Spacer(Modifier.height(10.dp))
+        ModeChip(if (closeToTray) "已开启" else "已关闭", closeToTray) {
+            closeToTray = !closeToTray
+            SettingsStore.setCloseToTray(closeToTray)
+            note = if (closeToTray) {
+                "关闭窗口时将最小化到系统匣"
+            } else {
+                "关闭窗口时将直接退出程序"
+            }
         }
 
         Spacer(Modifier.height(28.dp))

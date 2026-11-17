@@ -69,6 +69,18 @@ object SettingsStore {
         write(mapOf("autoConnect" to kotlinx.serialization.json.JsonPrimitive(value)))
     }
 
+    /**
+     * Closing the window hides it to the tray instead of quitting;
+     * on by default. Read fresh at close time so toggling the setting
+     * takes effect without a restart.
+     */
+    fun closeToTray(): Boolean =
+        read()["closeToTray"]?.jsonPrimitive?.booleanOrNull ?: true
+
+    fun setCloseToTray(value: Boolean) {
+        write(mapOf("closeToTray" to kotlinx.serialization.json.JsonPrimitive(value)))
+    }
+
     private fun applyAutoStart(value: Boolean) {
         if (!Elevation.isWindows()) return
         val key = "HKCU\\Software\\Microsoft\\Windows\\CurrentVersion\\Run"
