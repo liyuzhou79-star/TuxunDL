@@ -114,7 +114,7 @@
     <string name="update_page_title">New version available</string>
     <string name="update_now">Update now</string>
     <string name="update_later">Later</string>
-    <string name="update_notes">What's new</string>
+    <string name="update_notes">What\'s new</string>
     <string name="update_check_failed_network">Update check failed: no network connection.</string>
     <string name="update_check_failed_server">Update check failed: the server is busy, please try again later.</string>
     <string name="update_check_failed_parse">Update check failed: unexpected data from the server.</string>
