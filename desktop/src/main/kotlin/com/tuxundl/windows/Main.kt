@@ -33,8 +33,10 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.ui.window.Tray
 import androidx.compose.ui.window.Window
 import androidx.compose.ui.window.application
 
@@ -49,12 +51,42 @@ private val TextDim = Color(0xFF9A9AB0)
 private val NAV_ITEMS = listOf("首页", "节点", "订阅", "规则", "日志", "设置")
 
 fun main() = application {
-    Window(
-        onCloseRequest = ::exitApplication,
-        title = "TuxunDL",
-    ) {
-        MaterialTheme {
-            App()
+    var windowVisible by remember { mutableStateOf(true) }
+    val trayIcon = painterResource("tray-icon.png")
+
+    // Closing the window only hides it; the app lives in the tray and
+    // the core keeps running, like every desktop proxy client. Quitting
+    // happens from the tray menu and always stops the core first, which
+    // also restores the user's system proxy.
+    Tray(
+        icon = trayIcon,
+        tooltip = "TuxunDL",
+        onAction = { windowVisible = true },
+        menu = {
+            Item(
+                text = "打开主界面",
+                onClick = { windowVisible = true },
+            )
+            Separator()
+            Item(
+                text = "退出",
+                onClick = {
+                    CoreBridge.stop()
+                    exitApplication()
+                },
+            )
+        },
+    )
+
+    if (windowVisible) {
+        Window(
+            onCloseRequest = { windowVisible = false },
+            title = "TuxunDL",
+            icon = trayIcon,
+        ) {
+            MaterialTheme {
+                App()
+            }
         }
     }
 }
