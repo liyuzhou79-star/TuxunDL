@@ -9,14 +9,14 @@ Windows 版的第一个小更新，补齐 1.0.0 留下的两个不方便。
 
 ## 说明
 
-- 这次只更新了 Windows 版；按双平台同页的规矩，本页照样附上 Android 的最新安装包（1.2.2）
+- 这次只更新了 Windows 版；按双平台同页的规矩，本页照样附上 Android 的最新安装包（1.2.1）
 - 系统代理模式行为不变，不需要管理员权限
 
 ## 下载
 
 - MSI 安装包：`TuxunDL-1.0.1.msi`
 - EXE 安装包：`TuxunDL-1.0.1.exe`
-- Android 版（现行最新）：`tuxundl-1.2.2-arm64.apk` / `tuxundl-1.2.2-legacy-armeabi-v7a.apk`，也在本页附件里
+- Android 版（现行最新）：`tuxundl-1.2.1-arm64.apk` / `tuxundl-1.2.1-legacy-armeabi-v7a.apk`，也在本页附件里
 
 ## 真机建议验一下
 

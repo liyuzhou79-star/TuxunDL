@@ -8,13 +8,13 @@
 
 ## 说明
 
-- 这次只更新了 Windows 版；按双平台同页的规矩，本页照样附上 Android 的最新安装包（1.2.2）
+- 这次只更新了 Windows 版；按双平台同页的规矩，本页照样附上 Android 的最新安装包（1.2.1）
 
 ## 下载
 
 - MSI 安装包：`TuxunDL-1.0.2.msi`
 - EXE 安装包：`TuxunDL-1.0.2.exe`
-- Android 版（现行最新）：`tuxundl-1.2.2-arm64.apk` / `tuxundl-1.2.2-legacy-armeabi-v7a.apk`，也在本页附件里
+- Android 版（现行最新）：`tuxundl-1.2.1-arm64.apk` / `tuxundl-1.2.1-legacy-armeabi-v7a.apk`，也在本页附件里
 
 ## 真机建议验一下
 

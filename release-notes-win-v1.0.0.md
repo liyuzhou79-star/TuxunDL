@@ -23,7 +23,7 @@ TuxunDL 的 Windows 版第一版。和安卓版在同一个仓库、同一个产
 - MSI 安装包：`TuxunDL-1.0.0.msi`
 - EXE 安装包：`TuxunDL-1.0.0.exe`
 - 两个任选其一，Windows 10 / 11，64 位
-- 本页同时附上 Android 版最新安装包（1.2.2，与本版同日发布，这次两边都有更新）：`tuxundl-1.2.2-arm64.apk`（新机型）与 `tuxundl-1.2.2-legacy-armeabi-v7a.apk`（老机型）
+- 本页同时附上 Android 现行正式版安装包（1.2.1）：`tuxundl-1.2.1-arm64.apk`（新机型）与 `tuxundl-1.2.1-legacy-armeabi-v7a.apk`（老机型）。Android 1.2.2 已开发完成，因正式版坚持本地签名（签名钥匙不托管在网上），将稍后补发。
 
 ## 真机建议验一下
 
