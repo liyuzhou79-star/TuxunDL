@@ -39,3 +39,14 @@ jobs:
         with:
           name: TuxunDL Windows app image
           path: desktop/build/compose/binaries/main/app/**
+
+      - name: Package installers
+        if: success()
+        run: .\gradlew.bat -p desktop packageMsi packageExe --no-daemon --stacktrace
+
+      - name: Upload installers
+        uses: actions/upload-artifact@v7
+        if: ${{ success() }}
+        with:
+          name: TuxunDL Windows installers
+          path: desktop/build/compose/binaries/main/*.{msi,exe}
