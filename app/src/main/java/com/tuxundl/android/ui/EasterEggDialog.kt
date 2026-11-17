@@ -40,8 +40,8 @@ import com.tuxundl.android.design.util.toBytesString
 import kotlinx.coroutines.launch
 
 /**
- * The mascot easter egg: tapping the home-screen mascot three times in
- * two seconds pops this dialog in with a spring. It shows the big
+ * The mascot easter egg: tapping the home-screen mascot eight times in
+ * three seconds pops this dialog in with a spring. It shows the big
  * mascot, three lifetime stats (traffic carried, time connected, days
  * used — all fed by MainActivity into [MainUiState]) and a "pat my
  * head" button: the mascot squishes, turns happy-eyed and, from the

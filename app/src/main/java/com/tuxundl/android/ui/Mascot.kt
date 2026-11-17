@@ -39,6 +39,10 @@ import kotlin.random.Random
  * perfectly still. [squish] (0..1) is driven by the easter egg's
  * "pat my head" button: the head flattens, the eyes turn into happy
  * arcs and blush marks fade in.
+ *
+ * [excitement] (0..1) is the top-bar mascot's tap-progress feedback:
+ * as the user keeps tapping toward the easter egg, the antennae sway
+ * wider and the node dot's halo grows stronger.
  */
 @Composable
 fun Mascot(
@@ -48,6 +52,7 @@ fun Mascot(
     eyeColor: Color = Color.White,
     animated: Boolean = true,
     squish: Float = 0f,
+    excitement: Float = 0f,
 ) {
     val style = animStyle()
     val motion = animated && style != AnimationStyle.Reduced
@@ -80,6 +85,7 @@ fun Mascot(
 
     val swayValue = if (motion) sway else 0f
     val squishClamped = squish.coerceIn(0f, 1f)
+    val excitementClamped = excitement.coerceIn(0f, 1f)
     val happyEyes = squishClamped > 0.45f
 
     Canvas(
@@ -101,7 +107,8 @@ fun Mascot(
         val headCorner = s * 0.20f
 
         // Antennae (drawn first, the head overlaps their bases).
-        val swayOffset = swayValue * s * 0.03f
+        // Excitement widens the sway as the tap count climbs.
+        val swayOffset = swayValue * s * (0.03f + 0.06f * excitementClamped)
         val leftBase = Offset(s * 0.32f, headTop + s * 0.02f)
         val rightBase = Offset(s * 0.68f, headTop + s * 0.02f)
         val leftTip = Offset(s * 0.19f + swayOffset, s * 0.07f)
@@ -124,15 +131,16 @@ fun Mascot(
         )
         // Left tip: a plain ball.
         drawCircle(color = headColor, radius = s * 0.045f, center = leftTip)
-        // Right tip: the node dot — a glowing primary point.
+        // Right tip: the node dot — a glowing primary point. The halo
+        // swells and brightens with excitement (tap progress).
         drawCircle(
-            color = color.copy(alpha = 0.16f),
-            radius = s * 0.115f,
+            color = color.copy(alpha = 0.16f + 0.24f * excitementClamped),
+            radius = s * 0.115f * (1f + 0.9f * excitementClamped),
             center = rightTip,
         )
         drawCircle(
-            color = color.copy(alpha = 0.35f),
-            radius = s * 0.078f,
+            color = color.copy(alpha = 0.35f + 0.3f * excitementClamped),
+            radius = s * 0.078f * (1f + 0.5f * excitementClamped),
             center = rightTip,
         )
         drawCircle(color = color, radius = s * 0.052f, center = rightTip)

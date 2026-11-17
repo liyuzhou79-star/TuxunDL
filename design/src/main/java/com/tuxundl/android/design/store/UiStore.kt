@@ -201,14 +201,53 @@ class UiStore(context: Context) {
     )
 
     /**
-     * Home brick order as a comma-separated list of brick ids
-     * (node, traffic, proxy, profile, providers, logs, settings, help,
-     * about), set by long-press drag on the home screen. Empty = default
-     * order (which follows [homeCardOrder] for the tile bricks).
+     * Home brick order as a comma-separated list of brick ids, set by
+     * long-press drag on the home screen. Empty = the default set
+     * (the five core bricks: node, proxy, profile, logs, settings).
+     * Stored orders written by older versions list every brick the
+     * user had and are honoured as-is.
      */
     var brickOrder: String by store.string(
         key = "brick_order",
         defaultValue = ""
+    )
+
+    /**
+     * In-app language override as a BCP-47 tag ("" = follow system).
+     * Applied by BaseActivity.attachBaseContext; changing it recreates
+     * all activities.
+     */
+    var appLanguage: String by store.string(
+        key = "app_language",
+        defaultValue = ""
+    )
+
+    /** Whether the low-traffic subscription alert is on (off by default). */
+    var trafficAlertEnabled: Boolean by store.boolean(
+        key = "traffic_alert_enabled",
+        defaultValue = false
+    )
+
+    /** Remaining-traffic threshold (GiB) at which the alert fires. */
+    var trafficAlertThresholdGb: Int by store.int(
+        key = "traffic_alert_threshold_gb",
+        defaultValue = 10
+    )
+
+    /**
+     * True once the traffic alert has fired for the current total;
+     * re-armed when the remaining traffic recovers well above the
+     * threshold or when the total grows (renewal / profile switch).
+     */
+    var trafficAlertNotified: Boolean by store.boolean(
+        key = "traffic_alert_notified",
+        defaultValue = false
+    )
+
+    /** Last subscription total the alert check saw (renewal detection). */
+    var trafficAlertLastTotal: Long by store.long(
+        key = "traffic_alert_last_total",
+        defaultValue = 0L
     )
 
     /**

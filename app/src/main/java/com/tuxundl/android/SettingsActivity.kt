@@ -1,10 +1,14 @@
 package com.tuxundl.android
 
+import android.content.pm.PackageManager
 import android.content.res.Configuration
+import android.os.Build
 import android.os.Bundle
 import androidx.activity.compose.setContent
+import androidx.activity.result.contract.ActivityResultContracts.RequestPermission
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
+import androidx.core.content.ContextCompat
 import com.tuxundl.android.common.util.intent
 import com.tuxundl.android.design.SettingsDesign
 import com.tuxundl.android.design.model.DarkMode
@@ -12,6 +16,7 @@ import com.tuxundl.android.ui.SettingsScreen
 import com.tuxundl.android.ui.SettingsUiState
 import com.tuxundl.android.ui.theme.TuxunDLTheme
 import com.tuxundl.android.ui.theme.customSeedColor
+import com.tuxundl.android.util.ApplicationObserver
 import com.tuxundl.android.util.UpdateChecker
 import com.tuxundl.android.util.UpdateCheckResult
 import com.tuxundl.android.util.UpdateFailure
@@ -23,6 +28,12 @@ import kotlinx.coroutines.selects.select
 class SettingsActivity : BaseActivity<SettingsDesign>() {
     private val uiState = SettingsUiState()
     private val uiRequests = Channel<SettingsDesign.Request>(Channel.UNLIMITED)
+
+    // Same permission-request pattern as MainActivity (which asks for
+    // the foreground-service notification); here it is only fired when
+    // the user turns the traffic alert on.
+    private val notificationPermissionLauncher =
+        registerForActivityResult(RequestPermission()) { }
 
     override suspend fun main() {
         while (isActive) {
@@ -78,19 +89,43 @@ class SettingsActivity : BaseActivity<SettingsDesign>() {
                 is UpdateCheckResult.UpToDate ->
                     uiState.updateMessage = getString(R.string.update_latest)
                 is UpdateCheckResult.Failed ->
-                    uiState.updateMessage = getString(
-                        when (result.failure) {
-                            UpdateFailure.Network -> R.string.update_check_failed_network
-                            UpdateFailure.Server -> R.string.update_check_failed_server
-                            UpdateFailure.Parse -> R.string.update_check_failed_parse
-                        },
-                    )
+                    uiState.updateMessage = when (val failure = result.failure) {
+                        UpdateFailure.Network ->
+                            getString(R.string.update_check_failed_network)
+                        UpdateFailure.RateLimited ->
+                            getString(R.string.update_check_failed_rate_limited)
+                        is UpdateFailure.Server ->
+                            getString(
+                                R.string.update_check_failed_server_code,
+                                failure.code,
+                            )
+                        UpdateFailure.Parse ->
+                            getString(R.string.update_check_failed_parse)
+                    }
             }
+        }
+    }
+
+    private fun requestNotificationPermissionIfNeeded() {
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.TIRAMISU) return
+
+        if (ContextCompat.checkSelfPermission(
+                this,
+                android.Manifest.permission.POST_NOTIFICATIONS,
+            ) != PackageManager.PERMISSION_GRANTED
+        ) {
+            notificationPermissionLauncher.launch(
+                android.Manifest.permission.POST_NOTIFICATIONS,
+            )
         }
     }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+
+        uiState.trafficAlertEnabled = uiStore.trafficAlertEnabled
+        uiState.trafficAlertThresholdGb = uiStore.trafficAlertThresholdGb
+        uiState.appLanguage = uiStore.appLanguage
 
         val darkTheme = when (uiStore.darkMode) {
             DarkMode.Auto -> resources.configuration.uiMode and
@@ -105,6 +140,28 @@ class SettingsActivity : BaseActivity<SettingsDesign>() {
                     SettingsScreen(
                         state = uiState,
                         onRequest = { request -> uiRequests.trySend(request) },
+                        onTrafficAlertChange = { enabled ->
+                            uiStore.trafficAlertEnabled = enabled
+                            uiState.trafficAlertEnabled = enabled
+
+                            if (enabled) {
+                                requestNotificationPermissionIfNeeded()
+                            }
+                        },
+                        onTrafficAlertThresholdChange = { gb ->
+                            uiStore.trafficAlertThresholdGb = gb
+                            uiState.trafficAlertThresholdGb = gb
+                        },
+                        onLanguageChange = { tag ->
+                            uiStore.appLanguage = tag
+                            uiState.appLanguage = tag
+
+                            // Same recreate sweep the appearance page
+                            // uses for palette / dark-mode changes.
+                            ApplicationObserver.createdActivities.forEach {
+                                it.recreate()
+                            }
+                        },
                         onBack = { finish() },
                     )
                 }

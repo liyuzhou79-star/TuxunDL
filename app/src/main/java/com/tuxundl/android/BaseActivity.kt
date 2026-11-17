@@ -1,9 +1,11 @@
 package com.tuxundl.android
 
 import android.app.ActivityManager
+import android.content.Context
 import android.content.res.Configuration
 import android.os.Build
 import android.os.Bundle
+import android.os.LocaleList
 import android.view.View
 import androidx.activity.result.contract.ActivityResultContract
 import androidx.appcompat.app.AppCompatActivity
@@ -26,6 +28,7 @@ import com.tuxundl.android.util.ActivityResultLifecycle
 import com.tuxundl.android.util.ApplicationObserver
 import kotlinx.coroutines.*
 import kotlinx.coroutines.channels.Channel
+import java.util.Locale
 import java.util.*
 import java.util.concurrent.atomic.AtomicInteger
 import kotlin.coroutines.resume
@@ -55,6 +58,34 @@ abstract class BaseActivity<D : Design<*>> : AppCompatActivity(),
     private var deferRunning = false
     private val nextRequestKey = AtomicInteger(0)
     private var dayNight: DayNight = DayNight.Day
+
+    /**
+     * Apply the in-app language override (UiStore.appLanguage) before
+     * any resources are read. The pinned appcompat (1.4.2) predates
+     * AppCompatDelegate.setApplicationLocales, so the override is a
+     * plain configuration context wrap — it covers both the Compose
+     * screens and the view-based designs, since everything reads its
+     * resources through the activity.
+     */
+    override fun attachBaseContext(newBase: Context) {
+        super.attachBaseContext(applyAppLanguage(newBase))
+    }
+
+    private fun applyAppLanguage(base: Context): Context {
+        val tag = UiStore(base).appLanguage
+
+        if (tag.isEmpty()) return base
+
+        val locale = Locale.forLanguageTag(tag)
+        val config = Configuration(base.resources.configuration)
+        config.setLocale(locale)
+
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
+            config.setLocales(LocaleList(locale))
+        }
+
+        return base.createConfigurationContext(config)
+    }
 
     protected abstract suspend fun main()
 

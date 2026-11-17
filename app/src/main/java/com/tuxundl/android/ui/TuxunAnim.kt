@@ -76,6 +76,18 @@ fun <T> tuxunPressSpec(style: AnimationStyle): FiniteAnimationSpec<T> = when (st
     AnimationStyle.Reduced -> tween(durationMillis = 80)
 }
 
+/**
+ * The power circle's own jelly press: noticeably lower damping than
+ * the shared press spec, so the big disc dips and overshoots a touch
+ * on release instead of snapping back stiffly. Only the power circle
+ * uses this; the global press spec is unchanged.
+ */
+fun <T> tuxunPowerPressSpec(style: AnimationStyle): FiniteAnimationSpec<T> = when (style) {
+    AnimationStyle.Spring -> spring(dampingRatio = 0.34f, stiffness = 430f)
+    AnimationStyle.Soft -> spring(dampingRatio = 0.78f, stiffness = 540f)
+    AnimationStyle.Reduced -> tween(durationMillis = 80)
+}
+
 /** Progress / bar fill spring (progress indicators, weekly bars). */
 fun <T> tuxunProgressSpec(style: AnimationStyle): FiniteAnimationSpec<T> = when (style) {
     AnimationStyle.Spring -> spring(dampingRatio = 0.68f, stiffness = 300f)
@@ -340,13 +352,16 @@ fun <T> tuxunFadeSpec(style: AnimationStyle, entering: Boolean): FiniteAnimation
 /**
  * Press feedback shared by buttons and cards: while [interactionSource]
  * reports a press the element shrinks to [pressedScale] and springs
- * back on release. Each caller tunes its own depth (big circle 0.96,
- * buttons 0.97, cards 0.98). Reduced never scales.
+ * back on release. Each caller tunes its own depth (big circle 0.95,
+ * buttons 0.97, cards 0.98) and may pass its own [spec] (the power
+ * circle's jelly tuning); the default is the shared press spec.
+ * Reduced never scales.
  */
 @Composable
 fun Modifier.tuxunPressScale(
     interactionSource: MutableInteractionSource,
     pressedScale: Float = 0.97f,
+    spec: FiniteAnimationSpec<Float>? = null,
 ): Modifier {
     val style = LocalAnimStyle.current
     val pressed by interactionSource.collectIsPressedAsState()
@@ -357,7 +372,7 @@ fun Modifier.tuxunPressScale(
     }
     val scale by animateFloatAsState(
         targetValue = target,
-        animationSpec = tuxunPressSpec(style),
+        animationSpec = spec ?: tuxunPressSpec(style),
         label = "tuxunPressScale",
     )
 

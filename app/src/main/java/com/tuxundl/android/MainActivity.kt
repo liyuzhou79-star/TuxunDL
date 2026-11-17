@@ -1,5 +1,6 @@
 package com.tuxundl.android
 
+import android.app.PendingIntent
 import android.content.Intent
 import android.content.pm.PackageManager
 import android.content.res.Configuration
@@ -13,10 +14,15 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.SnackbarDuration
 import androidx.compose.material3.SnackbarResult
 import androidx.compose.material3.Surface
+import androidx.core.app.NotificationChannelCompat
+import androidx.core.app.NotificationCompat
+import androidx.core.app.NotificationManagerCompat
 import androidx.core.content.ContextCompat
 import androidx.core.content.pm.ShortcutInfoCompat
 import androidx.core.content.pm.ShortcutManagerCompat
 import androidx.core.graphics.drawable.IconCompat
+import com.tuxundl.android.common.compat.getColorCompat
+import com.tuxundl.android.common.compat.pendingIntentFlags
 import com.tuxundl.android.common.constants.Intents
 import com.tuxundl.android.common.util.intent
 import com.tuxundl.android.common.util.ticker
@@ -24,6 +30,8 @@ import com.tuxundl.android.core.Clash
 import com.tuxundl.android.design.MainDesign
 import com.tuxundl.android.design.model.DarkMode
 import com.tuxundl.android.ui.DisclaimerScreen
+import com.tuxundl.android.ui.HOME_BRICK_ALL_IDS
+import com.tuxundl.android.ui.HOME_BRICK_DEFAULT_ORDER
 import com.tuxundl.android.ui.MainScreen
 import com.tuxundl.android.ui.MainUiState
 import com.tuxundl.android.ui.TrafficSample
@@ -82,6 +90,10 @@ class MainActivity : BaseActivity<MainDesign>() {
     // running): healthCheck + read back the current node's delay.
     private var qualityTickCount = 0
     private var qualityProbing = false
+
+    // Traffic-alert cadence: re-read the subscription every 30 ticks
+    // and re-evaluate whether the low-traffic notification should fire.
+    private var alertTickCount = 0
 
     override suspend fun main() {
         dailyTraffic = DailyTrafficStore(filesDir.resolve("traffic-daily.json"))
@@ -303,6 +315,8 @@ class MainActivity : BaseActivity<MainDesign>() {
         uiState.subTotal = profile?.total ?: 0L
         uiState.subExpire = profile?.expire ?: 0L
 
+        evaluateTrafficAlert()
+
         fetchCurrentNode()
     }
 
@@ -316,14 +330,20 @@ class MainActivity : BaseActivity<MainDesign>() {
         return parsed + HOME_CARD_KEYS.filter { it !in parsed }
     }
 
-    /** Stored brick order first; missing brick ids keep the default tail order. */
+    /**
+     * Parse a stored brick order. The known-id set and the default
+     * order both come from the single definition in HomeBricks.kt.
+     * A stored order is honoured exactly as written (older versions
+     * stored every brick); only an empty/unusable value falls back
+     * to the current default set.
+     */
     private fun parseBrickOrder(stored: String): List<String> {
         val parsed = stored.split(",")
             .map { it.trim() }
-            .filter { it in HOME_BRICK_KEYS }
+            .filter { it in HOME_BRICK_ALL_IDS }
             .distinct()
 
-        return parsed + HOME_BRICK_KEYS.filter { it !in parsed }
+        return parsed.ifEmpty { HOME_BRICK_DEFAULT_ORDER }
     }
 
     /** Per-session counters behind the advanced traffic panel; reset on start/stop. */
@@ -424,6 +444,92 @@ class MainActivity : BaseActivity<MainDesign>() {
 
         val currentHour = System.currentTimeMillis() / 3_600_000L
         uiState.hourlyBuckets = dailyTraffic.hourlyBuckets(currentHour - 23, currentHour)
+    }
+
+    /**
+     * Low-traffic subscription alert. Evaluated whenever fresh
+     * subscription figures land (fetch + every 30 s while running) —
+     * like the traffic stats, it only ever runs while the app is open.
+     *
+     * Fires once when the remaining traffic drops to the user's
+     * threshold; re-arms when the remainder recovers to 1.2x the
+     * threshold, or when the total grows (renewal / profile switch).
+     * Profiles without a total cap never trigger it.
+     */
+    private fun evaluateTrafficAlert() {
+        if (!uiStore.trafficAlertEnabled) return
+
+        val total = uiState.subTotal
+        if (total <= 0L) return
+
+        if (total > uiStore.trafficAlertLastTotal) {
+            uiStore.trafficAlertNotified = false
+        }
+        uiStore.trafficAlertLastTotal = total
+
+        val remaining = total - (uiState.subUpload + uiState.subDownload)
+        val thresholdBytes =
+            uiStore.trafficAlertThresholdGb.toLong() * GIB_BYTES
+
+        if (remaining <= thresholdBytes) {
+            if (!uiStore.trafficAlertNotified) {
+                uiStore.trafficAlertNotified = true
+                postTrafficAlert(remaining)
+            }
+        } else if (remaining > thresholdBytes * 12 / 10) {
+            uiStore.trafficAlertNotified = false
+        }
+    }
+
+    /** Post the low-traffic notification (channel created on demand). */
+    private fun postTrafficAlert(remainingBytes: Long) {
+        val manager = NotificationManagerCompat.from(this)
+
+        manager.createNotificationChannel(
+            NotificationChannelCompat.Builder(
+                TRAFFIC_ALERT_CHANNEL_ID,
+                NotificationManagerCompat.IMPORTANCE_DEFAULT,
+            ).setName(getString(R.string.traffic_alert_channel)).build(),
+        )
+
+        val openApp = PendingIntent.getActivity(
+            this,
+            TRAFFIC_ALERT_NOTIFICATION_ID,
+            MainActivity::class.intent
+                .setFlags(
+                    Intent.FLAG_ACTIVITY_NEW_TASK or
+                        Intent.FLAG_ACTIVITY_SINGLE_TOP or
+                        Intent.FLAG_ACTIVITY_CLEAR_TOP,
+                ),
+            pendingIntentFlags(PendingIntent.FLAG_UPDATE_CURRENT),
+        )
+
+        val remainingGb = String.format(
+            "%.1f",
+            remainingBytes.coerceAtLeast(0L).toDouble() / GIB_BYTES,
+        )
+
+        val notification = NotificationCompat.Builder(this, TRAFFIC_ALERT_CHANNEL_ID)
+            .setSmallIcon(com.tuxundl.android.service.R.drawable.ic_logo_tuxundl)
+            .setColor(getColorCompat(com.tuxundl.android.service.R.color.color_tuxundl))
+            .setContentTitle(getString(R.string.traffic_alert_title))
+            .setContentText(
+                getString(
+                    R.string.traffic_alert_text,
+                    uiState.profileName ?: "",
+                    remainingGb,
+                ),
+            )
+            .setContentIntent(openApp)
+            .setAutoCancel(true)
+            .build()
+
+        try {
+            manager.notify(TRAFFIC_ALERT_NOTIFICATION_ID, notification)
+        } catch (e: SecurityException) {
+            // Notification permission not granted (Android 13+): the
+            // alert simply stays silent; the in-app card still warns.
+        }
     }
 
     private fun resetTrafficSampling() {
@@ -528,6 +634,23 @@ class MainActivity : BaseActivity<MainDesign>() {
             qualityTickCount++
             if (qualityTickCount % 15 == 0) {
                 launchQualityProbe()
+            }
+
+            // Traffic alert: refresh the subscription figures every
+            // 30 seconds, then re-evaluate (cheap local Binder reads).
+            alertTickCount++
+            if (alertTickCount % 30 == 0) {
+                val profile = withProfile { queryActive() }
+
+                if (profile != null) {
+                    uiState.profileName = profile.name
+                    uiState.subUpload = profile.upload
+                    uiState.subDownload = profile.download
+                    uiState.subTotal = profile.total
+                    uiState.subExpire = profile.expire
+                }
+
+                evaluateTrafficAlert()
             }
 
             dailyTickCount++
@@ -726,15 +849,14 @@ class MainActivity : BaseActivity<MainDesign>() {
     }
 
     companion object {
+        /** Notification channel + id for the low-traffic alert. */
+        private const val TRAFFIC_ALERT_CHANNEL_ID = "subscription_alerts"
+        private const val TRAFFIC_ALERT_NOTIFICATION_ID = 0x7A01
+        private const val GIB_BYTES = 1024L * 1024L * 1024L
+
         /** All orderable home cards, in their default display order. */
         private val HOME_CARD_KEYS =
             listOf("monitor", "traffic", "proxy", "profile", "providers")
-
-        /** All home bricks (tiles + shortcuts), in their default display order. */
-        private val HOME_BRICK_KEYS = listOf(
-            "node", "traffic", "proxy", "profile", "providers",
-            "logs", "settings", "help", "about",
-        )
 
         /**
          * Version the full-screen update page was already shown for in

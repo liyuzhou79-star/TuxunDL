@@ -27,7 +27,6 @@ import androidx.compose.animation.expandVertically
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.shrinkVertically
-import androidx.compose.animation.slideInVertically
 import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.ExperimentalFoundationApi
@@ -196,13 +195,12 @@ class MainUiState {
     /** Last week's days with data (Monday..Sunday), oldest first. */
     var lastWeekDays by mutableStateOf<List<DailyTrafficDay>>(emptyList())
 
-    /** Home brick order (ids: node, traffic, proxy, profile, providers, logs, settings, help, about). */
-    var brickOrder by mutableStateOf(
-        listOf(
-            "node", "traffic", "proxy", "profile", "providers",
-            "logs", "settings", "help", "about",
-        ),
-    )
+    /**
+     * Home brick order. Defaults to the five core bricks; MainActivity
+     * replaces this with the parsed stored order on every fetch. The
+     * id set and default live in HomeBricks.kt (single definition).
+     */
+    var brickOrder by mutableStateOf(HOME_BRICK_DEFAULT_ORDER)
 
     /** True while the mascot easter-egg dialog is shown. */
     var showEasterEgg by mutableStateOf(false)
@@ -251,6 +249,11 @@ fun MainScreen(
     state: MainUiState,
     onRequest: (MainDesign.Request) -> Unit,
 ) {
+    // Page scroll is locked while a home item is being dragged, so the
+    // column never fights the drag gesture for the pointer.
+    val scrollState = rememberScrollState()
+    var homeDragActive by remember { mutableStateOf(false) }
+
     Scaffold(
         snackbarHost = { SnackbarHost(state.snackbarHostState) },
         topBar = {
@@ -266,9 +269,9 @@ fun MainScreen(
             modifier = Modifier
                 .fillMaxSize()
                 .padding(padding)
-                .verticalScroll(rememberScrollState())
-                .padding(horizontal = 16.dp, vertical = 20.dp),
-            verticalArrangement = Arrangement.spacedBy(20.dp),
+                .verticalScroll(scrollState, enabled = !homeDragActive)
+                .padding(horizontal = 16.dp, vertical = 12.dp),
+            verticalArrangement = Arrangement.spacedBy(12.dp),
         ) {
             UpdateCard(state = state, onRequest = onRequest)
 
@@ -281,7 +284,11 @@ fun MainScreen(
 
             ModeSelector(state = state, onRequest = onRequest)
 
-            HomeCards(state = state, onRequest = onRequest)
+            HomeCards(
+                state = state,
+                onRequest = onRequest,
+                onDragActiveChange = { homeDragActive = it },
+            )
         }
     }
 
@@ -324,7 +331,7 @@ fun MainScreen(
         )
     }
 
-    // Mascot easter egg (triple-tap on the top-bar mascot).
+    // Mascot easter egg (eight quick taps on the top-bar mascot).
     if (state.showEasterEgg) {
         EasterEggDialog(
             state = state,
@@ -343,8 +350,11 @@ fun MainScreen(
 }
 
 /**
- * The mascot in the top bar. A single tap just bounces it; three taps
- * within two seconds open the easter egg.
+ * The mascot in the top bar. Tapping it eight times within three
+ * seconds opens the easter egg. From the fourth tap on, the mascot
+ * answers more strongly — a deeper bounce, wider antenna sway and a
+ * brighter node-dot halo — so the user can feel the egg getting
+ * closer; the eighth tap opens it.
  */
 @Composable
 private fun MascotButton(onTripleTap: () -> Unit) {
@@ -353,6 +363,15 @@ private fun MascotButton(onTripleTap: () -> Unit) {
     val bounce = remember { Animatable(1f) }
     var taps by remember { mutableStateOf<List<Long>>(emptyList()) }
     val interaction = remember { MutableInteractionSource() }
+
+    val tapCount = taps.size
+    // 0 until tap 3, then climbs: tap 4 -> 0.3, 5 -> 0.5, 6 -> 0.7,
+    // tap 7 -> 1 (the "almost there" full glow), tap 8 opens the egg.
+    val excitement = when {
+        tapCount >= 7 -> 1f
+        tapCount >= 4 -> 0.3f + 0.2f * (tapCount - 4)
+        else -> 0f
+    }
 
     Box(
         modifier = Modifier
@@ -363,16 +382,20 @@ private fun MascotButton(onTripleTap: () -> Unit) {
                 indication = null,
             ) {
                 val now = SystemClock.elapsedRealtime()
-                taps = (taps + now).filter { now - it <= 2000L }
+                taps = (taps + now).filter { now - it <= 3000L }
+                val count = taps.size
 
                 if (style != AnimationStyle.Reduced) {
                     scope.launch {
-                        bounce.snapTo(0.82f)
+                        // The dip deepens from the fourth tap on.
+                        val dip = 0.82f -
+                            0.03f * (count - 3).coerceIn(0, 4)
+                        bounce.snapTo(dip)
                         bounce.animateTo(1f, tuxunSnapSpec<Float>(style))
                     }
                 }
 
-                if (taps.size >= 3) {
+                if (count >= 8) {
                     taps = emptyList()
                     onTripleTap()
                 }
@@ -382,6 +405,7 @@ private fun MascotButton(onTripleTap: () -> Unit) {
         Mascot(
             size = 34.dp,
             modifier = Modifier.scale(bounce.value),
+            excitement = excitement,
         )
     }
 }
@@ -459,6 +483,14 @@ internal fun formatDuration(millis: Long): String {
 
     return "%d:%02d:%02d".format(hours, minutes, seconds)
 }
+
+/** Blend a colour toward white by [fraction] (0 = itself, 1 = white). */
+private fun Color.lightened(fraction: Float): Color = Color(
+    red = red + (1f - red) * fraction,
+    green = green + (1f - green) * fraction,
+    blue = blue + (1f - blue) * fraction,
+    alpha = alpha,
+)
 
 /** The four visual states of the power circle. */
 private enum class PowerPhase {
@@ -673,12 +705,13 @@ private fun PowerCircle(
         ),
         label = "sweepAngle",
     )
-    // Stopped: the hollow ring breathes (alpha, 2.4 s cycle).
+    // Stopped: the hollow ring breathes (alpha, slow 3.6 s cycle,
+    // small amplitude — a calm sine-like swell, not a blink).
     val breathAlpha by infiniteTransition.animateFloat(
-        initialValue = 0.35f,
-        targetValue = 0.8f,
+        initialValue = 0.5f,
+        targetValue = 0.75f,
         animationSpec = infiniteRepeatable(
-            animation = tween(durationMillis = 2400, easing = FastOutSlowInEasing),
+            animation = tween(durationMillis = 3600, easing = FastOutSlowInEasing),
             repeatMode = RepeatMode.Reverse,
         ),
         label = "breathAlpha",
@@ -706,14 +739,38 @@ private fun PowerCircle(
         else -> primary
     }
 
-    // Smooth the state flips: the disc grows a touch and fills with the
-    // theme colour instead of snapping. The size spring is the circle's
-    // own tuning: bouncy in Spring style, near-critically damped in
-    // Soft, a plain short tween in Reduced.
-    val circleColor by animateColorAsState(
-        targetValue = if (connected) primary else MaterialTheme.colorScheme.surface,
+    // Smooth the state flips: the disc grows a touch and fills with
+    // the theme colour instead of snapping. Connected is a vertical
+    // gradient (light at the top, full primary at the bottom) over a
+    // soft same-colour glow, so the disc feels lit rather than flat;
+    // both gradient stops cross-fade with the shared colour spec, and
+    // in the other phases both stops sit at surface colour (flat).
+    val fillTop by animateColorAsState(
+        targetValue = if (connected) {
+            primary.lightened(0.28f)
+        } else {
+            MaterialTheme.colorScheme.surface
+        },
         animationSpec = tuxunColorSpec(style),
-        label = "circleColor",
+        label = "circleFillTop",
+    )
+    val fillBottom by animateColorAsState(
+        targetValue = if (connected) {
+            primary
+        } else {
+            MaterialTheme.colorScheme.surface
+        },
+        animationSpec = tuxunColorSpec(style),
+        label = "circleFillBottom",
+    )
+    val glowColor by animateColorAsState(
+        targetValue = if (connected) {
+            primary.copy(alpha = 0.30f)
+        } else {
+            primary.copy(alpha = 0f)
+        },
+        animationSpec = tuxunColorSpec(style),
+        label = "circleGlow",
     )
     val circleSizeSpec: AnimationSpec<Dp> = when (style) {
         AnimationStyle.Spring -> spring(dampingRatio = 0.8f, stiffness = 300f)
@@ -793,6 +850,18 @@ private fun PowerCircle(
             }
         }
 
+        // Soft same-colour glow behind the disc (connected only; the
+        // colour animates to fully transparent in the other phases).
+        Box(
+            modifier = Modifier
+                .fillMaxSize()
+                .background(
+                    Brush.radialGradient(
+                        colors = listOf(glowColor, Color.Transparent),
+                    ),
+                ),
+        )
+
         Box(
             modifier = Modifier
                 .size(circleSize)
@@ -803,7 +872,9 @@ private fun PowerCircle(
                     }
                 }
                 .clip(CircleShape)
-                .background(circleColor)
+                .background(
+                    Brush.verticalGradient(listOf(fillTop, fillBottom)),
+                )
                 .then(
                     when (phase) {
                         PowerPhase.Connected -> Modifier
@@ -811,7 +882,11 @@ private fun PowerCircle(
                         else -> Modifier.border(2.dp, primary, CircleShape)
                     },
                 )
-                .tuxunPressScale(powerInteraction, pressedScale = 0.96f)
+                .tuxunPressScale(
+                    powerInteraction,
+                    pressedScale = 0.95f,
+                    spec = tuxunPowerPressSpec(style),
+                )
                 .clickable(
                     interactionSource = powerInteraction,
                     indication = null,
@@ -845,8 +920,8 @@ private fun PowerCircle(
                 AnimatedContent(
                     targetState = phase,
                     transitionSpec = {
-                        (fadeIn(tween(250)) + slideInVertically { it / 3 })
-                            .togetherWith(fadeOut(tween(150)))
+                        fadeIn(speedEnterSpec) togetherWith
+                            fadeOut(speedExitSpec)
                     },
                     label = "powerStatus",
                 ) { currentPhase ->
@@ -974,27 +1049,54 @@ private class HomeTile(
  * All coordinates are kept relative to the blocks container, so
  * scrolling (which shifts every element and the container equally)
  * does not disturb hit testing or the slide offsets of swapped items.
+ *
+ * Drag model (reworked in 1.2.1 — the 1.2.0 version felt laggy and
+ * jittery): at drag start every item's bounds are frozen into
+ * [frozenBounds] and all hit testing runs against that snapshot, so
+ * layout changes caused by swaps can never feed back into the drag.
+ * The dragged item itself follows the finger's raw accumulated
+ * travel ([dragTotal]) one-to-one through a plain graphicsLayer
+ * translation — no spring, no Animatable on that path. When a swap
+ * moves the dragged item's slot, [dragSlotTopLeft] tracks the new
+ * slot so the rendered translation compensates and the item stays
+ * glued to the finger. On release the item settles into its slot
+ * with a short spring ([settling]).
  */
 private class HomeDragState {
     /** Container origin in root coordinates. */
     var containerOrigin by mutableStateOf(Offset.Zero)
 
-    /** Item key -> layout bounds relative to the container. */
+    /** Item key -> layout bounds relative to the container (live). */
     val bounds = mutableStateMapOf<String, Rect>()
+
+    /** Bounds snapshot frozen at drag start; hit testing uses this. */
+    var frozenBounds: Map<String, Rect> = emptyMap()
 
     var draggingKey by mutableStateOf<String?>(null)
 
-    /** Pointer position (container space) while dragging. */
-    var pointer by mutableStateOf(Offset.Zero)
+    /** Accumulated raw finger travel since drag start. */
+    var dragTotal by mutableStateOf(Offset.Zero)
+
+    /** Frozen top-left of the slot the dragged item currently occupies. */
+    var dragSlotTopLeft by mutableStateOf(Offset.Zero)
 
     /** Where inside the dragged item the pointer grabbed it. */
     var grabOffset by mutableStateOf(Offset.Zero)
+
+    /** True while the dragged item settles into its final slot. */
+    var settling by mutableStateOf(false)
 
     /** Brick that must not be targeted again until the pointer leaves it. */
     var blockedKey by mutableStateOf<String?>(null)
 
     /** The monitor<->bricks block swap fires at most once per drag. */
     var blockSwapped by mutableStateOf(false)
+
+    /** Finger position in container space, from the frozen snapshot. */
+    fun pointerFor(key: String): Offset? {
+        val self = frozenBounds[key] ?: return null
+        return self.topLeft + grabOffset + dragTotal
+    }
 }
 
 /**
@@ -1007,6 +1109,10 @@ private class HomeDragState {
  * taps, and a long-press drag moves the item with the pointer; swaps
  * are decided by [onDragMove] from the shared [HomeDragState], and
  * items whose slot moved slide there with a placement spring (FLIP).
+ *
+ * The dragged item is the exception to FLIP: it renders at the raw
+ * accumulated finger travel (see [HomeDragState]), and on release a
+ * short settle spring parks it into its final slot.
  */
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
@@ -1025,22 +1131,59 @@ private fun DraggableHomeItem(
     val style = animStyle()
     val isDragging = drag.draggingKey == key
     val bounds = drag.bounds[key]
+    val dragScope = rememberCoroutineScope()
 
     // FLIP: when a swap moves this item's slot, start visually at the
     // old position and spring to the new one.
     val flipX = remember { Animatable(0f) }
     val flipY = remember { Animatable(0f) }
     var prevBounds by remember { mutableStateOf<Rect?>(null) }
+    // Set when a settle finishes: the dragged item's bounds entry is
+    // stale by then, and the jump to the real slot must not FLIP.
+    var skipNextFlip by remember { mutableStateOf(false) }
     LaunchedEffect(bounds) {
         val prev = prevBounds
         if (bounds != null) {
-            if (prev != null && prev.topLeft != bounds.topLeft && drag.draggingKey != key) {
+            if (skipNextFlip) {
+                skipNextFlip = false
+            } else if (prev != null && prev.topLeft != bounds.topLeft &&
+                drag.draggingKey != key
+            ) {
                 flipX.snapTo(prev.left - bounds.left)
                 flipY.snapTo(prev.top - bounds.top)
                 launch { flipX.animateTo(0f, tuxunPlacementSpec(style)) }
                 launch { flipY.animateTo(0f, tuxunPlacementSpec(style)) }
             }
             prevBounds = bounds
+        }
+    }
+
+    // Settle animation for the dragged item on release.
+    val settleX = remember { Animatable(0f) }
+    val settleY = remember { Animatable(0f) }
+
+    fun settleDrag() {
+        if (drag.draggingKey != key) return
+
+        val frozenSelf = drag.frozenBounds[key]
+        val start = if (frozenSelf != null) {
+            drag.dragTotal - (drag.dragSlotTopLeft - frozenSelf.topLeft)
+        } else {
+            drag.dragTotal
+        }
+
+        drag.settling = true
+        dragScope.launch {
+            settleX.snapTo(start.x)
+            settleY.snapTo(start.y)
+            launch { settleX.animateTo(0f, tuxunSnapSpec<Float>(style)) }
+            launch { settleY.animateTo(0f, tuxunSnapSpec<Float>(style)) }
+        }.invokeOnCompletion {
+            skipNextFlip = true
+            drag.draggingKey = null
+            drag.blockedKey = null
+            drag.settling = false
+            drag.frozenBounds = emptyMap()
         }
     }
 
@@ -1060,10 +1203,15 @@ private fun DraggableHomeItem(
         label = "wiggleValue",
     )
 
-    val translation = if (isDragging && bounds != null) {
-        (drag.pointer - drag.grabOffset) - bounds.topLeft
-    } else {
-        Offset(flipX.value, flipY.value)
+    val frozenSelf = drag.frozenBounds[key]
+    val translation = when {
+        // Settling: the short spring into the final slot.
+        isDragging && drag.settling -> Offset(settleX.value, settleY.value)
+        // Dragging: raw finger travel, compensated for slot swaps so
+        // the item stays exactly under the finger (1:1, no spring).
+        isDragging && frozenSelf != null ->
+            drag.dragTotal - (drag.dragSlotTopLeft - frozenSelf.topLeft)
+        else -> Offset(flipX.value, flipY.value)
     }
 
     val pressInteraction = remember { MutableInteractionSource() }
@@ -1072,18 +1220,24 @@ private fun DraggableHomeItem(
         modifier = modifier
             .zIndex(if (isDragging) 2f else 0f)
             .onGloballyPositioned { coordinates ->
-                drag.bounds[key] = Rect(
-                    offset = coordinates.positionInRoot() - drag.containerOrigin,
-                    size = Size(coordinates.size.width.toFloat(), coordinates.size.height.toFloat()),
-                )
+                // The dragged item's entry stays frozen for the whole
+                // drag: its layout slot changes under it as swaps land,
+                // and reporting those positions is what fed back into
+                // the 1.2.0 drag as jitter.
+                if (drag.draggingKey != key) {
+                    drag.bounds[key] = Rect(
+                        offset = coordinates.positionInRoot() - drag.containerOrigin,
+                        size = Size(coordinates.size.width.toFloat(), coordinates.size.height.toFloat()),
+                    )
+                }
             }
             .graphicsLayer {
                 translationX = translation.x
                 translationY = translation.y
                 if (isDragging) {
-                    scaleX = 1.03f
-                    scaleY = 1.03f
-                    shadowElevation = 12.dp.toPx()
+                    scaleX = 1.05f
+                    scaleY = 1.05f
+                    shadowElevation = 16.dp.toPx()
                 }
                 rotationZ = if (editMode && !isDragging &&
                     style != AnimationStyle.Reduced
@@ -1128,31 +1282,31 @@ private fun DraggableHomeItem(
                     .pointerInput(key, editMode) {
                         detectDragGesturesAfterLongPress(
                             onDragStart = { local ->
-                                val itemBounds = drag.bounds[key]
-                                if (itemBounds != null) {
-                                    drag.draggingKey = key
-                                    drag.blockedKey = null
-                                    drag.blockSwapped = false
-                                    drag.grabOffset = local
-                                    drag.pointer = itemBounds.topLeft + local
+                                // One drag at a time (a settle also
+                                // counts); freeze the grid snapshot.
+                                if (drag.draggingKey == null) {
+                                    val itemBounds = drag.bounds[key]
+                                    if (itemBounds != null) {
+                                        drag.frozenBounds = drag.bounds.toMap()
+                                        drag.draggingKey = key
+                                        drag.blockedKey = null
+                                        drag.blockSwapped = false
+                                        drag.settling = false
+                                        drag.grabOffset = local
+                                        drag.dragTotal = Offset.Zero
+                                        drag.dragSlotTopLeft = itemBounds.topLeft
+                                    }
                                 }
                             },
-                            onDrag = { change, _ ->
-                                val itemBounds = drag.bounds[key]
-                                if (itemBounds != null && drag.draggingKey == key) {
-                                    drag.pointer = itemBounds.topLeft + change.position
+                            onDrag = { change, dragAmount ->
+                                if (drag.draggingKey == key && !drag.settling) {
+                                    drag.dragTotal += dragAmount
                                     onDragMove(key)
                                 }
                                 change.consume()
                             },
-                            onDragEnd = {
-                                drag.draggingKey = null
-                                drag.blockedKey = null
-                            },
-                            onDragCancel = {
-                                drag.draggingKey = null
-                                drag.blockedKey = null
-                            },
+                            onDragEnd = { settleDrag() },
+                            onDragCancel = { settleDrag() },
                         )
                     },
             )
@@ -1180,6 +1334,7 @@ private fun DraggableHomeItem(
 private fun HomeCards(
     state: MainUiState,
     onRequest: (MainDesign.Request) -> Unit,
+    onDragActiveChange: (Boolean) -> Unit,
 ) {
     val style = animStyle()
 
@@ -1256,6 +1411,11 @@ private fun HomeCards(
     var editMode by remember { mutableStateOf(false) }
     val drag = remember { HomeDragState() }
 
+    // While a drag runs (including the settle), the page scroll locks.
+    LaunchedEffect(drag.draggingKey) {
+        onDragActiveChange(drag.draggingKey != null)
+    }
+
     fun brickVisible(id: String): Boolean = when (id) {
         "node" -> nodeTile != null
         "traffic", "proxy", "profile", "providers" -> tilesByKey.containsKey(id)
@@ -1292,14 +1452,20 @@ private fun HomeCards(
         onRequest(MainDesign.Request.SetCardOrder(order.joinToString(",")))
     }
 
+    // Hit testing for the active drag. Everything reads the snapshot
+    // frozen at drag start (frozenBounds) and the pointer is derived
+    // from the raw accumulated finger travel — the layout moves under
+    // the finger as swaps land, and reading live bounds back into the
+    // drag was what made the 1.2.0 version jitter and lag.
     fun onDragMove(draggingKey: String) {
-        val pointer = drag.pointer
+        val frozen = drag.frozenBounds
+        val pointer = drag.pointerFor(draggingKey) ?: return
 
         // Hysteresis: a brick we just swapped with stays blocked until
-        // the pointer leaves its (new) bounds.
+        // the pointer leaves its (frozen) bounds.
         val blocked = drag.blockedKey
         if (blocked != null) {
-            val blockedBounds = drag.bounds[blocked]
+            val blockedBounds = frozen[blocked]
             if (blockedBounds == null || !blockedBounds.contains(pointer)) {
                 drag.blockedKey = null
             }
@@ -1307,7 +1473,7 @@ private fun HomeCards(
 
         if (draggingKey == "monitor") {
             if (!drag.blockSwapped) {
-                val bricksBounds = drag.bounds["bricks"]
+                val bricksBounds = frozen["bricks"]
                 if (bricksBounds != null && bricksBounds.contains(pointer)) {
                     val crossed = if (monitorFirst) {
                         pointer.y > bricksBounds.center.y
@@ -1324,10 +1490,13 @@ private fun HomeCards(
         }
 
         // Brick drag: swap with the brick whose centre region (middle
-        // 50%) the pointer has entered.
+        // 50% of the frozen bounds) the pointer has entered. The swap
+        // also moves the dragged item's recorded slot, so its rendered
+        // position (raw travel compensated by the slot delta) stays
+        // glued to the finger instead of jumping to the new slot.
         for (id in visibleBricks) {
             if (id == draggingKey || id == drag.blockedKey) continue
-            val b = drag.bounds[id] ?: continue
+            val b = frozen[id] ?: continue
             val inner = Rect(
                 left = b.left + b.width * 0.25f,
                 top = b.top + b.height * 0.25f,
@@ -1337,6 +1506,7 @@ private fun HomeCards(
             if (inner.contains(pointer)) {
                 swapBricks(draggingKey, id)
                 drag.blockedKey = id
+                drag.dragSlotTopLeft = b.topLeft
                 break
             }
         }
@@ -1540,8 +1710,8 @@ private fun TrafficMonitorCard(
         Column(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(16.dp),
-            verticalArrangement = Arrangement.spacedBy(10.dp),
+                .padding(horizontal = 16.dp, vertical = 12.dp),
+            verticalArrangement = Arrangement.spacedBy(8.dp),
         ) {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Icon(
@@ -1644,18 +1814,15 @@ private fun TrafficMonitorCard(
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
             }
-            Text(
-                text = stringResource(R.string.traffic_daily_note),
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-            )
+            // (The "app-open time only" note lives in the advanced
+            // panel now; the home card stays clean.)
 
             // Weekly view: this week (Monday..today) or last week
             // (Monday..Sunday), with a small bar per day. Only days
             // with stored data are shown; the file keeps 14 days, so
             // last week may be partial. Switching weeks cross-fades
             // the content and each bar grows with its own spring.
-            Spacer(modifier = Modifier.height(4.dp))
+            Spacer(modifier = Modifier.height(2.dp))
             TuxunSegmentedRow(
                 options = listOf(
                     stringResource(R.string.traffic_this_week),
@@ -1678,7 +1845,7 @@ private fun TrafficMonitorCard(
 
                 Column(
                     modifier = Modifier.fillMaxWidth(),
-                    verticalArrangement = Arrangement.spacedBy(10.dp),
+                    verticalArrangement = Arrangement.spacedBy(8.dp),
                 ) {
                     if (weekDays.isNotEmpty()) {
                         Text(
@@ -1687,7 +1854,7 @@ private fun TrafficMonitorCard(
                                 weekDays.sumOf { it.up }.toBytesString(),
                                 weekDays.sumOf { it.down }.toBytesString(),
                             ),
-                            style = MaterialTheme.typography.bodyMedium,
+                            style = MaterialTheme.typography.bodySmall,
                             color = MaterialTheme.colorScheme.onSurfaceVariant,
                         )
                         weekDays.forEach { day ->
@@ -1748,12 +1915,12 @@ private fun WeekDayRow(day: DailyTrafficDay, weekMax: Long) {
         ) {
             Text(
                 text = day.date.substring(5),
-                style = MaterialTheme.typography.bodyMedium,
+                style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
             Text(
                 text = "↑ ${day.up.toBytesString()}   ↓ ${day.down.toBytesString()}",
-                style = MaterialTheme.typography.bodyMedium,
+                style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
         }
@@ -1942,8 +2109,8 @@ private fun SubscriptionCard(state: MainUiState) {
         Column(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(16.dp),
-            verticalArrangement = Arrangement.spacedBy(8.dp),
+                .padding(horizontal = 16.dp, vertical = 12.dp),
+            verticalArrangement = Arrangement.spacedBy(6.dp),
         ) {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Icon(
@@ -2043,7 +2210,7 @@ private fun InfoTile(
     // inside the clickable surface.
     Box(
         modifier = modifier
-            .heightIn(min = 108.dp)
+            .heightIn(min = 96.dp)
             .tuxunAppear(),
     ) {
         TuxunCard(modifier = Modifier.fillMaxWidth()) {
@@ -2081,8 +2248,8 @@ private fun TileContent(tile: HomeTile) {
     Column(
         modifier = Modifier
             .fillMaxWidth()
-            .padding(16.dp),
-        verticalArrangement = Arrangement.spacedBy(6.dp),
+            .padding(12.dp),
+        verticalArrangement = Arrangement.spacedBy(5.dp),
     ) {
         Row(
             modifier = Modifier.fillMaxWidth(),
@@ -2123,7 +2290,7 @@ private fun NavBrick(
         Column(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(vertical = 12.dp, horizontal = 4.dp),
+                .padding(vertical = 10.dp, horizontal = 4.dp),
             horizontalAlignment = Alignment.CenterHorizontally,
             verticalArrangement = Arrangement.spacedBy(6.dp),
         ) {

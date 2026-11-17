@@ -3,6 +3,7 @@ package com.tuxundl.android.util
 import android.os.Build
 import com.tuxundl.android.common.util.packageName
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.withContext
 import org.json.JSONArray
 import org.json.JSONObject
@@ -25,15 +26,22 @@ data class UpdateInfo(
 )
 
 /** Why an update check failed, in user-presentable terms. */
-enum class UpdateFailure {
+sealed interface UpdateFailure {
     /** The request never completed (offline, blocked, timed out). */
-    Network,
+    object Network : UpdateFailure
 
-    /** GitHub answered with a non-200 status (rate limit, maintenance). */
-    Server,
+    /**
+     * GitHub refused with 403/429 because the (unauthenticated) API
+     * quota for this IP is exhausted — very common behind shared
+     * carrier NAT egress addresses.
+     */
+    object RateLimited : UpdateFailure
+
+    /** GitHub answered with a non-200 status that is not rate limiting. */
+    data class Server(val code: Int) : UpdateFailure
 
     /** The answer was not the JSON the checker expects. */
-    Parse,
+    object Parse : UpdateFailure
 }
 
 /**
@@ -55,10 +63,18 @@ sealed interface UpdateCheckResult {
  * latest endpoint only ever returns non-prerelease releases, so a release
  * accidentally published as a prerelease would make every check fail. The
  * list endpoint includes prereleases; the first entry is the newest.
+ *
+ * Resilience (1.2.1): a failed list fetch is retried once after a short
+ * pause, and if it still fails the `/releases/latest` endpoint gets one
+ * try as a fallback before the failure is reported. HTTP 403/429 with
+ * rate-limit evidence is classified as [UpdateFailure.RateLimited]
+ * instead of the generic server bucket it landed in before.
  */
 object UpdateChecker {
     private const val RELEASES_URL =
         "https://api.github.com/repos/liyuzhou79-star/TuxunDL/releases?per_page=5"
+    private const val LATEST_URL =
+        "https://api.github.com/repos/liyuzhou79-star/TuxunDL/releases/latest"
 
     private sealed interface FetchOutcome {
         data class Ok(val info: UpdateInfo) : FetchOutcome
@@ -67,10 +83,24 @@ object UpdateChecker {
 
     /** Check [currentVersion] against the newest GitHub release. */
     suspend fun check(currentVersion: String): UpdateCheckResult {
-        return when (val fetched = fetchLatestRelease()) {
-            is FetchOutcome.Error -> UpdateCheckResult.Failed(fetched.failure)
+        var outcome = fetchList()
+
+        if (outcome is FetchOutcome.Error) {
+            // One retry after a short pause covers transient failures.
+            delay(2000)
+            outcome = fetchList()
+        }
+
+        if (outcome is FetchOutcome.Error) {
+            // Fallback endpoint: a different code path on GitHub's side,
+            // worth one try before reporting the failure.
+            outcome = fetchLatest()
+        }
+
+        return when (outcome) {
+            is FetchOutcome.Error -> UpdateCheckResult.Failed(outcome.failure)
             is FetchOutcome.Ok -> {
-                val info = fetched.info
+                val info = outcome.info
 
                 if (isNewer(info.version, currentVersion)) {
                     UpdateCheckResult.UpdateAvailable(info)
@@ -81,9 +111,70 @@ object UpdateChecker {
         }
     }
 
-    private suspend fun fetchLatestRelease(): FetchOutcome = withContext(Dispatchers.IO) {
+    private suspend fun fetchList(): FetchOutcome =
+        fetch(RELEASES_URL) { body -> parseListBody(body) }
+
+    private suspend fun fetchLatest(): FetchOutcome =
+        fetch(LATEST_URL) { body -> parseLatestBody(body) }
+
+    private fun parseListBody(body: String): FetchOutcome {
+        val releases = try {
+            JSONArray(body)
+        } catch (e: Exception) {
+            return FetchOutcome.Error(UpdateFailure.Parse)
+        }
+
+        for (i in 0 until releases.length()) {
+            val json = releases.getJSONObject(i)
+
+            if (json.optBoolean("draft")) continue
+
+            val version = json.optString("tag_name").removePrefix("v")
+
+            if (version.isEmpty()) continue
+
+            return FetchOutcome.Ok(infoFrom(json, version))
+        }
+
+        return FetchOutcome.Error(UpdateFailure.Parse)
+    }
+
+    private fun parseLatestBody(body: String): FetchOutcome {
+        val json = try {
+            JSONObject(body)
+        } catch (e: Exception) {
+            return FetchOutcome.Error(UpdateFailure.Parse)
+        }
+
+        if (json.optBoolean("draft")) {
+            return FetchOutcome.Error(UpdateFailure.Parse)
+        }
+
+        val version = json.optString("tag_name").removePrefix("v")
+
+        if (version.isEmpty()) {
+            return FetchOutcome.Error(UpdateFailure.Parse)
+        }
+
+        return FetchOutcome.Ok(infoFrom(json, version))
+    }
+
+    private fun infoFrom(json: JSONObject, version: String): UpdateInfo {
+        return UpdateInfo(
+            version = version,
+            downloadUrl = pickAssetUrl(json.optJSONArray("assets")),
+            pageUrl = json.optString("html_url")
+                .takeIf { it.isNotEmpty() },
+            notes = json.optString("body"),
+        )
+    }
+
+    private suspend fun fetch(
+        url: String,
+        parse: (String) -> FetchOutcome,
+    ): FetchOutcome = withContext(Dispatchers.IO) {
         val connection = try {
-            URL(RELEASES_URL).openConnection() as HttpURLConnection
+            URL(url).openConnection() as HttpURLConnection
         } catch (e: Exception) {
             return@withContext FetchOutcome.Error(UpdateFailure.Network)
         }
@@ -101,7 +192,9 @@ object UpdateChecker {
             }
 
             if (responseCode != HttpURLConnection.HTTP_OK) {
-                return@withContext FetchOutcome.Error(UpdateFailure.Server)
+                return@withContext FetchOutcome.Error(
+                    classifyHttpError(connection, responseCode),
+                )
             }
 
             val body = try {
@@ -110,36 +203,38 @@ object UpdateChecker {
                 return@withContext FetchOutcome.Error(UpdateFailure.Network)
             }
 
-            val releases = try {
-                JSONArray(body)
-            } catch (e: Exception) {
-                return@withContext FetchOutcome.Error(UpdateFailure.Parse)
-            }
-
-            for (i in 0 until releases.length()) {
-                val json = releases.getJSONObject(i)
-
-                if (json.optBoolean("draft")) continue
-
-                val version = json.optString("tag_name").removePrefix("v")
-
-                if (version.isEmpty()) continue
-
-                return@withContext FetchOutcome.Ok(
-                    UpdateInfo(
-                        version = version,
-                        downloadUrl = pickAssetUrl(json.optJSONArray("assets")),
-                        pageUrl = json.optString("html_url")
-                            .takeIf { it.isNotEmpty() },
-                        notes = json.optString("body"),
-                    ),
-                )
-            }
-
-            FetchOutcome.Error(UpdateFailure.Parse)
+            parse(body)
         } finally {
             connection.disconnect()
         }
+    }
+
+    /**
+     * Tell rate limiting apart from other HTTP errors: GitHub answers
+     * quota exhaustion with 403 (or 429), an `X-RateLimit-Remaining: 0`
+     * header and a body mentioning "rate limit". Anything else keeps
+     * its status code so the UI can show it.
+     */
+    private fun classifyHttpError(
+        connection: HttpURLConnection,
+        code: Int,
+    ): UpdateFailure {
+        if (code == 403 || code == 429) {
+            val remaining = connection.getHeaderField("X-RateLimit-Remaining")
+            val body = try {
+                connection.errorStream?.bufferedReader()?.readText()
+            } catch (e: Exception) {
+                null
+            }
+
+            if (remaining?.trim() == "0" ||
+                body?.contains("rate limit", ignoreCase = true) == true
+            ) {
+                return UpdateFailure.RateLimited
+            }
+        }
+
+        return UpdateFailure.Server(code)
     }
 
     /**

@@ -158,4 +158,20 @@
     <string name="saved_empty">No saved connections yet.</string>
     <string name="proxy_testing">Testing…</string>
     <string name="proxy_timeout">Timeout</string>
+    <string name="settings_group_network">Connection &amp; Network</string>
+    <string name="settings_group_appearance">Appearance &amp; Language</string>
+    <string name="settings_group_alerts">Subscription Alerts</string>
+    <string name="settings_group_data">Data &amp; System</string>
+    <string name="settings_language">Language</string>
+    <string name="language_follow_system">Follow system</string>
+    <string name="traffic_alert">Low-traffic alert</string>
+    <string name="traffic_alert_summary">Get a notification when the active subscription runs low. Checked only while the app is open.</string>
+    <string name="traffic_alert_threshold">Alert threshold</string>
+    <string name="traffic_alert_threshold_value">%1$d GB left</string>
+    <string name="traffic_alert_threshold_title">Alert when remaining traffic drops to (GB)</string>
+    <string name="traffic_alert_channel">Subscription alerts</string>
+    <string name="traffic_alert_title">Subscription traffic is running low</string>
+    <string name="traffic_alert_text">%1$s has only %2$s GB left. Renew or switch subscriptions soon.</string>
+    <string name="update_check_failed_rate_limited">Update check failed: checked too often and GitHub is rate limiting. Try again in a while.</string>
+    <string name="update_check_failed_server_code">Update check failed: the server returned an error (code %1$d). Please try again later.</string>
 </resources>
