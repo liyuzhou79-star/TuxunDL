@@ -42,6 +42,7 @@ private val TextDim = Color(0xFF9A9AB0)
 @Composable
 internal fun SettingsPage() {
     var tun by remember { mutableStateOf(SettingsStore.tunMode()) }
+    var autoStart by remember { mutableStateOf(SettingsStore.autoStart()) }
     var portText by remember { mutableStateOf(SettingsStore.mixedPort().toString()) }
     var note by remember { mutableStateOf<String?>(null) }
     var updateText by remember { mutableStateOf<String?>(null) }
@@ -61,7 +62,7 @@ internal fun SettingsPage() {
         Text(text = "连接模式", color = Color.White, fontSize = 16.sp)
         Spacer(Modifier.height(4.dp))
         Text(
-            text = "系统代理不用管理员权限；TUN 接管全部流量，需要以管理员身份运行本程序（提权启动在后续版本补齐）。",
+            text = "系统代理不用管理员权限；TUN 接管全部流量，点连接时会自动请求管理员权限并重启本程序（系统会弹确认框）。",
             color = TextDim,
             fontSize = 13.sp,
         )
@@ -114,6 +115,22 @@ internal fun SettingsPage() {
         if (note != null) {
             Spacer(Modifier.height(16.dp))
             Text(text = note!!, color = TextDim, fontSize = 14.sp)
+        }
+
+        Spacer(Modifier.height(28.dp))
+
+        Text(text = "开机自启", color = Color.White, fontSize = 16.sp)
+        Spacer(Modifier.height(4.dp))
+        Text(
+            text = "登录 Windows 时自动打开 TuxunDL（只对当前用户生效，不需要管理员权限）。",
+            color = TextDim,
+            fontSize = 13.sp,
+        )
+        Spacer(Modifier.height(10.dp))
+        ModeChip(if (autoStart) "已开启" else "已关闭", autoStart) {
+            autoStart = !autoStart
+            SettingsStore.setAutoStart(autoStart)
+            note = if (autoStart) "开机自启已开启" else "开机自启已关闭"
         }
 
         Spacer(Modifier.height(28.dp))

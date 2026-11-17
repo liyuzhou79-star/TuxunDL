@@ -99,6 +99,37 @@ object SubscriptionStore {
         profileFile(sub).copyTo(CoreBridge.profileFile(), overwrite = true)
     }
 
+    /**
+     * Refresh every subscription whose config is older than [maxAgeMs]
+     * (a day by default). Runs at startup and when the subscriptions
+     * page opens, so configs stay fresh without the user remembering
+     * to update them. If the stale subscription is the active one, the
+     * active profile is refreshed with it. Returns how many updated.
+     */
+    suspend fun autoUpdateStale(
+        maxAgeMs: Long = 24 * 60 * 60 * 1000L,
+    ): Int {
+        val now = System.currentTimeMillis()
+        val list = load()
+        var updated = 0
+        val newList = list.map { sub ->
+            val file = profileFile(sub)
+            val stale = file.exists() && now - sub.updatedAt > maxAgeMs
+            if (!stale) {
+                sub
+            } else {
+                val wasActive = CoreBridge.profileFile().exists() &&
+                    CoreBridge.profileFile().readText() == file.readText()
+                fetch(sub).getOrElse { return@map sub }.also { fresh ->
+                    updated++
+                    if (wasActive) activate(fresh)
+                }
+            }
+        }
+        if (updated > 0) save(newList)
+        return updated
+    }
+
     fun delete(sub: Subscription, list: List<Subscription>): List<Subscription> {
         profileFile(sub).delete()
         return list.filterNot { it.id == sub.id }

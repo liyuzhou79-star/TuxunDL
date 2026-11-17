@@ -1,5 +1,8 @@
 package com.tuxundl.windows
 
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.setValue
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import java.io.File
@@ -23,8 +26,9 @@ object CoreBridge {
     /** App data root: config, profiles and the core log live here. */
     val workDir: File = File(System.getProperty("user.home"), ".tuxundl-windows")
 
-    @Volatile
-    var running: Boolean = false
+    // Compose state (not a plain flag) so the tray menu and the home
+    // page both observe connection changes immediately.
+    var running: Boolean by mutableStateOf(false)
         private set
 
     /** API client for the running core; null while stopped. */

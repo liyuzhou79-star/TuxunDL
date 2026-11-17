@@ -55,11 +55,28 @@ private val BgDark = Color(0xFF14141C)
 private val PanelDark = Color(0xFF1E1E2A)
 private val TextDim = Color(0xFF9A9AB0)
 
-private val NAV_ITEMS = listOf("首页", "节点", "订阅", "规则", "日志", "设置")
+private val NAV_ITEMS =
+    listOf("首页", "节点", "连接", "订阅", "规则", "日志", "设置")
 
-fun main() = application {
+fun main() {
+    // Refresh stale subscription configs in the background; the UI
+    // never waits on the network to open.
+    kotlinx.coroutines.CoroutineScope(kotlinx.coroutines.Dispatchers.IO).launch {
+        runCatching { SubscriptionStore.autoUpdateStale() }
+    }
+    application {
     var windowVisible by remember { mutableStateOf(true) }
     val trayIcon = painterResource("tray-icon.png")
+
+    // The tray menu names the current exit node while connected.
+    var trayNode by remember { mutableStateOf<String?>(null) }
+    LaunchedEffect(CoreBridge.running) {
+        trayNode = null
+        while (CoreBridge.running) {
+            CoreBridge.api?.currentNode()?.let { trayNode = it }
+            delay(5000)
+        }
+    }
 
     // Closing the window only hides it; the app lives in the tray and
     // the core keeps running, like every desktop proxy client. Quitting
@@ -67,13 +84,29 @@ fun main() = application {
     // also restores the user's system proxy.
     Tray(
         icon = trayIcon,
-        tooltip = "TuxunDL",
+        tooltip = if (CoreBridge.running) "TuxunDL — 已连接" else "TuxunDL — 未连接",
         onAction = { windowVisible = true },
         menu = {
             Item(
                 text = "打开主界面",
                 onClick = { windowVisible = true },
             )
+            Item(
+                text = if (CoreBridge.running) "断开连接" else "连接（打开主界面）",
+                onClick = {
+                    if (CoreBridge.running) {
+                        CoreBridge.stop()
+                    } else {
+                        windowVisible = true
+                    }
+                },
+            )
+            if (CoreBridge.running && trayNode != null) {
+                Item(
+                    text = "当前节点：$trayNode",
+                    onClick = { windowVisible = true },
+                )
+            }
             Separator()
             Item(
                 text = "退出",
@@ -96,6 +129,7 @@ fun main() = application {
             }
         }
     }
+    }
 }
 
 @Composable
@@ -116,10 +150,11 @@ internal fun App() {
             when (selectedNav) {
                 0 -> HomePage()
                 1 -> NodesPage()
-                2 -> SubscriptionsPage()
-                3 -> RulesPage()
-                4 -> LogsPage()
-                5 -> SettingsPage()
+                2 -> ConnectionsPage()
+                3 -> SubscriptionsPage()
+                4 -> RulesPage()
+                5 -> LogsPage()
+                6 -> SettingsPage()
                 else -> Text(
                     text = "${NAV_ITEMS[selectedNav]}（开发中）",
                     color = TextDim,
@@ -175,7 +210,7 @@ private fun Sidebar(selected: Int, onSelect: (Int) -> Unit) {
         Spacer(Modifier.weight(1f))
 
         Text(
-            text = "Windows 版 v1.0.0",
+            text = "Windows 版 v${WindowsUpdateCheck.CURRENT_VERSION}",
             color = TextDim,
             fontSize = 12.sp,
         )
@@ -184,12 +219,18 @@ private fun Sidebar(selected: Int, onSelect: (Int) -> Unit) {
 
 @Composable
 private fun HomePage() {
-    var connected by remember { mutableStateOf(false) }
+    // Connection state lives in CoreBridge (Compose state), so this
+    // page and the tray menu never disagree about it.
+    val connected = CoreBridge.running
     var busy by remember { mutableStateOf(false) }
     var statusNote by remember { mutableStateOf<String?>(null) }
     var currentNode by remember { mutableStateOf<String?>(null) }
     var rateText by remember { mutableStateOf("↓ 0 B/s   ↑ 0 B/s") }
     var sessionText by remember { mutableStateOf("本次会话 0 B") }
+    var durationText by remember { mutableStateOf("") }
+    // (down, up) bytes-per-second samples for the home traffic chart,
+    // one every two seconds, the last two minutes kept.
+    var samples by remember { mutableStateOf<List<Pair<Long, Long>>>(emptyList()) }
     val scope = rememberCoroutineScope()
 
     // While connected, poll the core every two seconds so the home
@@ -199,8 +240,10 @@ private fun HomePage() {
             currentNode = null
             rateText = "↓ 0 B/s   ↑ 0 B/s"
             sessionText = "本次会话 0 B"
+            durationText = ""
             return@LaunchedEffect
         }
+        val startedAt = System.currentTimeMillis()
         var prevDown = 0L
         var prevUp = 0L
         var first = true
@@ -218,8 +261,13 @@ private fun HomePage() {
                 prevUp = up
                 rateText = "↓ ${fmtBytes(downRate)}/s   ↑ ${fmtBytes(upRate)}/s"
                 sessionText = "本次会话 ${fmtBytes(down + up)}"
+                samples = (samples + (downRate to upRate)).takeLast(60)
             }
             api.currentNode()?.let { currentNode = it }
+            val elapsed = (System.currentTimeMillis() - startedAt) / 1000
+            durationText = " · %02d:%02d:%02d".format(
+                elapsed / 3600, elapsed / 60 % 60, elapsed % 60,
+            )
             delay(2000)
         }
     }
@@ -242,21 +290,29 @@ private fun HomePage() {
                 if (busy) return@PowerButton
                 scope.launch {
                     busy = true
-                    if (connected) {
+                    if (CoreBridge.running) {
                         CoreBridge.stop()
-                        connected = false
                         statusNote = null
                     } else {
                         val profile = CoreBridge.profileFile()
                         if (!profile.exists()) {
                             statusNote = "还没有订阅配置，先到订阅页添加"
+                        } else if (SettingsStore.tunMode() &&
+                            Elevation.isWindows() &&
+                            !Elevation.isElevated()
+                        ) {
+                            // TUN needs administrator rights: restart
+                            // elevated; Windows shows its UAC prompt.
+                            statusNote = "TUN 需要管理员权限，正在以管理员身份重启…"
+                            busy = false
+                            Elevation.relaunchElevated()
+                            return@launch
                         } else {
                             val ok = CoreBridge.start(
                                 profileYaml = profile.readText(),
                                 tunMode = SettingsStore.tunMode(),
                                 mixedPort = SettingsStore.mixedPort(),
                             )
-                            connected = ok
                             statusNote = if (ok) {
                                 null
                             } else {
@@ -275,7 +331,7 @@ private fun HomePage() {
             text = when {
                 busy -> "处理中…"
                 statusNote != null -> statusNote!!
-                connected -> "已连接"
+                connected -> "已连接$durationText"
                 else -> "未连接"
             },
             color = if (connected) IndigoSoft else TextDim,
@@ -301,6 +357,61 @@ private fun HomePage() {
                 sub = sessionText,
                 modifier = Modifier.weight(1f),
             )
+        }
+
+        if (connected) {
+            Spacer(Modifier.height(16.dp))
+            TrafficChart(samples = samples, modifier = Modifier.fillMaxWidth())
+        }
+    }
+}
+
+/**
+ * The last two minutes of traffic as two lines: download in indigo,
+ * upload in soft indigo, scaled to the busiest sample in the window.
+ */
+@Composable
+private fun TrafficChart(
+    samples: List<Pair<Long, Long>>,
+    modifier: Modifier = Modifier,
+) {
+    Column(
+        modifier = modifier
+            .clip(RoundedCornerShape(14.dp))
+            .background(PanelDark)
+            .padding(16.dp),
+    ) {
+        Row {
+            Text(
+                text = "实时流量",
+                color = TextDim,
+                fontSize = 13.sp,
+                modifier = Modifier.weight(1f),
+            )
+            Text(text = "↓ 下载", color = IndigoSoft, fontSize = 12.sp)
+            Text(text = "   ↑ 上传", color = Color(0xFF6E6E8C), fontSize = 12.sp)
+        }
+        Spacer(Modifier.height(10.dp))
+        androidx.compose.foundation.Canvas(
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(88.dp),
+        ) {
+            if (samples.size < 2) return@Canvas
+            val maxValue = samples.maxOf { maxOf(it.first, it.second) }
+                .coerceAtLeast(1L)
+                .toFloat()
+            fun line(values: List<Long>, color: Color) {
+                val path = androidx.compose.ui.graphics.Path()
+                values.forEachIndexed { index, value ->
+                    val x = size.width * index / (values.size - 1)
+                    val y = size.height - size.height * (value / maxValue) * 0.92f
+                    if (index == 0) path.moveTo(x, y) else path.lineTo(x, y)
+                }
+                drawPath(path, color, style = androidx.compose.ui.graphics.drawscope.Stroke(width = 2.5f))
+            }
+            line(samples.map { it.first }, IndigoSoft)
+            line(samples.map { it.second }, Color(0xFF6E6E8C))
         }
     }
 }
