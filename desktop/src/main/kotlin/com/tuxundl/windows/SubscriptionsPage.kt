@@ -57,6 +57,18 @@ fun SubscriptionsPage() {
 
     fun persist() = SubscriptionStore.save(subscriptions.toList())
 
+    // Opening the page also refreshes any config older than a day, in
+    // the background; the list re-reads itself when that lands.
+    androidx.compose.runtime.LaunchedEffect(Unit) {
+        val updated = runCatching { SubscriptionStore.autoUpdateStale() }
+            .getOrDefault(0)
+        if (updated > 0) {
+            subscriptions.clear()
+            subscriptions.addAll(SubscriptionStore.load())
+            status = "已自动更新 $updated 个订阅"
+        }
+    }
+
     Column(
         modifier = Modifier
             .fillMaxSize()

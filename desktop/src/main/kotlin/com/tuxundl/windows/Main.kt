@@ -57,7 +57,13 @@ private val TextDim = Color(0xFF9A9AB0)
 
 private val NAV_ITEMS = listOf("首页", "节点", "订阅", "规则", "日志", "设置")
 
-fun main() = application {
+fun main() {
+    // Refresh stale subscription configs in the background; the UI
+    // never waits on the network to open.
+    kotlinx.coroutines.CoroutineScope(kotlinx.coroutines.Dispatchers.IO).launch {
+        runCatching { SubscriptionStore.autoUpdateStale() }
+    }
+    application {
     var windowVisible by remember { mutableStateOf(true) }
     val trayIcon = painterResource("tray-icon.png")
 
@@ -105,6 +111,7 @@ fun main() = application {
                 App()
             }
         }
+    }
     }
 }
 

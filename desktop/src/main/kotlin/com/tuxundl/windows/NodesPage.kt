@@ -14,6 +14,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -58,6 +59,8 @@ internal fun NodesPage() {
     var groups by remember { mutableStateOf<List<ProxyGroup>>(emptyList()) }
     var delays by remember { mutableStateOf<Map<String, Long?>>(emptyMap()) }
     var loaded by remember { mutableStateOf(false) }
+    var query by remember { mutableStateOf("") }
+    var sortByDelay by remember { mutableStateOf(false) }
 
     fun refresh() {
         val api = CoreBridge.api ?: return
@@ -118,6 +121,29 @@ internal fun NodesPage() {
             )
         }
 
+        Spacer(Modifier.height(12.dp))
+
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            OutlinedTextField(
+                value = query,
+                onValueChange = { query = it },
+                placeholder = { Text("搜索节点", color = TextDim, fontSize = 14.sp) },
+                singleLine = true,
+                modifier = Modifier.weight(1f),
+            )
+            Spacer(Modifier.padding(horizontal = 4.dp))
+            Text(
+                text = "按延迟排序",
+                color = if (sortByDelay) Color.White else TextDim,
+                fontSize = 14.sp,
+                modifier = Modifier
+                    .clip(RoundedCornerShape(8.dp))
+                    .background(if (sortByDelay) Indigo else PanelDark)
+                    .clickable { sortByDelay = !sortByDelay }
+                    .padding(horizontal = 12.dp, vertical = 8.dp),
+            )
+        }
+
         Spacer(Modifier.height(16.dp))
 
         if (loaded && groups.isEmpty()) {
@@ -130,6 +156,23 @@ internal fun NodesPage() {
 
         LazyColumn(verticalArrangement = Arrangement.spacedBy(18.dp)) {
             items(groups) { group ->
+                // Search filters members (a group-name match keeps the
+                // whole group); delay sort floats the fastest tested
+                // nodes up and leaves untested ones at the bottom.
+                val displayMembers = group.members
+                    .filter {
+                        query.isBlank() ||
+                            it.contains(query, ignoreCase = true) ||
+                            group.name.contains(query, ignoreCase = true)
+                    }
+                    .let { list ->
+                        if (sortByDelay) {
+                            list.sortedBy { member -> delays[member] ?: Long.MAX_VALUE }
+                        } else {
+                            list
+                        }
+                    }
+                if (displayMembers.isEmpty()) return@items
                 Column {
                     Text(
                         text = group.name,
@@ -138,7 +181,7 @@ internal fun NodesPage() {
                         fontWeight = FontWeight.Medium,
                     )
                     Spacer(Modifier.height(8.dp))
-                    group.members.forEach { node ->
+                    displayMembers.forEach { node ->
                         NodeRow(
                             name = node,
                             selected = node == group.now,
