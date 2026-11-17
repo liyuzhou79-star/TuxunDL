@@ -21,6 +21,12 @@ data class Subscription(
     val name: String,
     val url: String,
     val updatedAt: Long = 0,
+    /** Traffic used so far (upload + download), from the provider. */
+    val trafficUsed: Long = 0,
+    /** Total traffic quota; 0 when the provider does not report one. */
+    val trafficTotal: Long = 0,
+    /** Plan expiry as epoch seconds; 0 when not reported. */
+    val expireAt: Long = 0,
 )
 
 /**
@@ -90,9 +96,44 @@ object SubscriptionStore {
                 check(body.contains("proxies:")) { "返回的内容不像订阅配置" }
 
                 profileFile(sub).writeText(body)
-                sub.copy(updatedAt = System.currentTimeMillis())
+                val userInfo = response.headers()
+                    .firstValue("subscription-userinfo")
+                    .map { parseUserInfo(it) }
+                    .orElse(null)
+                if (userInfo != null) {
+                    sub.copy(
+                        updatedAt = System.currentTimeMillis(),
+                        trafficUsed = userInfo.first,
+                        trafficTotal = userInfo.second,
+                        expireAt = userInfo.third,
+                    )
+                } else {
+                    // No usage header this time: keep what we already
+                    // knew instead of wiping the traffic info.
+                    sub.copy(updatedAt = System.currentTimeMillis())
+                }
             }
         }
+
+    /**
+     * Parse a `subscription-userinfo` response header
+     * (`upload=..; download=..; total=..; expire=..`, expire in epoch
+     * seconds) into used bytes, total bytes and expiry. Returns null
+     * when the header carries no usable total.
+     */
+    private fun parseUserInfo(header: String): Triple<Long, Long, Long>? {
+        val fields = header.split(';').mapNotNull { part ->
+            val kv = part.split('=', limit = 2)
+            if (kv.size == 2) {
+                kv[0].trim() to kv[1].trim().toLongOrNull()
+            } else {
+                null
+            }
+        }.toMap()
+        val total = fields["total"] ?: return null
+        val used = (fields["upload"] ?: 0L) + (fields["download"] ?: 0L)
+        return Triple(used, total, fields["expire"] ?: 0L)
+    }
 
     /** Make a fetched subscription the one the home page connects with. */
     fun activate(sub: Subscription) {

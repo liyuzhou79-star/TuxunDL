@@ -37,6 +37,13 @@ import java.util.Locale
 private val PanelDark = Color(0xFF1E1E2A)
 private val TextDim = Color(0xFF9A9AB0)
 
+private fun fmtBytes(bytes: Long): String = when {
+    bytes < 1024 -> "$bytes B"
+    bytes < 1024 * 1024 -> "%.1f KB".format(bytes / 1024.0)
+    bytes < 1024 * 1024 * 1024 -> "%.1f MB".format(bytes / 1024.0 / 1024.0)
+    else -> "%.2f GB".format(bytes / 1024.0 / 1024.0 / 1024.0)
+}
+
 /**
  * The subscriptions page: add a subscription by URL, fetch its config,
  * and choose which one the home page connects with. Mirrors the
@@ -213,6 +220,27 @@ private fun SubscriptionCard(
                 color = TextDim,
                 fontSize = 13.sp,
             )
+
+            if (sub.trafficTotal > 0) {
+                Spacer(Modifier.height(2.dp))
+
+                Text(
+                    text = buildString {
+                        append("已用 ${fmtBytes(sub.trafficUsed)} / 共 ${fmtBytes(sub.trafficTotal)}")
+                        if (sub.expireAt > 0) {
+                            append(" · 到期 ")
+                            append(
+                                SimpleDateFormat(
+                                    "yyyy-MM-dd",
+                                    Locale.getDefault(),
+                                ).format(Date(sub.expireAt * 1000)),
+                            )
+                        }
+                    },
+                    color = TextDim,
+                    fontSize = 13.sp,
+                )
+            }
 
             Spacer(Modifier.height(8.dp))
 
