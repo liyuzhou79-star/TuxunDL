@@ -1040,6 +1040,28 @@ private fun SubscriptionCard(state: MainUiState) {
                     )
                 }
             }
+            // Usage reminder: only when the subscription has a total
+            // cap. 80%+: warn with remaining amount; 100%: used up.
+            // Display only — no notification, no subscription refresh.
+            // Shown alongside the expiry reminder above, not instead.
+            val usageRatio = used.toFloat() / state.subTotal.toFloat()
+            if (usageRatio >= 1f) {
+                Text(
+                    text = stringResource(R.string.subscription_usage_exhausted),
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.error,
+                )
+            } else if (usageRatio >= 0.8f) {
+                Text(
+                    text = stringResource(
+                        R.string.subscription_usage_warning,
+                        (usageRatio * 100).toInt(),
+                        (state.subTotal - used).toBytesString(),
+                    ),
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.tertiary,
+                )
+            }
             LinearProgressIndicator(
                 progress = (used.toFloat() / state.subTotal.toFloat()).coerceIn(0f, 1f),
                 modifier = Modifier.fillMaxWidth(),

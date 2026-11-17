@@ -42,12 +42,14 @@ import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import com.tuxundl.android.design.ProfilesDesign
-import com.tuxundl.android.design.util.elapsedIntervalString
 import com.tuxundl.android.design.util.toBytesString
 import com.tuxundl.android.design.util.toDateStr
 import com.tuxundl.android.design.util.toString as profileTypeString
 import com.tuxundl.android.service.model.Profile
 import com.tuxundl.android.design.R as DesignR
+import java.text.SimpleDateFormat
+import java.util.Date
+import java.util.Locale
 
 /**
  * State holder for the Compose profiles screen.
@@ -245,7 +247,14 @@ private fun ProfileCard(
                 }
                 Spacer(modifier = Modifier.height(4.dp))
                 Text(
-                    text = (now - profile.updatedAt).elapsedIntervalString(context),
+                    text = if (profile.updatedAt > 0L) {
+                        stringResource(
+                            DesignR.string.profile_last_updated,
+                            profile.updatedAt.toMonthDayTimeStr(),
+                        )
+                    } else {
+                        stringResource(DesignR.string.profile_never_updated)
+                    },
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
@@ -317,4 +326,10 @@ private fun MenuItem(
             Text(text = text, style = MaterialTheme.typography.bodyLarge)
         }
     }
+}
+
+/** Epoch millis to "MM-dd HH:mm" for the profile last-updated line. */
+private fun Long.toMonthDayTimeStr(): String {
+    val format = SimpleDateFormat("MM-dd HH:mm", Locale.getDefault())
+    return format.format(Date(this))
 }

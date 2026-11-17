@@ -40,6 +40,8 @@
     <string name="subscription_expires">到期 %1$s</string>
     <string name="subscription_expires_soon">訂閱將於 %1$d 天後到期</string>
     <string name="subscription_expired">訂閱已到期</string>
+    <string name="subscription_usage_warning">流量已用 %1$d%%，還剩 %2$s</string>
+    <string name="subscription_usage_exhausted">流量已用完</string>
     <string name="profile_details">設定檔詳情</string>
     <string name="move_up">上移</string>
     <string name="move_down">下移</string>
