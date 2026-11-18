@@ -117,6 +117,7 @@ subprojects {
                 isDefault = true
                 dimension = flavorDimensionList[0]
                 buildConfigField("boolean", "PREMIUM", "Boolean.parseBoolean(\"false\")")
+                buildConfigField("boolean", "IS_TV", "Boolean.parseBoolean(\"false\")")
 
                 resValue("string", "launch_name", "@string/launch_name_alpha")
                 resValue("string", "application_name", "@string/application_name_alpha")
@@ -126,9 +127,35 @@ subprojects {
 
                 dimension = flavorDimensionList[0]
                 buildConfigField("boolean", "PREMIUM", "Boolean.parseBoolean(\"false\")")
+                buildConfigField("boolean", "IS_TV", "Boolean.parseBoolean(\"false\")")
 
                 resValue("string", "launch_name", "@string/launch_name_meta")
                 resValue("string", "application_name", "@string/application_name_meta")
+            }
+
+            // TV edition (0.1.0 Beta): a separate applicationId so it
+            // coexists with the phone app on the same device, and its
+            // own version line (versionCode = major * 10000 + minor *
+            // 100 + patch), independent of the phone version formula
+            // in defaultConfig. IS_TV lets the UI switch off
+            // phone-only behaviour: the update check (its tags are
+            // the phone line's) and the album QR import (its ML Kit
+            // model needs Google Play services, which TVs lack). The
+            // Leanback launcher entry, the TV banner and the
+            // leanback/touchscreen uses-feature flags are already
+            // declared in the main manifest and inherited unchanged.
+            create("tv") {
+                dimension = flavorDimensionList[0]
+                applicationId = "com.tuxundl.android.tv"
+                versionName = "0.1.0"
+                versionCode = 100
+                buildConfigField("boolean", "PREMIUM", "Boolean.parseBoolean(\"false\")")
+                buildConfigField("boolean", "IS_TV", "Boolean.parseBoolean(\"true\")")
+
+                resValue("string", "launch_name", "@string/launch_name_meta")
+                resValue("string", "application_name", "@string/application_name_meta")
+                resValue("string", "release_name", "v0.1.0-beta")
+                resValue("integer", "release_code", "100")
             }
         }
 
@@ -137,6 +164,9 @@ subprojects {
                 java.srcDirs("src/foss/java")
             }
             getByName("alpha") {
+                java.srcDirs("src/foss/java")
+            }
+            getByName("tv") {
                 java.srcDirs("src/foss/java")
             }
         }
