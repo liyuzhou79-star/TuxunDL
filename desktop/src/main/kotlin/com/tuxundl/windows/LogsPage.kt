@@ -46,6 +46,9 @@ internal fun LogsPage() {
     var query by remember { mutableStateOf("") }
     var autoRefresh by remember { mutableStateOf(false) }
     var confirmClear by remember { mutableStateOf(false) }
+    var autoScroll by remember { mutableStateOf(true) }
+    var exportNote by remember { mutableStateOf<String?>(null) }
+    val scrollState = rememberScrollState()
 
     // While auto-refresh is on, re-read the current log every 2 seconds.
     LaunchedEffect(autoRefresh, source) {
@@ -67,6 +70,18 @@ internal fun LogsPage() {
         CoreBridge.workDir,
         if (source == "app") "app.log" else "core.log",
     )
+
+    // Keep the newest line in view: on open, on every refresh tick
+    // and whenever the shown text changes, jump to the bottom while
+    // the auto-scroll switch is on. The small delay lets the scroll
+    // state learn the new content height first.
+    LaunchedEffect(autoScroll, tick, source, query) {
+        if (autoScroll) {
+            delay(60)
+            scrollState.scrollTo(scrollState.maxValue)
+        }
+    }
+
     val text = remember(source, tick, query) {
         if (!file.exists()) {
             "暂无日志"
@@ -108,6 +123,21 @@ internal fun LogsPage() {
                     confirmClear = false
                 }
                 LogTab("自动刷新", autoRefresh) { autoRefresh = !autoRefresh }
+                LogTab("自动滚到底", autoScroll) { autoScroll = !autoScroll }
+                LogTab("导出", false) {
+                    val target = pickLogExportFile(source)
+                    if (target != null) {
+                        exportNote = runCatching {
+                            val content = if (file.exists()) {
+                                file.readText()
+                            } else {
+                                text
+                            }
+                            target.writeText(content)
+                            "已导出到 ${target.name}"
+                        }.getOrElse { "导出失败：${it.message}" }
+                    }
+                }
                 LogTab("刷新", false) { tick++ }
                 LogTab(if (confirmClear) "确认清空？" else "清空", confirmClear) {
                     if (confirmClear) {
@@ -131,6 +161,11 @@ internal fun LogsPage() {
             modifier = Modifier.fillMaxWidth(),
         )
 
+        if (exportNote != null) {
+            Spacer(Modifier.height(10.dp))
+            Text(text = exportNote!!, color = TextDim, fontSize = 13.sp)
+        }
+
         Spacer(Modifier.height(12.dp))
 
         Column(
@@ -138,7 +173,7 @@ internal fun LogsPage() {
                 .fillMaxSize()
                 .clip(RoundedCornerShape(12.dp))
                 .background(PanelDark)
-                .verticalScroll(rememberScrollState())
+                .verticalScroll(scrollState)
                 .padding(14.dp),
         ) {
             Text(
@@ -149,6 +184,23 @@ internal fun LogsPage() {
             )
         }
     }
+}
+
+/**
+ * The system save dialog for exporting a log (same AWT pattern as
+ * the backup picker in Backup.kt). Returns null when cancelled.
+ */
+private fun pickLogExportFile(source: String): File? {
+    val dialog = java.awt.FileDialog(
+        null as java.awt.Frame?,
+        "导出日志",
+        java.awt.FileDialog.SAVE,
+    )
+    dialog.file = if (source == "app") "tuxundl-app.log" else "tuxundl-core.log"
+    dialog.isVisible = true
+    val dir = dialog.directory ?: return null
+    val name = dialog.file ?: return null
+    return File(dir, name)
 }
 
 @Composable
