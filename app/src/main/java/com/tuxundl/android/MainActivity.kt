@@ -410,7 +410,7 @@ class MainActivity : BaseActivity<MainDesign>() {
             val current = packageManager
                 .getPackageInfo(packageName, 0).versionName ?: return@launch
 
-            val result = UpdateChecker.check(current)
+            val result = UpdateChecker.check(this@MainActivity, current)
 
             if (result is UpdateCheckResult.UpdateAvailable) {
                 val info = result.info

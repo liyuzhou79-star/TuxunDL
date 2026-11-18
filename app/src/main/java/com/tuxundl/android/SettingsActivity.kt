@@ -78,7 +78,7 @@ class SettingsActivity : BaseActivity<SettingsDesign>() {
             val current = packageManager
                 .getPackageInfo(packageName, 0).versionName ?: ""
 
-            val result = UpdateChecker.check(current)
+            val result = UpdateChecker.check(this@SettingsActivity, current)
 
             uiState.checkingUpdate = false
 

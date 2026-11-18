@@ -295,7 +295,7 @@ fun SettingsScreen(
                                     screenContext.packageName, 0,
                                 ).versionName ?: ""
                             }.getOrDefault("")
-                            val result = UpdateChecker.check(current)
+                            val result = UpdateChecker.check(screenContext, current)
                             state.checkingWindows = false
                             val windows = when (result) {
                                 is UpdateCheckResult.UpdateAvailable ->

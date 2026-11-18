@@ -1,5 +1,6 @@
 package com.tuxundl.android.util
 
+import android.content.Context
 import android.os.Build
 import com.tuxundl.android.common.util.packageName
 import kotlinx.coroutines.Dispatchers
@@ -103,12 +104,37 @@ sealed interface UpdateCheckResult {
  * newest Windows release, and the result carries it along so the
  * settings page can mention that a Windows edition exists and is on
  * the same release page. It never affects the Android verdict.
+ *
+ * Rate-limit relief (1.3.0): the unauthenticated api.github.com quota
+ * (60 requests/hour per IP) is easily exhausted behind shared carrier
+ * NAT addresses, which used to make checks fail outright. Two defences
+ * now: the list request is conditional — the last ETag and response
+ * body are cached in SharedPreferences and a 304 answer (which does
+ * not consume quota) replays the cached body — and when a check still
+ * ends in [UpdateFailure.RateLimited], the github.com Atom feed of
+ * the same releases is tried as a fallback: it is served outside the
+ * API quota and carries each release's tag and date, so the verdict
+ * and the Windows hint still work (only the direct APK link is
+ * missing; callers fall back to the release page).
  */
 object UpdateChecker {
     private const val RELEASES_URL =
         "https://api.github.com/repos/liyuzhou79-star/TuxunDL/releases?per_page=10"
     private const val LATEST_URL =
         "https://api.github.com/repos/liyuzhou79-star/TuxunDL/releases/latest"
+
+    /** Web (non-API) Atom feed of the same releases; no API quota applies. */
+    private const val ATOM_URL =
+        "https://github.com/liyuzhou79-star/TuxunDL/releases.atom"
+
+    /** SharedPreferences file holding the list ETag + last good body. */
+    private const val CACHE_PREFS = "update_check"
+    private const val KEY_ETAG = "releases_etag"
+    private const val KEY_BODY = "releases_body"
+
+    /** Tag link inside one Atom entry: …/releases/tag/<tag>. */
+    private val ATOM_TAG = Regex("""href="https://github\.com/liyuzhou79-star/TuxunDL/releases/tag/([^"]+)"""")
+    private val ATOM_UPDATED = Regex("""<updated>([^<]+)</updated>""")
 
     /** Android release tags look like `v1.2.2`; Windows uses `win-v…`. */
     private val ANDROID_TAG = Regex("""^v\d+\.\d+\.\d+$""")
@@ -126,19 +152,30 @@ object UpdateChecker {
     }
 
     /** Check [currentVersion] against the newest GitHub release. */
-    suspend fun check(currentVersion: String): UpdateCheckResult {
-        var outcome = fetchList()
+    suspend fun check(context: Context, currentVersion: String): UpdateCheckResult {
+        var outcome = fetchList(context)
 
         if (outcome is FetchOutcome.Error) {
             // One retry after a short pause covers transient failures.
             delay(2000)
-            outcome = fetchList()
+            outcome = fetchList(context)
         }
 
         if (outcome is FetchOutcome.Error) {
             // Fallback endpoint: a different code path on GitHub's side,
             // worth one try before reporting the failure.
             outcome = fetchLatest()
+        }
+
+        if (outcome is FetchOutcome.Error &&
+            outcome.failure == UpdateFailure.RateLimited
+        ) {
+            // The API quota for this IP is gone; the Atom feed lives
+            // outside that quota and still names the newest releases.
+            val atom = fetchAtom()
+            if (atom is FetchOutcome.Ok) {
+                outcome = atom
+            }
         }
 
         return when (outcome) {
@@ -159,11 +196,125 @@ object UpdateChecker {
         }
     }
 
-    private suspend fun fetchList(): FetchOutcome =
-        fetch(RELEASES_URL) { body -> parseListBody(body) }
+    /**
+     * The release list, with ETag revalidation: a cached ETag goes out
+     * as If-None-Match, and a 304 answer (free of API quota) replays
+     * the cached body. A 200 answer refreshes the cache — but only
+     * when it parses, so a corrupt entry can never wedge every later
+     * check onto the 304 path. Errors classify exactly like [fetch].
+     */
+    private suspend fun fetchList(context: Context): FetchOutcome =
+        withContext(Dispatchers.IO) {
+            val prefs = context.getSharedPreferences(CACHE_PREFS, Context.MODE_PRIVATE)
+            val etag = prefs.getString(KEY_ETAG, null)
+            val cachedBody = prefs.getString(KEY_BODY, null)
+
+            val connection = try {
+                URL(RELEASES_URL).openConnection() as HttpURLConnection
+            } catch (e: Exception) {
+                return@withContext FetchOutcome.Error(UpdateFailure.Network)
+            }
+
+            try {
+                connection.connectTimeout = 12000
+                connection.readTimeout = 12000
+                connection.setRequestProperty("User-Agent", "TuxunDL-Android")
+                connection.setRequestProperty("Accept", "application/vnd.github+json")
+                if (etag != null) {
+                    connection.setRequestProperty("If-None-Match", etag)
+                }
+
+                val responseCode = try {
+                    connection.responseCode
+                } catch (e: Exception) {
+                    return@withContext FetchOutcome.Error(UpdateFailure.Network)
+                }
+
+                if (responseCode == HttpURLConnection.HTTP_NOT_MODIFIED &&
+                    cachedBody != null
+                ) {
+                    return@withContext parseListBody(cachedBody)
+                }
+
+                if (responseCode != HttpURLConnection.HTTP_OK) {
+                    return@withContext FetchOutcome.Error(
+                        classifyHttpError(connection, responseCode),
+                    )
+                }
+
+                val body = try {
+                    connection.inputStream.bufferedReader().readText()
+                } catch (e: Exception) {
+                    return@withContext FetchOutcome.Error(UpdateFailure.Network)
+                }
+
+                val parsed = parseListBody(body)
+
+                if (parsed is FetchOutcome.Ok) {
+                    prefs.edit()
+                        .putString(KEY_ETAG, connection.getHeaderField("ETag"))
+                        .putString(KEY_BODY, body)
+                        .apply()
+                }
+
+                parsed
+            } finally {
+                connection.disconnect()
+            }
+        }
 
     private suspend fun fetchLatest(): FetchOutcome =
         fetch(LATEST_URL) { body -> parseLatestBody(body) }
+
+    private suspend fun fetchAtom(): FetchOutcome =
+        fetch(ATOM_URL) { body -> parseAtomBody(body) }
+
+    /**
+     * The Atom feed lists releases newest first; each entry links to
+     * its tag page and carries an <updated> timestamp. Same platform
+     * filter as the API list. The feed has no asset links, so the
+     * download URL stays null and callers use the release page.
+     */
+    private fun parseAtomBody(body: String): FetchOutcome {
+        var android: UpdateInfo? = null
+        var windows: WindowsInfo? = null
+
+        // Chunk 0 is the feed header (no tag link); entries follow.
+        for (entry in body.split("<entry>")) {
+            val tag = ATOM_TAG.find(entry)?.groupValues?.get(1) ?: continue
+            val updated = ATOM_UPDATED.find(entry)?.groupValues?.get(1) ?: ""
+
+            if (android == null && ANDROID_TAG.matches(tag)) {
+                android = UpdateInfo(
+                    version = tag.removePrefix("v"),
+                    downloadUrl = null,
+                    pageUrl = "https://github.com/liyuzhou79-star/TuxunDL" +
+                        "/releases/tag/$tag",
+                    notes = "",
+                    publishedAt = updated,
+                )
+            }
+
+            if (windows == null) {
+                WINDOWS_TAG.matchEntire(tag)?.let { match ->
+                    windows = WindowsInfo(
+                        version = match.groupValues[1],
+                        pageUrl = "https://github.com/liyuzhou79-star/TuxunDL" +
+                            "/releases/tag/$tag",
+                        publishedAt = updated,
+                    )
+                }
+            }
+
+            if (android != null && windows != null) break
+        }
+
+        return if (android != null) {
+            FetchOutcome.Ok(android, windows)
+        } else {
+            FetchOutcome.Error(UpdateFailure.Parse)
+        }
+    }
 
     private fun parseListBody(body: String): FetchOutcome {
         val releases = try {
