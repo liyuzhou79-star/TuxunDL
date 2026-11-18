@@ -20,7 +20,7 @@
 ## 保持不变的说明
 
 - 系统代理自动切换仍只支持 GNOME 桌面（gsettings）；非 GNOME 桌面请按设置页说明手动填 127.0.0.1 与混合端口。
-- TUN 仍经 pkexec 只把核心以 root 启��；开机自启仍走 XDG autostart；数据目录仍是 ~/.local/share/tuxundl。
+- TUN 仍经 pkexec 只把核心以 root 启动；开机自启仍走 XDG autostart；数据目录仍是 ~/.local/share/tuxundl。
 - 吉祥物仍沿用占位图标。
 
 ## 诚实边界
