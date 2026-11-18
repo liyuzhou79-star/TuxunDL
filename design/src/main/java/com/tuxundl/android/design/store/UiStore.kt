@@ -315,6 +315,42 @@ class UiStore(context: Context) {
         defaultValue = 0L
     )
 
+    /** Whether the app lock is armed (1.5.0, privacy section). */
+    var appLockEnabled: Boolean by store.boolean(
+        key = "app_lock_enabled",
+        defaultValue = false
+    )
+
+    /** App-lock kind: 0 = pattern, 1 = numeric PIN, 2 = password (1.5.0). */
+    var appLockType: Int by store.int(
+        key = "app_lock_type",
+        defaultValue = 1
+    )
+
+    /**
+     * Random salt (hex) for the app-lock secret hash (1.5.0). Only
+     * the salt and the hash are ever stored — never the secret.
+     */
+    var appLockSalt: String by store.string(
+        key = "app_lock_salt",
+        defaultValue = ""
+    )
+
+    /** Salted SHA-256 (hex) of the app-lock secret (1.5.0). */
+    var appLockHash: String by store.string(
+        key = "app_lock_hash",
+        defaultValue = ""
+    )
+
+    /**
+     * Minutes the app may stay in the background before the lock
+     * engages again; 0 = lock immediately (1.5.0).
+     */
+    var appLockRelockMinutes: Int by store.int(
+        key = "app_lock_relock_minutes",
+        defaultValue = 1
+    )
+
     companion object {
         private const val PREFERENCE_NAME = "ui"
 
