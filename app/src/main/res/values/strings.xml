@@ -137,6 +137,9 @@
     <string name="proxy_not_tested">Not tested</string>
     <string name="proxy_search_no_result">No matching nodes</string>
     <string name="proxy_last_test">Last tested %1$s</string>
+    <string name="proxy_pick_fastest">Fastest</string>
+    <string name="proxy_fastest_picked">Fastest selected: %1$s (%2$d ms)</string>
+    <string name="proxy_fastest_none">No usable node in this group (all timed out)</string>
     <string name="log_search_no_result">No matching log entries</string>
     <string name="log_level_all">All</string>
     <string name="log_level_error">Error</string>

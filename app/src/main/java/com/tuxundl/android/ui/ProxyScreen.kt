@@ -43,6 +43,7 @@ import androidx.compose.material3.Scaffold
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
@@ -134,6 +135,7 @@ fun ProxyScreen(
     onExpandedGroupChange: (String) -> Unit,
     onToggleFavorite: (group: String, node: String) -> Unit,
     onTestNode: (group: String, node: String) -> Unit,
+    onPickFastest: (group: String) -> Unit,
     onOpenRules: () -> Unit,
     onBack: () -> Unit,
 ) {
@@ -301,6 +303,7 @@ fun ProxyScreen(
                             onTestNode = { node ->
                                 onTestNode(group.name, node)
                             },
+                            onPickFastest = { onPickFastest(group.name) },
                             modifier = Modifier.animateItem(
                                 fadeInSpec = tuxunFadeSpec(itemStyle, entering = true),
                                 placementSpec = tuxunPlacementSpec(itemStyle),
@@ -490,6 +493,7 @@ private fun GroupCard(
     onSelect: (String) -> Unit,
     onToggleFavorite: (String) -> Unit,
     onTestNode: (String) -> Unit,
+    onPickFastest: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
     // Search filter first, then — for delay sort only — untested and
@@ -615,6 +619,19 @@ private fun GroupCard(
                                 tint = MaterialTheme.colorScheme.primary,
                             )
                         }
+                    }
+                }
+
+                // "Pick fastest" (1.4.1): test the whole group, then
+                // auto-select its lowest-delay node. Only Selector
+                // groups can be switched, and the button steps aside
+                // while a group test is already running.
+                if (group.selectable && !group.urlTesting) {
+                    TextButton(onClick = onPickFastest) {
+                        Text(
+                            text = stringResource(R.string.proxy_pick_fastest),
+                            style = MaterialTheme.typography.labelLarge,
+                        )
                     }
                 }
 

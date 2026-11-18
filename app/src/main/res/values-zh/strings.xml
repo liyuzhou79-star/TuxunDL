@@ -137,6 +137,9 @@
     <string name="proxy_not_tested">未测试</string>
     <string name="proxy_search_no_result">没有符合的节点</string>
     <string name="proxy_last_test">上次测速 %1$s</string>
+    <string name="proxy_pick_fastest">选最快</string>
+    <string name="proxy_fastest_picked">已选最快：%1$s（%2$d ms）</string>
+    <string name="proxy_fastest_none">该组节点全部超时，没有可用节点</string>
     <string name="log_search_no_result">没有符合的日志</string>
     <string name="log_level_all">全部</string>
     <string name="log_level_error">错误</string>

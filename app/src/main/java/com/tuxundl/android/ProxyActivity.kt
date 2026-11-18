@@ -37,6 +37,9 @@ class ProxyActivity : BaseActivity<ProxyDesign>() {
 
         /** Single-node delay test (probes only that node; see ProxyScreen). */
         data class TestNode(val group: String, val node: String) : Action
+
+        /** Test a whole group, then auto-select its fastest node (1.4.1). */
+        data class PickFastest(val group: String) : Action
     }
 
     override suspend fun main() {
@@ -47,6 +50,11 @@ class ProxyActivity : BaseActivity<ProxyDesign>() {
         // group's reload lands, all its testing nodes settle into
         // testedNodes (see the Reload handler).
         val pendingTestGroups = mutableSetOf<String>()
+
+        // Groups whose in-flight test was fired by "pick fastest":
+        // when their reload lands, the lowest-delay node is selected
+        // automatically (see the Reload handler).
+        val pendingPickFastest = mutableSetOf<String>()
 
         // Single-node tests that already finished and are waiting for
         // their group's reload to settle just that node ("group|node"
@@ -159,6 +167,39 @@ class ProxyActivity : BaseActivity<ProxyDesign>() {
                                 }
                             }
                         }
+                        is Action.PickFastest -> {
+                            val index = names.indexOf(it.group)
+                            val groupState = uiState.groups.getOrNull(index)
+
+                            // Only Selector groups can be switched,
+                            // and a group test already in flight is
+                            // never doubled. The reload that follows
+                            // the health check settles the pick (see
+                            // the Reload handler).
+                            if (groupState != null && groupState.selectable &&
+                                !groupState.urlTesting
+                            ) {
+                                groupState.urlTesting = true
+                                pendingTestGroups += groupState.name
+                                pendingPickFastest += groupState.name
+                                uiState.testingNodes = uiState.testingNodes +
+                                    groupState.proxies.map { p ->
+                                        "${groupState.name}|${p.name}"
+                                    }
+
+                                launch {
+                                    withClash {
+                                        healthCheck(groupState.name)
+                                    }
+
+                                    markTestFinished()
+
+                                    uiRequests.send(
+                                        ProxyDesign.Request.Reload(index),
+                                    )
+                                }
+                            }
+                        }
                     }
                 }
                 uiRequests.onReceive {
@@ -218,6 +259,69 @@ class ProxyActivity : BaseActivity<ProxyDesign>() {
                                                 uiState.testedNodes + finished
                                             completedTestNodes
                                                 .removeAll(finished.toSet())
+                                        }
+                                    }
+
+                                    // "Pick fastest" settle (1.4.1):
+                                    // the group's fresh delays just
+                                    // landed — select the lowest one.
+                                    // Timed-out nodes (delay sentinel)
+                                    // never count; plain nodes win
+                                    // over subgroups, which are only
+                                    // picked when a group holds
+                                    // nothing else.
+                                    if (names[index] in pendingPickFastest) {
+                                        pendingPickFastest.remove(names[index])
+
+                                        val loaded =
+                                            uiState.groups.getOrNull(index)
+                                        val tested = loaded?.proxies.orEmpty()
+                                            .filter { it.delay in 1..65534 }
+                                        val best = tested
+                                            .filter { !it.isGroup }
+                                            .ifEmpty { tested }
+                                            .minByOrNull { it.delay }
+
+                                        if (loaded != null) {
+                                            if (best != null) {
+                                                withClash {
+                                                    patchSelector(
+                                                        loaded.name,
+                                                        best.name,
+                                                    )
+                                                }
+                                                loaded.now = best.name
+
+                                                com.tuxundl.android.util.Haptics
+                                                    .buzz(
+                                                        this@ProxyActivity,
+                                                        uiStore,
+                                                        com.tuxundl.android.util
+                                                            .Haptics.Kind.Tap,
+                                                    )
+
+                                                uiState.snackbarHostState
+                                                    .showSnackbar(
+                                                        message = getString(
+                                                            R.string
+                                                                .proxy_fastest_picked,
+                                                            best.name,
+                                                            best.delay,
+                                                        ),
+                                                        duration =
+                                                            SnackbarDuration.Short,
+                                                    )
+                                            } else {
+                                                uiState.snackbarHostState
+                                                    .showSnackbar(
+                                                        message = getString(
+                                                            R.string
+                                                                .proxy_fastest_none,
+                                                        ),
+                                                        duration =
+                                                            SnackbarDuration.Short,
+                                                    )
+                                            }
                                         }
                                     }
                                 }
@@ -327,6 +431,9 @@ class ProxyActivity : BaseActivity<ProxyDesign>() {
                         },
                         onTestNode = { group, node ->
                             uiActions.trySend(Action.TestNode(group, node))
+                        },
+                        onPickFastest = { group ->
+                            uiActions.trySend(Action.PickFastest(group))
                         },
                         onOpenRules = { startActivity(RulesActivity::class.intent) },
                         onBack = { finish() },
