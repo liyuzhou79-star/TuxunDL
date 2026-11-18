@@ -68,12 +68,18 @@ class SettingsActivity : BaseActivity<SettingsDesign>() {
         val currentVersion = packageManager
             .getPackageInfo(packageName, 0).versionName ?: ""
 
-        UpdateCheckCenter.peek(this, currentVersion)
+        // TV Beta: the update entries are hidden in SettingsScreen
+        // and the checker never runs — its tags are the phone
+        // line's, so any verdict would be a misreport. TV updates
+        // are sideloaded installs of newer Beta APKs.
+        if (!BuildConfig.IS_TV) {
+            UpdateCheckCenter.peek(this, currentVersion)
 
-        launch {
-            UpdateCheckCenter.state.collect { snapshot ->
-                uiState.checkingUpdate = snapshot.checking
-                uiState.updateCheckSummary = updateSummaryFor(snapshot)
+            launch {
+                UpdateCheckCenter.state.collect { snapshot ->
+                    uiState.checkingUpdate = snapshot.checking
+                    uiState.updateCheckSummary = updateSummaryFor(snapshot)
+                }
             }
         }
 
@@ -120,6 +126,9 @@ class SettingsActivity : BaseActivity<SettingsDesign>() {
     }
 
     private fun checkUpdate() {
+        // TV Beta: unreachable (the entry is hidden), but never run
+        // the phone line's checker from the TV build.
+        if (BuildConfig.IS_TV) return
         if (manualCheckRunning) return
 
         manualCheckRunning = true

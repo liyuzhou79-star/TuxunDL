@@ -40,6 +40,7 @@ import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.unit.dp
+import com.tuxundl.android.BuildConfig
 import com.tuxundl.android.R
 import com.tuxundl.android.design.SettingsDesign
 import com.tuxundl.android.util.UpdateCheckCenter
@@ -371,6 +372,11 @@ fun SettingsScreen(
                 title = stringResource(DesignR.string.meta_features),
                 onClick = { onRequest(SettingsDesign.Request.StartMetaFeature) },
             )
+            // TV Beta: no update entries at all — the checker only
+            // knows the phone line's tags, and the Windows-edition
+            // lookup rides on the same shared state. TV updates are
+            // sideloaded installs of newer Beta APKs.
+            if (!BuildConfig.IS_TV) {
             SettingsEntryCard(
                 icon = DesignR.drawable.ic_baseline_update,
                 title = stringResource(R.string.check_update),
@@ -433,6 +439,7 @@ fun SettingsScreen(
                     }
                 },
             )
+            }
         }
     }
 

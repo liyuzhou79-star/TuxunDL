@@ -540,6 +540,11 @@ class MainActivity : BaseActivity<MainDesign>() {
      * Settings) for the rest of this activity's life.
      */
     private fun checkUpdateOnStartup() {
+        // TV Beta: no update checks. The checker only knows the
+        // phone line's tags, so it could only ever misreport here;
+        // TV updates are sideloaded installs of newer Beta APKs.
+        if (BuildConfig.IS_TV) return
+
         launch {
             val current = packageManager
                 .getPackageInfo(packageName, 0).versionName ?: return@launch
