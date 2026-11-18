@@ -24,8 +24,11 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.text.SpanStyle
+import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import java.io.File
@@ -34,10 +37,16 @@ import kotlinx.coroutines.delay
 private val Indigo get() = ThemeState.accent
 private val PanelDark = Color(0xFF1E1E2A)
 private val TextDim = Color(0xFF9A9AB0)
+private val LogText = Color(0xFFC9C9D6)
+private val LogWarn = Color(0xFFFFB84D)
+private val LogError = Color(0xFFFF6B6B)
 
 /**
  * Logs page: tails of the app log (bridge decisions, errors) and the
  * core log (mihomo's own output), both kept in the app data folder.
+ * Lines are colored by level (errors red, warnings amber) and the
+ * search keyword is highlighted in place, so a failure stands out
+ * instead of hiding in a wall of grey text.
  */
 @Composable
 internal fun LogsPage() {
@@ -82,25 +91,32 @@ internal fun LogsPage() {
         }
     }
 
-    val text = remember(source, tick, query) {
+    // The newest 300 lines of the current source, before filtering.
+    // Null when the file is missing or cannot be read.
+    val rawLines = remember(source, tick) {
         if (!file.exists()) {
-            "暂无日志"
+            null
         } else {
-            runCatching {
-                val lines = file.readLines().takeLast(300)
-                val shown = if (query.isBlank()) {
-                    lines
-                } else {
-                    lines.filter { it.contains(query, ignoreCase = true) }
-                }
-                if (shown.isEmpty()) {
-                    "没有包含「$query」的日志行"
-                } else {
-                    shown.joinToString("\n")
-                }
-            }.getOrDefault("日志读取失败")
+            runCatching { file.readLines().takeLast(300) }.getOrNull()
         }
     }
+    val lines = remember(rawLines, query) {
+        val all = rawLines ?: return@remember emptyList()
+        if (query.isBlank()) {
+            all
+        } else {
+            all.filter { it.contains(query, ignoreCase = true) }
+        }
+    }
+    val placeholder = when {
+        rawLines == null && !file.exists() -> "暂无日志"
+        rawLines == null -> "日志读取失败"
+        lines.isEmpty() && query.isNotBlank() -> "没有包含「$query」的日志行"
+        lines.isEmpty() -> "暂无日志"
+        else -> null
+    }
+    // Plain-text view of what is on screen, for the export fallback.
+    val text = placeholder ?: lines.joinToString("\n")
 
     Column(modifier = Modifier.fillMaxSize().padding(24.dp)) {
         Row(
@@ -176,14 +192,76 @@ internal fun LogsPage() {
                 .verticalScroll(scrollState)
                 .padding(14.dp),
         ) {
-            Text(
-                text = text,
-                color = Color(0xFFC9C9D6),
-                fontSize = 12.sp,
-                fontFamily = FontFamily.Monospace,
-            )
+            if (placeholder != null) {
+                Text(
+                    text = placeholder,
+                    color = LogText,
+                    fontSize = 12.sp,
+                    fontFamily = FontFamily.Monospace,
+                )
+            } else {
+                lines.forEach { line ->
+                    LogLine(line = line, query = query)
+                }
+            }
         }
     }
+}
+
+/**
+ * Base color of one log line, by the level it carries: errors red,
+ * warnings amber, everything else the plain log grey. Both log
+ * sources are plain text, so the level is read from the line itself
+ * (the core writes level=error / level=warning; the app log uses
+ * words like 错误 / 失败）. A line with no level marker keeps the
+ * default color.
+ */
+private fun logLineColor(line: String): Color {
+    val lower = line.lowercase()
+    return when {
+        "error" in lower || "fatal" in lower || "panic" in lower ||
+            "错误" in line || "失败" in line -> LogError
+        "warn" in lower || "警告" in line -> LogWarn
+        else -> LogText
+    }
+}
+
+/**
+ * One log line: colored by level, with every occurrence of the
+ * search keyword highlighted (accent background, bold white text)
+ * so matches are visible while scrolling, not just filtered to.
+ */
+@Composable
+private fun LogLine(line: String, query: String) {
+    val annotated = remember(line, query) {
+        buildAnnotatedString {
+            withStyle(SpanStyle(color = logLineColor(line))) {
+                append(line.ifEmpty { " " })
+            }
+            if (query.isNotBlank()) {
+                var from = 0
+                while (true) {
+                    val start = line.indexOf(query, from, ignoreCase = true)
+                    if (start < 0) break
+                    addStyle(
+                        SpanStyle(
+                            background = Indigo.copy(alpha = 0.55f),
+                            color = Color.White,
+                            fontWeight = FontWeight.Bold,
+                        ),
+                        start,
+                        start + query.length,
+                    )
+                    from = start + query.length
+                }
+            }
+        }
+    }
+    Text(
+        text = annotated,
+        fontSize = 12.sp,
+        fontFamily = FontFamily.Monospace,
+    )
 }
 
 /**
