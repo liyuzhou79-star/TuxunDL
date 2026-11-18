@@ -22,6 +22,7 @@ import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
@@ -49,6 +50,15 @@ fun UpdateFullScreen(
 ) {
     val context = LocalContext.current
     val targetUrl = info.downloadUrl ?: info.pageUrl
+
+    // The installed version, so the page can show "current -> latest"
+    // instead of only naming the new one (1.6.0).
+    val currentVersion = remember {
+        runCatching {
+            context.packageManager
+                .getPackageInfo(context.packageName, 0).versionName
+        }.getOrNull() ?: ""
+    }
 
     Dialog(
         onDismissRequest = onClose,
@@ -97,6 +107,28 @@ fun UpdateFullScreen(
                     style = MaterialTheme.typography.displaySmall,
                     color = MaterialTheme.colorScheme.primary,
                 )
+                if (currentVersion.isNotBlank()) {
+                    Spacer(modifier = Modifier.height(6.dp))
+                    Text(
+                        text = stringResource(
+                            R.string.update_current_version,
+                            currentVersion,
+                        ),
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                }
+                if (info.publishedAt.isNotBlank()) {
+                    Spacer(modifier = Modifier.height(2.dp))
+                    Text(
+                        text = stringResource(
+                            R.string.update_published_date,
+                            info.publishedAt.take(10),
+                        ),
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                }
 
                 if (info.notes.isNotBlank()) {
                     Spacer(modifier = Modifier.height(24.dp))

@@ -321,6 +321,10 @@
     <string name="app_lock_current">Current: %1$s</string>
     <string name="update_check_failed_rate_limited">Update check failed: checked too often and GitHub is rate limiting. Try again in a while.</string>
     <string name="update_check_failed_server_code">Update check failed: the server returned an error (code %1$d). Please try again later.</string>
+    <string name="update_current_version">Current version: v%1$s</string>
+    <string name="update_published_date">Released on %1$s</string>
+    <string name="update_last_checked">Last checked: %1$s</string>
+    <string name="update_summary_failed">Last check failed — tap to retry</string>
     <string name="schedule_panel_title">Schedule &amp; night</string>
     <string name="schedule_summary_timer">Timer %1$s–%2$s</string>
     <string name="schedule_summary_night">Night %1$s–%2$s %3$s</string>

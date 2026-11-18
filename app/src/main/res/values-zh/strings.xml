@@ -321,6 +321,10 @@
     <string name="app_lock_current">当前方式：%1$s</string>
     <string name="update_check_failed_rate_limited">检查更新失败：查太频繁了，GitHub 暂时限流，过一会儿再试。</string>
     <string name="update_check_failed_server_code">检查更新失败：服务器回了错误（代码 %1$d），请稍后再试。</string>
+    <string name="update_current_version">当前版本：v%1$s</string>
+    <string name="update_published_date">发布于 %1$s</string>
+    <string name="update_last_checked">上次检查：%1$s</string>
+    <string name="update_summary_failed">上次检查失败，点按重试</string>
     <string name="schedule_panel_title">定时与夜间</string>
     <string name="schedule_summary_timer">定时 %1$s–%2$s</string>
     <string name="schedule_summary_night">夜间 %1$s–%2$s %3$s</string>

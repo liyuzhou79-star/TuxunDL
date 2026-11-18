@@ -307,6 +307,10 @@
     <string name="app_lock_current">目前方式：%1$s</string>
     <string name="update_check_failed_rate_limited">檢查更新失敗：查太頻繁了，GitHub 暫時限流，過一會兒再試。</string>
     <string name="update_check_failed_server_code">檢查更新失敗：伺服器回了錯誤（代碼 %1$d），請稍後再試。</string>
+    <string name="update_current_version">目前版本：v%1$s</string>
+    <string name="update_published_date">發布於 %1$s</string>
+    <string name="update_last_checked">上次檢查：%1$s</string>
+    <string name="update_summary_failed">上次檢查失敗，點按重試</string>
     <string name="schedule_panel_title">定時與夜間</string>
     <string name="schedule_summary_timer">定時 %1$s–%2$s</string>
     <string name="schedule_summary_night">夜間 %1$s–%2$s %3$s</string>
