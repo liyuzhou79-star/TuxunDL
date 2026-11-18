@@ -3,8 +3,17 @@ package com.tuxundl.android.util
 import android.content.Context
 import android.os.Build
 import com.tuxundl.android.common.util.packageName
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Deferred
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.async
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
 import org.json.JSONArray
 import org.json.JSONObject
@@ -116,10 +125,21 @@ sealed interface UpdateCheckResult {
  * API quota and carries each release's tag and date, so the verdict
  * and the Windows hint still work (only the direct APK link is
  * missing; callers fall back to the release page).
+ *
+ * One shared state (1.6.0): callers no longer invoke this object
+ * directly. [UpdateCheckCenter] owns the single check pipeline and
+ * the single result every surface reads — before, the home card
+ * latched whatever the startup check found while Settings ran its
+ * own fresh check (and the Windows entry a third one), so the three
+ * could and did disagree. The list window also widened from 10 to
+ * 30 entries: the list is created-at ordered across all four
+ * platforms' tags, and a desktop release burst could push every
+ * `win-v` tag (or, worse, the newest Android tag) out of a 10-entry
+ * window.
  */
 object UpdateChecker {
     private const val RELEASES_URL =
-        "https://api.github.com/repos/liyuzhou79-star/TuxunDL/releases?per_page=10"
+        "https://api.github.com/repos/liyuzhou79-star/TuxunDL/releases?per_page=30"
     private const val LATEST_URL =
         "https://api.github.com/repos/liyuzhou79-star/TuxunDL/releases/latest"
 
@@ -151,14 +171,26 @@ object UpdateChecker {
         data class Error(val failure: UpdateFailure) : FetchOutcome
     }
 
-    /** Check [currentVersion] against the newest GitHub release. */
-    suspend fun check(context: Context, currentVersion: String): UpdateCheckResult {
-        var outcome = fetchList(context)
+    /**
+     * Check [currentVersion] against the newest GitHub release.
+     *
+     * [forceFresh] skips the ETag revalidation so the list body is
+     * fetched in full; manual checks pass it so a user tapping
+     * "check update" always gets a verdict computed from a body the
+     * server sent just now, never a replay. A fresh 200 still
+     * refreshes the shared ETag/body cache for everyone else.
+     */
+    suspend fun check(
+        context: Context,
+        currentVersion: String,
+        forceFresh: Boolean = false,
+    ): UpdateCheckResult {
+        var outcome = fetchList(context, forceFresh)
 
         if (outcome is FetchOutcome.Error) {
             // One retry after a short pause covers transient failures.
             delay(2000)
-            outcome = fetchList(context)
+            outcome = fetchList(context, forceFresh)
         }
 
         if (outcome is FetchOutcome.Error) {
@@ -202,8 +234,13 @@ object UpdateChecker {
      * the cached body. A 200 answer refreshes the cache — but only
      * when it parses, so a corrupt entry can never wedge every later
      * check onto the 304 path. Errors classify exactly like [fetch].
+     * [forceFresh] skips the If-None-Match header (a 304 is then
+     * impossible), but a 200 still refreshes the cache as usual.
      */
-    private suspend fun fetchList(context: Context): FetchOutcome =
+    private suspend fun fetchList(
+        context: Context,
+        forceFresh: Boolean = false,
+    ): FetchOutcome =
         withContext(Dispatchers.IO) {
             val prefs = context.getSharedPreferences(CACHE_PREFS, Context.MODE_PRIVATE)
             val etag = prefs.getString(KEY_ETAG, null)
@@ -220,7 +257,7 @@ object UpdateChecker {
                 connection.readTimeout = 12000
                 connection.setRequestProperty("User-Agent", "TuxunDL-Android")
                 connection.setRequestProperty("Accept", "application/vnd.github+json")
-                if (etag != null) {
+                if (etag != null && !forceFresh) {
                     connection.setRequestProperty("If-None-Match", etag)
                 }
 
@@ -520,5 +557,286 @@ object UpdateChecker {
         }
 
         return false
+    }
+}
+
+/**
+ * The one shared update-check state every surface reads (1.6.0).
+ *
+ * Before 1.6.0 each surface ran its own check: the home card latched
+ * the startup check's verdict for the whole session, Settings ran a
+ * fresh check per tap, and the Windows-edition entry ran a third one
+ * just to extract the Windows hint. Three independent network checks
+ * at three moments can return three different answers — the home
+ * screen said "new version" while Settings, checking later against
+ * an exhausted API quota or a shifted release-list window, said
+ * otherwise. Now there is exactly one pipeline ([UpdateChecker],
+ * driven only from here) and exactly one result, held in [state]
+ * and persisted across process death.
+ */
+data class UpdateCheckSnapshot(
+    /** True while a check is running. */
+    val checking: Boolean = false,
+    /** The last completed check's outcome; null before the first one. */
+    val result: UpdateCheckResult? = null,
+    /** Wall-clock time the last check completed; 0 = never. */
+    val checkedAtMillis: Long = 0L,
+    /** Installed version [result] was computed for; "" = none. */
+    val forVersion: String = "",
+)
+
+object UpdateCheckCenter {
+    /**
+     * Automatic checks (app start) run at most once per this
+     * interval for a given installed version; inside the interval
+     * the persisted verdict is replayed with no network at all.
+     * Manual checks are never throttled.
+     */
+    private const val AUTO_INTERVAL_MS = 6L * 60 * 60 * 1000
+
+    /** Same prefs file [UpdateChecker] keeps its ETag/body cache in. */
+    private const val PREFS = "update_check"
+    private const val KEY_VERDICT = "state_verdict"
+    private const val KEY_FOR_VERSION = "state_for_version"
+    private const val KEY_CHECKED_AT = "state_checked_at"
+    private const val KEY_LATEST_VERSION = "state_latest_version"
+    private const val KEY_DOWNLOAD_URL = "state_download_url"
+    private const val KEY_PAGE_URL = "state_page_url"
+    private const val KEY_NOTES = "state_notes"
+    private const val KEY_PUBLISHED_AT = "state_published_at"
+    private const val KEY_WIN_VERSION = "state_win_version"
+    private const val KEY_WIN_PAGE_URL = "state_win_page_url"
+    private const val KEY_WIN_PUBLISHED_AT = "state_win_published_at"
+
+    private const val VERDICT_AVAILABLE = "available"
+    private const val VERDICT_UP_TO_DATE = "uptodate"
+
+    // Own scope, like TrafficSampler: a check started by one activity
+    // must be able to finish (and publish its result) even when that
+    // activity goes away mid-flight.
+    private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
+    private val mutex = Mutex()
+    private var inFlight: Deferred<UpdateCheckResult>? = null
+    private var inFlightManual = false
+    private var inFlightFor = ""
+
+    private val _state = MutableStateFlow(UpdateCheckSnapshot())
+
+    /** The shared state; surfaces collect this and render from it. */
+    val state: StateFlow<UpdateCheckSnapshot> = _state.asStateFlow()
+
+    /**
+     * The current snapshot, hydrating from the persisted verdict
+     * when this process has not checked yet. Returns an empty
+     * snapshot when nothing was ever stored for [currentVersion].
+     */
+    fun peek(context: Context, currentVersion: String): UpdateCheckSnapshot {
+        val current = _state.value
+
+        if (current.result != null && current.forVersion == currentVersion) {
+            return current
+        }
+
+        // A result computed for another installed version (the app
+        // was updated since) must never be presented as current.
+        if (current.forVersion.isNotEmpty() &&
+            current.forVersion != currentVersion
+        ) {
+            return UpdateCheckSnapshot()
+        }
+
+        val stored = readStored(context, currentVersion) ?: return current
+        _state.value = stored
+        return stored
+    }
+
+    /**
+     * Run a check through the single pipeline and publish the
+     * outcome to [state].
+     *
+     * Manual checks always hit the network and force a fresh list
+     * body (no ETag replay, no throttle). Automatic checks replay
+     * the persisted verdict when the last successful check for this
+     * installed version is younger than [AUTO_INTERVAL_MS]. A check
+     * already in flight for the same version is shared, never
+     * duplicated; a manual check never waits on an automatic one
+     * (it starts its own, forced-fresh run instead).
+     */
+    suspend fun check(
+        context: Context,
+        currentVersion: String,
+        manual: Boolean,
+    ): UpdateCheckResult {
+        if (!manual) {
+            val stored = readStored(context, currentVersion)
+
+            if (stored?.result != null &&
+                System.currentTimeMillis() - stored.checkedAtMillis <
+                AUTO_INTERVAL_MS
+            ) {
+                _state.value = stored
+                return stored.result
+            }
+        }
+
+        val appContext = context.applicationContext
+
+        val deferred = mutex.withLock {
+            val existing = inFlight
+
+            if (existing != null && existing.isActive &&
+                inFlightFor == currentVersion && (inFlightManual || !manual)
+            ) {
+                existing
+            } else {
+                val started = scope.async {
+                    runCheck(appContext, currentVersion, manual)
+                }
+                inFlight = started
+                inFlightManual = manual
+                inFlightFor = currentVersion
+                started
+            }
+        }
+
+        return deferred.await()
+    }
+
+    private suspend fun runCheck(
+        context: Context,
+        currentVersion: String,
+        manual: Boolean,
+    ): UpdateCheckResult {
+        _state.value = _state.value.copy(checking = true)
+
+        val result = UpdateChecker.check(
+            context,
+            currentVersion,
+            forceFresh = manual,
+        )
+        val now = System.currentTimeMillis()
+
+        // Only definitive verdicts are persisted; a failure is a
+        // momentary report, not a state worth resurrecting after
+        // the process restarts. The in-memory snapshot still
+        // carries it so every surface shows the same failure.
+        if (result !is UpdateCheckResult.Failed) {
+            writeStored(context, currentVersion, result, now)
+        }
+
+        val snapshot = UpdateCheckSnapshot(
+            checking = false,
+            result = result,
+            checkedAtMillis = now,
+            forVersion = currentVersion,
+        )
+        _state.value = snapshot
+        return result
+    }
+
+    private fun readStored(
+        context: Context,
+        currentVersion: String,
+    ): UpdateCheckSnapshot? {
+        val prefs = context.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
+
+        if (prefs.getString(KEY_FOR_VERSION, null) != currentVersion) {
+            return null
+        }
+
+        val checkedAt = prefs.getLong(KEY_CHECKED_AT, 0L)
+        if (checkedAt == 0L) return null
+
+        val latest = prefs.getString(KEY_LATEST_VERSION, null)
+            ?.takeIf { it.isNotEmpty() } ?: return null
+
+        val windows = prefs.getString(KEY_WIN_VERSION, null)
+            ?.takeIf { it.isNotEmpty() }
+            ?.let { version ->
+                WindowsInfo(
+                    version = version,
+                    pageUrl = prefs.getString(KEY_WIN_PAGE_URL, null),
+                    publishedAt = prefs.getString(
+                        KEY_WIN_PUBLISHED_AT, "",
+                    ) ?: "",
+                )
+            }
+
+        val publishedAt = prefs.getString(KEY_PUBLISHED_AT, "") ?: ""
+
+        val result = when (prefs.getString(KEY_VERDICT, null)) {
+            VERDICT_AVAILABLE -> UpdateCheckResult.UpdateAvailable(
+                info = UpdateInfo(
+                    version = latest,
+                    downloadUrl = prefs.getString(KEY_DOWNLOAD_URL, null),
+                    pageUrl = prefs.getString(KEY_PAGE_URL, null),
+                    notes = prefs.getString(KEY_NOTES, "") ?: "",
+                    publishedAt = publishedAt,
+                ),
+                windows = windows,
+            )
+
+            VERDICT_UP_TO_DATE -> UpdateCheckResult.UpToDate(
+                latestVersion = latest,
+                windows = windows,
+                publishedAt = publishedAt,
+            )
+
+            else -> return null
+        }
+
+        return UpdateCheckSnapshot(
+            checking = false,
+            result = result,
+            checkedAtMillis = checkedAt,
+            forVersion = currentVersion,
+        )
+    }
+
+    private fun writeStored(
+        context: Context,
+        currentVersion: String,
+        result: UpdateCheckResult,
+        checkedAt: Long,
+    ) {
+        val prefs = context.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
+        val editor = prefs.edit()
+            .putString(KEY_FOR_VERSION, currentVersion)
+            .putLong(KEY_CHECKED_AT, checkedAt)
+
+        when (result) {
+            is UpdateCheckResult.UpdateAvailable -> {
+                editor.putString(KEY_VERDICT, VERDICT_AVAILABLE)
+                    .putString(KEY_LATEST_VERSION, result.info.version)
+                    .putString(KEY_DOWNLOAD_URL, result.info.downloadUrl)
+                    .putString(KEY_PAGE_URL, result.info.pageUrl)
+                    .putString(KEY_NOTES, result.info.notes)
+                    .putString(KEY_PUBLISHED_AT, result.info.publishedAt)
+                writeWindows(editor, result.windows)
+            }
+
+            is UpdateCheckResult.UpToDate -> {
+                editor.putString(KEY_VERDICT, VERDICT_UP_TO_DATE)
+                    .putString(KEY_LATEST_VERSION, result.latestVersion)
+                    .putString(KEY_DOWNLOAD_URL, null)
+                    .putString(KEY_PAGE_URL, null)
+                    .putString(KEY_NOTES, null)
+                    .putString(KEY_PUBLISHED_AT, result.publishedAt)
+                writeWindows(editor, result.windows)
+            }
+
+            is UpdateCheckResult.Failed -> Unit
+        }
+
+        editor.apply()
+    }
+
+    private fun writeWindows(
+        editor: android.content.SharedPreferences.Editor,
+        windows: WindowsInfo?,
+    ) {
+        editor.putString(KEY_WIN_VERSION, windows?.version)
+            .putString(KEY_WIN_PAGE_URL, windows?.pageUrl)
+            .putString(KEY_WIN_PUBLISHED_AT, windows?.publishedAt)
     }
 }
