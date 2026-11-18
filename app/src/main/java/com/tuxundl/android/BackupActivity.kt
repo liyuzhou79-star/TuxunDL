@@ -162,6 +162,9 @@ class BackupActivity : BaseActivity<AppSettingsDesign>() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
 
+        uiState.autoBackupEnabled = uiStore.autoBackupEnabled
+        uiState.lastAutoBackupAt = uiStore.lastAutoBackupAt
+
         val darkTheme = when (uiStore.darkMode) {
             DarkMode.Auto -> resources.configuration.uiMode and
                 Configuration.UI_MODE_NIGHT_MASK == Configuration.UI_MODE_NIGHT_YES
@@ -176,6 +179,10 @@ class BackupActivity : BaseActivity<AppSettingsDesign>() {
                         state = uiState,
                         onExport = { onExport() },
                         onImport = { importLauncher.launch(arrayOf("application/json")) },
+                        onAutoBackupToggle = { enabled ->
+                            uiStore.autoBackupEnabled = enabled
+                            uiState.autoBackupEnabled = enabled
+                        },
                         onBack = { finish() },
                     )
                 }

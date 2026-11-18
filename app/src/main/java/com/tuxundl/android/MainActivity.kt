@@ -117,6 +117,7 @@ class MainActivity : BaseActivity<MainDesign>() {
 
         fetch()
         checkUpdateOnStartup()
+        maybeAutoBackup()
 
         val ticker = ticker(TimeUnit.SECONDS.toMillis(1))
 
@@ -428,6 +429,32 @@ class MainActivity : BaseActivity<MainDesign>() {
                         fullScreenUpdateShownFor = info.version
                         uiState.updatePageInfo = info
                     }
+                }
+            }
+        }
+    }
+
+    /**
+     * Weekly automatic backup (1.3.5): if the user enabled it on the
+     * backup screen and the last automatic backup is over 7 days old
+     * (or never ran), write one into filesDir/backups at startup.
+     * Best-effort — any failure is swallowed so startup never breaks,
+     * and the profile service is only touched when a backup is due.
+     */
+    private suspend fun maybeAutoBackup() {
+        runCatching {
+            if (com.tuxundl.android.util.isAutoBackupDue(uiStore)) {
+                val profiles = withProfile { queryAll() }
+                val versionName = packageManager
+                    .getPackageInfo(packageName, 0).versionName ?: ""
+
+                withContext(Dispatchers.IO) {
+                    com.tuxundl.android.util.runAutoBackupIfDue(
+                        this@MainActivity,
+                        uiStore,
+                        profiles,
+                        versionName,
+                    )
                 }
             }
         }

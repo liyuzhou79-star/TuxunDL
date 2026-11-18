@@ -32,10 +32,19 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import com.tuxundl.android.R
 import com.tuxundl.android.design.R as DesignR
+import java.text.SimpleDateFormat
+import java.util.Date
+import java.util.Locale
 
 /** State for the backup & restore screen. */
 class BackupUiState {
     var working by mutableStateOf(false)
+
+    /** Weekly automatic backup switch (mirrors UiStore). */
+    var autoBackupEnabled by mutableStateOf(false)
+
+    /** Epoch millis of the last automatic backup; 0 = never. */
+    var lastAutoBackupAt by mutableStateOf(0L)
 
     /** Lines shown in the result dialog after a restore (or export). */
     var resultLines by mutableStateOf<List<String>?>(null)
@@ -49,6 +58,7 @@ fun BackupScreen(
     state: BackupUiState,
     onExport: () -> Unit,
     onImport: () -> Unit,
+    onAutoBackupToggle: (Boolean) -> Unit,
     onBack: () -> Unit,
 ) {
     Scaffold(
@@ -128,6 +138,29 @@ fun BackupScreen(
                         Text(text = stringResource(R.string.backup_import))
                     }
                 }
+            }
+
+            SectionCard(title = stringResource(R.string.backup_auto_title)) {
+                Text(
+                    text = stringResource(R.string.backup_auto_summary),
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.padding(horizontal = 16.dp, vertical = 12.dp),
+                )
+                SwitchRow(
+                    title = stringResource(R.string.backup_auto_switch),
+                    summary = if (state.lastAutoBackupAt > 0L) {
+                        stringResource(
+                            R.string.backup_auto_last,
+                            SimpleDateFormat("yyyy-MM-dd HH:mm", Locale.getDefault())
+                                .format(Date(state.lastAutoBackupAt)),
+                        )
+                    } else {
+                        stringResource(R.string.backup_auto_never)
+                    },
+                    checked = state.autoBackupEnabled,
+                    onCheckedChange = onAutoBackupToggle,
+                )
             }
 
             if (state.working) {

@@ -98,6 +98,11 @@
     <string name="backup_result_dns_no">自訂 DNS：備份中沒有。</string>
     <string name="backup_result_prefs_yes">偏好設定：已還原。</string>
     <string name="backup_result_prefs_no">偏好設定：備份中沒有。</string>
+    <string name="backup_auto_title">自動備份</string>
+    <string name="backup_auto_summary">開啟後，每次啟動應用程式時，若距上次自動備份已超過 7 天，就自動把一份備份存到應用程式的私有目錄裡。檔案只留在這台裝置上；要帶走請用上面的手動匯出。</string>
+    <string name="backup_auto_switch">每週自動備份</string>
+    <string name="backup_auto_last">上次自動備份：%1$s</string>
+    <string name="backup_auto_never">尚未自動備份過</string>
     <string name="traffic_today">今日 ↑ %1$s ↓ %2$s</string>
     <string name="traffic_daily_note">僅統計 App 開啟期間的流量。</string>
     <string name="traffic_last_7_days">近 7 日</string>

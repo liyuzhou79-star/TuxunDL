@@ -13,6 +13,10 @@ import com.tuxundl.android.service.util.customRulesDir
 import com.tuxundl.android.service.util.sendProfileChanged
 import org.json.JSONArray
 import org.json.JSONObject
+import java.io.File
+import java.text.SimpleDateFormat
+import java.util.Date
+import java.util.Locale
 
 /**
  * Backup & restore for TuxunDL 1.0.0.
@@ -295,4 +299,47 @@ suspend fun restoreBackupJson(
 
 private inline fun <reified T : Enum<T>> enumValueOrNull(name: String): T? {
     return runCatching { enumValueOf<T>(name) }.getOrNull()
+}
+
+/** Minimum gap between two automatic backups: 7 days. */
+const val AUTO_BACKUP_INTERVAL_MS = 7L * 24L * 60L * 60L * 1000L
+
+/** App-private directory holding the automatic backups. */
+fun Context.autoBackupDir(): File = File(filesDir, "backups")
+
+/** True when the automatic backup is enabled and one is due. */
+fun isAutoBackupDue(
+    uiStore: UiStore,
+    now: Long = System.currentTimeMillis(),
+): Boolean {
+    if (!uiStore.autoBackupEnabled) return false
+
+    val last = uiStore.lastAutoBackupAt
+    return last == 0L || now - last >= AUTO_BACKUP_INTERVAL_MS
+}
+
+/**
+ * Weekly automatic backup (1.3.5): when [isAutoBackupDue], build the
+ * usual backup document and write it into the app-private backups/
+ * directory under a dated file name, then stamp
+ * [UiStore.lastAutoBackupAt]. Same format as a manual export; returns
+ * true when a file was written. Callers wrap this in runCatching — a
+ * failed backup must never break app startup.
+ */
+fun runAutoBackupIfDue(
+    context: Context,
+    uiStore: UiStore,
+    profiles: List<Profile>,
+    versionName: String,
+): Boolean {
+    if (!isAutoBackupDue(uiStore)) return false
+
+    val json = buildBackupJson(context, uiStore, profiles, versionName)
+    val stamp = SimpleDateFormat("yyyyMMdd", Locale.US).format(Date())
+    val dir = context.autoBackupDir().apply { mkdirs() }
+
+    dir.resolve("TuxunDL-autobackup-$stamp.json").writeText(json.toString(2))
+    uiStore.lastAutoBackupAt = System.currentTimeMillis()
+
+    return true
 }

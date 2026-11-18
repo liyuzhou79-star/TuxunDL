@@ -297,6 +297,18 @@ class UiStore(context: Context) {
         defaultValue = 0L
     )
 
+    /** Whether the weekly automatic backup is on (off by default, 1.3.5). */
+    var autoBackupEnabled: Boolean by store.boolean(
+        key = "auto_backup_enabled",
+        defaultValue = false
+    )
+
+    /** Epoch millis of the last completed automatic backup; 0 = never (1.3.5). */
+    var lastAutoBackupAt: Long by store.long(
+        key = "last_auto_backup_at",
+        defaultValue = 0L
+    )
+
     companion object {
         private const val PREFERENCE_NAME = "ui"
 
