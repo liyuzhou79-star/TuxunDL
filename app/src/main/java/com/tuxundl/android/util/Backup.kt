@@ -343,3 +343,33 @@ fun runAutoBackupIfDue(
 
     return true
 }
+
+/** One automatic backup file kept in the app-private backups/ directory. */
+data class AutoBackupFile(
+    val name: String,
+    val sizeBytes: Long,
+    val lastModified: Long,
+)
+
+/**
+ * Automatic backups on this device, newest first (1.5.1). Only the
+ * .json files the weekly auto-backup writes are listed.
+ */
+fun Context.listAutoBackups(): List<AutoBackupFile> {
+    val dir = autoBackupDir()
+    if (!dir.exists()) return emptyList()
+    return dir.listFiles().orEmpty()
+        .filter { it.isFile && it.name.endsWith(".json") }
+        .sortedByDescending { it.lastModified() }
+        .map { AutoBackupFile(it.name, it.length(), it.lastModified()) }
+}
+
+/**
+ * Delete one automatic backup (1.5.1). Only a plain file name inside
+ * backups/ is accepted, so a path can never escape the directory.
+ */
+fun Context.deleteAutoBackup(name: String): Boolean {
+    if (name.contains('/') || name.contains('\\') || !name.endsWith(".json")) return false
+    val file = File(autoBackupDir(), name)
+    return runCatching { file.delete() }.getOrDefault(false)
+}

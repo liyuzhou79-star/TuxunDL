@@ -106,6 +106,14 @@
     <string name="backup_auto_switch">每週自動備份</string>
     <string name="backup_auto_last">上次自動備份：%1$s</string>
     <string name="backup_auto_never">尚未自動備份過</string>
+    <string name="backup_auto_files_title">自動備份檔案</string>
+    <string name="backup_auto_files_summary">每週自動備份存在本機上的檔案，可以匯出帶走，也可以刪除。</string>
+    <string name="backup_auto_files_empty">尚無自動備份</string>
+    <string name="backup_auto_export">匯出</string>
+    <string name="backup_auto_delete">刪除</string>
+    <string name="backup_auto_delete_confirm">確認刪除？</string>
+    <string name="backup_auto_deleted">已刪除。</string>
+    <string name="backup_auto_delete_failed">刪除失敗，請再試一次。</string>
     <string name="traffic_today">今日 ↑ %1$s ↓ %2$s</string>
     <string name="traffic_daily_note">僅統計 App 開啟期間的流量。</string>
     <string name="traffic_last_7_days">近 7 日</string>
