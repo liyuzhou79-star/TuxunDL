@@ -35,6 +35,7 @@ import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import androidx.core.graphics.drawable.toBitmap
+import com.tuxundl.android.BuildConfig
 import com.tuxundl.android.R
 import com.tuxundl.android.design.NewProfileDesign
 import com.tuxundl.android.design.model.ProfileProvider
@@ -164,16 +165,30 @@ fun NewProfileScreen(
                                     )
                                 },
                             )
-                            ImportDivider()
+                            // Divider only when a row follows: on
+                            // TV the album row below is hidden, so
+                            // the file row is the next one (and it
+                            // brings no divider of its own there).
+                            if (!BuildConfig.IS_TV || fileProvider != null) {
+                                ImportDivider()
+                            }
                         }
-                        ImportEntryRow(
-                            iconRes = DesignR.drawable.ic_baseline_image,
-                            title = stringResource(R.string.import_from_album),
-                            summary = stringResource(R.string.import_from_album_summary),
-                            onClick = { onRequest(NewProfileDesign.Request.ScanFromAlbum) },
-                        )
+                        // TV Beta: album row hidden — its ML Kit
+                        // decoder needs Google Play services to
+                        // deliver the barcode model, which TVs do
+                        // not have. Same gate as ImportActionsRow.
+                        if (!BuildConfig.IS_TV) {
+                            ImportEntryRow(
+                                iconRes = DesignR.drawable.ic_baseline_image,
+                                title = stringResource(R.string.import_from_album),
+                                summary = stringResource(R.string.import_from_album_summary),
+                                onClick = { onRequest(NewProfileDesign.Request.ScanFromAlbum) },
+                            )
+                        }
                         if (fileProvider != null) {
-                            ImportDivider()
+                            if (!BuildConfig.IS_TV) {
+                                ImportDivider()
+                            }
                             ImportEntryRow(
                                 icon = fileProvider.icon,
                                 title = fileProvider.name,

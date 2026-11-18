@@ -19,6 +19,7 @@ import androidx.compose.ui.platform.LocalClipboardManager
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
+import com.tuxundl.android.BuildConfig
 import com.tuxundl.android.R
 import com.tuxundl.android.design.R as DesignR
 
@@ -83,13 +84,22 @@ fun ImportActionsRow(
             enabled = enabled,
             modifier = Modifier.weight(1f),
         )
-        ImportActionButton(
-            iconRes = DesignR.drawable.ic_baseline_image,
-            label = stringResource(R.string.import_action_album),
-            onClick = onAlbum,
-            enabled = enabled,
-            modifier = Modifier.weight(1f),
-        )
+        // TV Beta: the album entry is hidden. Its decoder
+        // (util/QrDecode.kt) uses the unbundled ML Kit barcode
+        // model, which is delivered by Google Play services —
+        // absent on TVs, where the decode could only fail. The
+        // camera entry stays: quickie bundles its model and needs
+        // no Google services (on a camera-less TV it just reports
+        // an error), and file import works everywhere.
+        if (!BuildConfig.IS_TV) {
+            ImportActionButton(
+                iconRes = DesignR.drawable.ic_baseline_image,
+                label = stringResource(R.string.import_action_album),
+                onClick = onAlbum,
+                enabled = enabled,
+                modifier = Modifier.weight(1f),
+            )
+        }
         ImportActionButton(
             iconRes = DesignR.drawable.ic_baseline_attach_file,
             label = stringResource(R.string.import_action_file),
