@@ -125,6 +125,13 @@ object Clash {
         }
     }
 
+    /** Delay test for a single proxy only (never its whole group). */
+    fun healthCheckProxy(name: String): CompletableDeferred<Unit> {
+        return CompletableDeferred<Unit>().apply {
+            Bridge.nativeHealthCheckProxy(this, name)
+        }
+    }
+
     fun healthCheckAll() {
         Bridge.nativeHealthCheckAll()
     }

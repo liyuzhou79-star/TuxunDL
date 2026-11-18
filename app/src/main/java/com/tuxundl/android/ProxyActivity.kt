@@ -35,7 +35,7 @@ class ProxyActivity : BaseActivity<ProxyDesign>() {
         data class SetExcludeNotSelectable(val exclude: Boolean) : Action
         data class ToggleFavorite(val group: String, val node: String) : Action
 
-        /** Single-node delay test (runs the group's health check; see ProxyScreen). */
+        /** Single-node delay test (probes only that node; see ProxyScreen). */
         data class TestNode(val group: String, val node: String) : Action
     }
 
@@ -43,10 +43,15 @@ class ProxyActivity : BaseActivity<ProxyDesign>() {
         var names = listOf<String>()
         val reloadLock = Semaphore(10)
 
-        // Groups with a delay test in flight (group test or single-node
-        // test). When such a group's reload lands, its testing nodes
-        // settle into testedNodes (see the Reload handler).
+        // Groups with a group-wide delay test in flight. When such a
+        // group's reload lands, all its testing nodes settle into
+        // testedNodes (see the Reload handler).
         val pendingTestGroups = mutableSetOf<String>()
+
+        // Single-node tests that already finished and are waiting for
+        // their group's reload to settle just that node ("group|node"
+        // keys). Group tests do not use this set.
+        val completedTestNodes = mutableSetOf<String>()
 
         suspend fun reloadNames() {
             names = withClash {
@@ -120,17 +125,21 @@ class ProxyActivity : BaseActivity<ProxyDesign>() {
 
                                 if (index >= 0) {
                                     uiState.testingNodes = uiState.testingNodes + key
-                                    pendingTestGroups += it.group
 
                                     launch {
-                                        // The core health check only
-                                        // accepts groups, so a single
-                                        // node's test re-tests its whole
-                                        // group and reads the node back
-                                        // on reload.
+                                        // Single-node delay test: only
+                                        // this proxy is probed (the
+                                        // native equivalent of
+                                        // /proxies/{name}/delay); the
+                                        // group then reloads to read
+                                        // its new delay back. Every
+                                        // other node keeps its last
+                                        // result and stays idle.
                                         withClash {
-                                            healthCheck(it.group)
+                                            healthCheckProxy(it.node)
                                         }
+
+                                        completedTestNodes += key
 
                                         uiRequests.send(ProxyDesign.Request.Reload(index))
                                     }
@@ -168,25 +177,34 @@ class ProxyActivity : BaseActivity<ProxyDesign>() {
                                         loaded = true
                                         urlTesting = false
 
-                                        // A test was in flight for this
-                                        // group: its testing nodes have
-                                        // their results now — settle them
-                                        // into the tested set so a 65535
+                                        // Settle finished tests into
+                                        // the tested set so a 65535
                                         // delay reads as "timeout", not
-                                        // "not tested".
-                                        if (name in pendingTestGroups) {
+                                        // "not tested". A group test
+                                        // settles every testing node of
+                                        // the group; single-node tests
+                                        // settle only their own node.
+                                        val prefix = "$name|"
+                                        val finished = if (name in pendingTestGroups) {
                                             pendingTestGroups.remove(name)
 
-                                            val prefix = "$name|"
-                                            val finished = uiState.testingNodes
+                                            uiState.testingNodes
                                                 .filter { key -> key.startsWith(prefix) }
+                                        } else {
+                                            uiState.testingNodes
+                                                .filter { key ->
+                                                    key.startsWith(prefix) &&
+                                                        key in completedTestNodes
+                                                }
+                                        }
 
-                                            if (finished.isNotEmpty()) {
-                                                uiState.testingNodes =
-                                                    uiState.testingNodes - finished
-                                                uiState.testedNodes =
-                                                    uiState.testedNodes + finished
-                                            }
+                                        if (finished.isNotEmpty()) {
+                                            uiState.testingNodes =
+                                                uiState.testingNodes - finished
+                                            uiState.testedNodes =
+                                                uiState.testedNodes + finished
+                                            completedTestNodes
+                                                .removeAll(finished.toSet())
                                         }
                                     }
                                 }
