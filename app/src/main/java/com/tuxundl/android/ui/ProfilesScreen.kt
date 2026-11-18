@@ -150,6 +150,14 @@ fun ProfilesScreen(
             }
         },
     ) { padding ->
+        // Pinned profiles first; sortedBy is stable, so each
+        // partition keeps the service's original order. Computed
+        // here, not inside the LazyColumn scope (not composable).
+        val orderedProfiles = remember(state.profiles, state.pinnedUuids) {
+            state.profiles.sortedBy { profile ->
+                if (profile.uuid.toString() in state.pinnedUuids) 0 else 1
+            }
+        }
         LazyColumn(
             modifier = Modifier
                 .fillMaxSize()
@@ -157,13 +165,6 @@ fun ProfilesScreen(
                 .padding(horizontal = 16.dp, vertical = 12.dp),
             verticalArrangement = Arrangement.spacedBy(12.dp),
         ) {
-            // Pinned profiles first; sortedBy is stable, so each
-            // partition keeps the service's original order.
-            val orderedProfiles = remember(state.profiles, state.pinnedUuids) {
-                state.profiles.sortedBy { profile ->
-                    if (profile.uuid.toString() in state.pinnedUuids) 0 else 1
-                }
-            }
             items(orderedProfiles, key = { it.uuid }) { profile ->
                 val itemStyle = LocalAnimStyle.current
                 ProfileCard(
