@@ -146,9 +146,14 @@ subprojects {
             // declared in the main manifest and inherited unchanged.
             create("tv") {
                 dimension = flavorDimensionList[0]
-                applicationId = "com.tuxundl.android.tv"
-                versionName = "0.1.0"
-                versionCode = 100
+                // This flavor block is applied to every subproject;
+                // library modules may not carry an applicationId or
+                // version of their own, so those stay app-only.
+                if (isApp) {
+                    applicationId = "com.tuxundl.android.tv"
+                    versionName = "0.1.0"
+                    versionCode = 100
+                }
                 buildConfigField("boolean", "PREMIUM", "Boolean.parseBoolean(\"false\")")
                 buildConfigField("boolean", "IS_TV", "Boolean.parseBoolean(\"true\")")
 
