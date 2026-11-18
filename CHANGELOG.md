@@ -2,7 +2,7 @@
 
 每個版本的詳細說明與下載見 [Releases](https://github.com/liyuzhou79-star/TuxunDL/releases)。所有版本都同時發布標準版（arm64）與老機型版（armeabi-v7a），同版本號、同一發布頁。自 Windows 版起，每個發布頁都同時附上 Android 與 Windows 兩個平台的最新安裝包。
 
-## 1.5.5 — 分應用代理全面優化：先修功能、再收拾界面（待發布）
+## 1.5.5 — 分應用代理全面優化：先修功能、再收拾界面（已發布）
 - 審計結論：生效鏈路本身是通的（TunService 建隧道時按模式真正調用 addAllowedApplication／addDisallowedApplication、逐個 runCatching 兜底；模式與名單存 ServiceStore 的 SharedPreferences，跨重啟保留；列表在 IO 線程異步載入；自身保護完整——名單過濾掉本包、僅所選時強制加自身、排除所選時強制減自身）；修的是下面四個查有實據的問題
 - 卸載殘留清理：被勾選過的應用卸載後，包名以往永遠留在 accessControlPackages 裡（列表看不見、刪不掉、匯出還會帶出去）；現在 AccessControlActivity 進入時用未過濾的已安裝包名集合修剪選擇並立即落盤
 - 選擇即時落盤：以往勾選只在退出頁面時的 defer 裡寫一次，停留在本頁時進程被殺／任務被劃掉就全丟；現在 selectionTick 一變就經 LaunchedEffect 快照寫入 ServiceStore（以 loaded 旗標擋住 main() 讀盤前的初始組版），defer 改為與「進入時快照」（名單＋模式）比較決定是否需要重啟，不再拿即時值跟自己比
