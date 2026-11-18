@@ -2,6 +2,15 @@
 
 每個版本的詳細說明與下載見 [Releases](https://github.com/liyuzhou79-star/TuxunDL/releases)。所有版本都同時發布標準版（arm64）與老機型版（armeabi-v7a），同版本號、同一發布頁。自 Windows 版起，每個發布頁都同時附上 Android 與 Windows 兩個平台的最新安裝包。
 
+## Linux 1.0.0 — 首版：與 Windows 版同源
+- Linux 首版：與 Windows 版共用同一套 desktop/ 桌面程式碼同源移植，六個頁面齊全（首頁／節點／連接／訂閱／規則／日誌／設置），功能與 Windows 1.6.1 對齊；版本號獨立，從 1.0.0 起，發布標籤用 linux-v<版本>，識別名 com.tuxundl.linux
+- 打包兩種：.deb（包名 com.tuxundl.linux，裝到 /opt/com.tuxundl.linux）＋ AppImage 單文件（由 CI 用 appimagetool 從應用目錄組裝）；內置 mihomo v1.19.16（linux-amd64），構建時下載、不入庫；Linux 不需要 wintun，系統自帶 /dev/net/tun
+- 系統代理：GNOME 桌面走 gsettings 自動設置（手動模式＋回環地址）；非 GNOME 桌面不假裝成功——日誌與設置頁如實說明，改手動填 127.0.0.1 與混合端口；只關自己開的代理，不碰用戶的其他代理設置
+- TUN：程式本身不提權，點連接時透過 pkexec 只把核心以 root 啟動，root 核心用獨立 tun-home 目錄；沒有 pkexec 時如實報錯；斷開時若 root 核心還在，會再透過 pkexec 按本實例命令行精確清理（盡力而為）
+- 開機自啟：寫 ~/.config/autostart/tuxundl.desktop（XDG 標準；AppImage 時指向 AppImage 文件本身）；數據目錄 ~/.local/share/tuxundl（遵循 XDG，認 $XDG_DATA_HOME）
+- 檢查更新：只認 linux-v 標籤，當前版本按作業系統分流（Windows 仍為 1.6.1，互不影響）；三態結果＋releases.atom 兜底與 Windows 1.6.1 同一套
+- 誠實說明：本版未在真實 Linux 桌面實測（CI 打包成功、deb 結構與依賴已本地核對）；GNOME 代理／TUN／系統匣待真機驗證
+
 ## 1.3.0 — 大更新：新手引導＋首頁大按鈕新樣式（已發布）
 - 新手引導：首次啟動依序選語言→免責聲明與協議（捲動讀完才能同意）→新增訂閱 URL（可跳過）→預設主題＋震動調節（選檔當場預覽）→完成頁；全程水平滑動＋淡入（spring）、進度點 morph、元素交錯入場；語言／主題／震動即時生效並持久化；已同意過聲明的老用戶視為已完成，不會看到引導
 - 首頁大按鈕換 Material You 樣式：酒紅波浪環（半透水晶感，連接時慢速旋轉＋呼吸）＋淺色磨砂玻璃圓盤（左上高光＋內陰影錯覺）＋懸浮投影與極輕微浮動，下方加小膠囊狀態標；未連接時波浪環轉灰、停轉、停止浮動；顏色跟隨主題強調色

@@ -64,6 +64,15 @@ App 內建檢查更新（設定頁手動檢查，或有新版時開啟 App 全�
 
 兩個任選其一。程序內置 mihomo 核心，不需要另外下載。系統代理模式免管理員權限；TUN 模式需以管理員身份運行。Windows 版內建檢查更新，只認 `win-v` 開頭的 Windows 發布。
 
+### Linux
+
+| 檔案 | 適合 |
+| --- | --- |
+| `TuxunDL-<版本>.deb` | Debian / Ubuntu 系，64 位元（deb 安裝包，裝到 `/opt/com.tuxundl.linux`） |
+| `TuxunDL-<版本>.AppImage` | 各主流發行版，64 位元（免安裝，下載後加可執行權限直接運行） |
+
+與 Windows 版同一套桌面程式碼（版本號獨立，從 1.0.0 起），程序內置 mihomo 核心。系統代理自動設置支援 GNOME 桌面（其他桌面請手動填 127.0.0.1:7890）；TUN 模式透過 pkexec 只把核心以 root 啟動，程序本身不提權。Linux 版內建檢查更新，只認 `linux-v` 開頭的 Linux 發布。
+
 ## 功能總覽 / Features
 
 ### Android 版
