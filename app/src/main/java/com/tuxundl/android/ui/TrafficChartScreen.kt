@@ -10,6 +10,8 @@ import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.gestures.awaitEachGesture
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.gestures.awaitFirstDown
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.Arrangement
@@ -190,6 +192,11 @@ fun TrafficChartDialog(
                 modifier = Modifier
                     .fillMaxSize()
                     .tuxunPageEnter()
+                    // The page scrolls (1.5.0): the selection and
+                    // summary cards below the chart are always
+                    // reachable. The chart itself arbitrates drag
+                    // direction — horizontal scrubs, vertical scrolls.
+                    .verticalScroll(rememberScrollState())
                     .padding(horizontal = 16.dp, vertical = 16.dp),
                 verticalArrangement = Arrangement.spacedBy(12.dp),
             ) {
@@ -260,14 +267,14 @@ fun TrafficChartDialog(
                         text = stringResource(R.string.traffic_chart_empty),
                         modifier = Modifier
                             .fillMaxWidth()
-                            .weight(1f),
+                            .height(320.dp),
                     )
                 } else if (points.size < 2) {
                     ChartEmptyState(
                         text = stringResource(R.string.traffic_chart_collecting),
                         modifier = Modifier
                             .fillMaxWidth()
-                            .weight(1f),
+                            .height(320.dp),
                     )
                 } else {
                     InteractiveChart(
@@ -297,7 +304,7 @@ fun TrafficChartDialog(
                         maxCapRate = capRate,
                         modifier = Modifier
                             .fillMaxWidth()
-                            .weight(1f),
+                            .height(320.dp),
                     )
 
                     // Axis labels: start / middle / end of the view.
@@ -866,7 +873,13 @@ private fun InteractiveChart(
                     var lastCentroidX = firstDown.position.x
                     var lastDist = 0f
 
-                    selectAt(firstDown.position.x)
+                    // Direction gate (1.5.0): the page scrolls
+                    // vertically now, so a one-finger drag only turns
+                    // into a scrub once it is clearly horizontal. A
+                    // mostly vertical drag is never consumed here and
+                    // the page takes it over. A tap selects on release.
+                    var scrubbing = false
+                    var yielded = false
 
                     do {
                         val event = awaitPointerEvent()
@@ -901,13 +914,40 @@ private fun InteractiveChart(
                             lastDist = dist
                             lastCentroidX = centroidX
                         } else if (pressed.size == 1) {
-                            if (!transformed) {
-                                selectAt(pressed[0].position.x)
+                            val change = pressed[0]
+
+                            if (!transformed && !yielded) {
+                                if (scrubbing) {
+                                    change.consume()
+                                    selectAt(change.position.x)
+                                } else {
+                                    val dx = change.position.x - firstDown.position.x
+                                    val dy = change.position.y - firstDown.position.y
+                                    val slop = viewConfiguration.touchSlop
+
+                                    if (abs(dx) > slop || abs(dy) > slop) {
+                                        if (abs(dx) >= abs(dy)) {
+                                            scrubbing = true
+                                            change.consume()
+                                            selectAt(change.position.x)
+                                        } else {
+                                            // Vertical wins: hand the
+                                            // gesture to the page scroll.
+                                            yielded = true
+                                        }
+                                    }
+                                }
                             }
                             lastDist = 0f
-                            lastCentroidX = pressed[0].position.x
+                            lastCentroidX = change.position.x
                         }
                     } while (event.changes.any { it.pressed })
+
+                    // A plain tap never crossed the slop in either
+                    // direction: pin the moment under the finger.
+                    if (!transformed && !yielded && !scrubbing) {
+                        selectAt(firstDown.position.x)
+                    }
                 }
             }
             .pointerInput(Unit) {
