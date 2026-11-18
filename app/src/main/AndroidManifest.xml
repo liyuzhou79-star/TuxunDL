@@ -104,6 +104,14 @@
             </intent-filter>
         </activity>
         <activity
+            android:name=".AppLockActivity"
+            android:configChanges="uiMode"
+            android:excludeFromRecents="true"
+            android:exported="false"
+            android:label="@string/application_name"
+            android:launchMode="singleTop" />
+
+        <activity
             android:name=".ApkBrokenActivity"
             android:configChanges="uiMode"
             android:exported="false"

@@ -274,6 +274,12 @@
     <string name="traffic_alert_card_value">剩余 ≤%1$d GB 时提醒</string>
     <string name="traffic_alert_card_off">未开启</string>
     <string name="traffic_alert_custom">自定义</string>
+    <string name="app_lock_locked_title">应用已锁定</string>
+    <string name="app_lock_prompt_pattern">绘制解锁图案</string>
+    <string name="app_lock_prompt_pin">输入数字密码</string>
+    <string name="app_lock_prompt_password">输入密码</string>
+    <string name="app_lock_wrong">密码不对，再试一次</string>
+    <string name="app_lock_unlock">解锁</string>
     <string name="update_check_failed_rate_limited">检查更新失败：查太频繁了，GitHub 暂时限流，过一会儿再试。</string>
     <string name="update_check_failed_server_code">检查更新失败：服务器回了错误（代码 %1$d），请稍后再试。</string>
 </resources>

@@ -260,6 +260,12 @@
     <string name="traffic_alert_card_value">剩餘 ≤%1$d GB 時提醒</string>
     <string name="traffic_alert_card_off">未開啟</string>
     <string name="traffic_alert_custom">自訂</string>
+    <string name="app_lock_locked_title">應用已鎖定</string>
+    <string name="app_lock_prompt_pattern">繪製解鎖圖案</string>
+    <string name="app_lock_prompt_pin">輸入數字密碼</string>
+    <string name="app_lock_prompt_password">輸入密碼</string>
+    <string name="app_lock_wrong">密碼不對，再試一次</string>
+    <string name="app_lock_unlock">解鎖</string>
     <string name="update_check_failed_rate_limited">檢查更新失敗：查太頻繁了，GitHub 暫時限流，過一會兒再試。</string>
     <string name="update_check_failed_server_code">檢查更新失敗：伺服器回了錯誤（代碼 %1$d），請稍後再試。</string>
 </resources>
