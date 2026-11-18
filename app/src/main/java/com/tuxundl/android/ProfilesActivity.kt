@@ -59,18 +59,28 @@ class ProfilesActivity : BaseActivity<ProfilesDesign>() {
                             startActivity(NewProfileActivity::class.intent)
                         ProfilesDesign.Request.UpdateAll ->
                             withProfile {
+                                var targets = emptyList<Profile>()
                                 try {
-                                    queryAll().forEach { p ->
-                                        if (p.imported && p.type != Profile.Type.File)
-                                            update(p.uuid)
+                                    targets = queryAll().filter { p ->
+                                        p.imported && p.type != Profile.Type.File
                                     }
+                                    uiState.updatingUuids =
+                                        uiState.updatingUuids + targets.map { it.uuid }
+                                    targets.forEach { p -> update(p.uuid) }
                                 }
                                 finally {
                                     uiState.allUpdating = false
+                                    // Safety net: per-profile callbacks
+                                    // normally clear these one by one.
+                                    uiState.updatingUuids =
+                                        uiState.updatingUuids - targets.map { it.uuid }.toSet()
                                 }
                             }
-                        is ProfilesDesign.Request.Update ->
+                        is ProfilesDesign.Request.Update -> {
+                            uiState.updatingUuids =
+                                uiState.updatingUuids + it.profile.uuid
                             withProfile { update(it.profile.uuid) }
+                        }
                         is ProfilesDesign.Request.Delete ->
                             withProfile { delete(it.profile.uuid) }
                         is ProfilesDesign.Request.Edit ->
@@ -151,6 +161,7 @@ class ProfilesActivity : BaseActivity<ProfilesDesign>() {
     override fun onProfileUpdateCompleted(uuid: UUID?) {
         if (uuid == null)
             return
+        uiState.updatingUuids = uiState.updatingUuids - uuid
         launch {
             var name: String? = null
             withProfile {
@@ -166,6 +177,7 @@ class ProfilesActivity : BaseActivity<ProfilesDesign>() {
     override fun onProfileUpdateFailed(uuid: UUID?, reason: String?) {
         if (uuid == null)
             return
+        uiState.updatingUuids = uiState.updatingUuids - uuid
         launch {
             var name: String? = null
             withProfile {

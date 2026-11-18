@@ -53,6 +53,7 @@ import com.tuxundl.android.design.R as DesignR
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
+import java.util.UUID
 
 /**
  * State holder for the Compose profiles screen.
@@ -64,6 +65,13 @@ class ProfilesUiState {
     var profiles by mutableStateOf<List<Profile>>(emptyList())
     var updatable by mutableStateOf(false)
     var allUpdating by mutableStateOf(false)
+
+    /**
+     * Profiles with an update in flight (single update or update
+     * all); their cards show a spinner until the service reports
+     * the update completed or failed (1.3.1).
+     */
+    var updatingUuids by mutableStateOf<Set<UUID>>(emptySet())
 
     /** Refreshed once a minute by the activity so elapsed labels stay fresh. */
     var now by mutableStateOf(System.currentTimeMillis())
@@ -154,6 +162,7 @@ fun ProfilesScreen(
                     ),
                     profile = profile,
                     now = state.now,
+                    updating = profile.uuid in state.updatingUuids,
                     onClick = { onRequest(ProfilesDesign.Request.Active(profile)) },
                     onMenu = { state.menuProfile = profile },
                 )
@@ -200,6 +209,7 @@ fun ProfilesScreen(
 private fun ProfileCard(
     profile: Profile,
     now: Long,
+    updating: Boolean,
     onClick: () -> Unit,
     onMenu: () -> Unit,
     modifier: Modifier = Modifier,
@@ -264,7 +274,9 @@ private fun ProfileCard(
                 }
                 Spacer(modifier = Modifier.height(4.dp))
                 Text(
-                    text = if (profile.updatedAt > 0L) {
+                    text = if (updating) {
+                        stringResource(DesignR.string.profile_updating)
+                    } else if (profile.updatedAt > 0L) {
                         stringResource(
                             DesignR.string.profile_last_updated,
                             profile.updatedAt.toMonthDayTimeStr(),
@@ -276,11 +288,21 @@ private fun ProfileCard(
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
             }
-            IconButton(onClick = onMenu) {
-                Icon(
-                    painter = painterResource(DesignR.drawable.ic_baseline_more_vert),
-                    contentDescription = null,
+            if (updating) {
+                // Same footprint as the overflow button it replaces,
+                // so the card does not jump while the update runs.
+                CircularProgressIndicator(
+                    modifier = Modifier
+                        .padding(12.dp)
+                        .size(24.dp),
                 )
+            } else {
+                IconButton(onClick = onMenu) {
+                    Icon(
+                        painter = painterResource(DesignR.drawable.ic_baseline_more_vert),
+                        contentDescription = null,
+                    )
+                }
             }
         }
     }

@@ -36,6 +36,7 @@
     <string name="format_days_ago">%d days ago</string>
     <string name="profile_last_updated">Last updated: %1$s</string>
     <string name="profile_never_updated">Not updated yet</string>
+    <string name="profile_updating">Updating…</string>
     <string name="format_months_ago">%d months ago</string>
     <string name="format_years_ago">%d years ago</string>
 

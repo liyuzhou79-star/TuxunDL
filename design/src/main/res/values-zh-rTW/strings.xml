@@ -169,6 +169,7 @@
     <string name="format_days_ago">%d 天前</string>
     <string name="profile_last_updated">上次更新：%1$s</string>
     <string name="profile_never_updated">尚未更新</string>
+    <string name="profile_updating">更新中…</string>
     <string name="format_months_ago">%d 月前</string>
     <string name="format_years_ago">%d 年前</string>
     <string name="system_proxy">作業系統 Proxy</string>
