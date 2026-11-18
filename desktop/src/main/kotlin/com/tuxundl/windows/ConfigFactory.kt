@@ -14,12 +14,14 @@ object ConfigFactory {
         controllerPort: Int = 9090,
         tunMode: Boolean = false,
         logLevel: String = "info",
+        mode: String = "rule",
     ): String {
         var out = profileYaml
         out = overrideTopLevel(out, "mixed-port", mixedPort.toString())
         out = overrideTopLevel(out, "external-controller", "127.0.0.1:$controllerPort")
         out = overrideTopLevel(out, "allow-lan", "false")
         out = overrideTopLevel(out, "log-level", logLevel)
+        out = overrideTopLevel(out, "mode", mode)
 
         if (tunMode && !hasTopLevel(out, "tun")) {
             out = out.trimEnd() + "\n\n" + TUN_BLOCK

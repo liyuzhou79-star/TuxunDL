@@ -90,6 +90,7 @@ object CoreBridge {
             ConfigFactory.build(
                 profileYaml, mixedPort, controllerPort, tunMode,
                 SettingsStore.logLevel(),
+                SettingsStore.coreMode(),
             ),
         )
 

@@ -238,6 +238,11 @@ private fun HomePage() {
     var busy by remember { mutableStateOf(false) }
     var statusNote by remember { mutableStateOf<String?>(null) }
     var currentNode by remember { mutableStateOf<String?>(null) }
+    // Routing mode (rule / global / direct), edited right here under
+    // the power button; stored in SettingsStore and written into the
+    // generated config, so a change applies on the next connect —
+    // the same behaviour as the log level and port settings.
+    var coreMode by remember { mutableStateOf(SettingsStore.coreMode()) }
     var rateText by remember { mutableStateOf("↓ 0 B/s   ↑ 0 B/s") }
     var sessionText by remember { mutableStateOf("本次会话 0 B") }
     var durationText by remember { mutableStateOf("") }
@@ -434,6 +439,24 @@ private fun HomePage() {
             fontSize = 17.sp,
             fontWeight = FontWeight.Medium,
         )
+
+        Spacer(Modifier.height(14.dp))
+
+        Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+            listOf(
+                "rule" to "规则",
+                "global" to "全局",
+                "direct" to "直连",
+            ).forEach { (value, label) ->
+                HomeModeChip(label, coreMode == value) {
+                    if (coreMode != value) {
+                        coreMode = value
+                        SettingsStore.setCoreMode(value)
+                        statusNote = "已切换为${label}模式，下次连接生效"
+                    }
+                }
+            }
+        }
 
         Spacer(Modifier.height(28.dp))
 
@@ -739,6 +762,21 @@ private fun PowerButton(connected: Boolean, onClick: () -> Unit) {
             )
         }
     }
+}
+
+/** One routing-mode chip under the power button (cf. settings chips). */
+@Composable
+private fun HomeModeChip(label: String, active: Boolean, onClick: () -> Unit) {
+    Text(
+        text = label,
+        color = Color.White,
+        fontSize = 14.sp,
+        modifier = Modifier
+            .clip(RoundedCornerShape(10.dp))
+            .background(if (active) Indigo else PanelDark)
+            .clickable { onClick() }
+            .padding(horizontal = 18.dp, vertical = 8.dp),
+    )
 }
 
 private fun fmtBytes(bytes: Long): String = when {

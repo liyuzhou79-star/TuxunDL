@@ -104,6 +104,19 @@ object SettingsStore {
         write(mapOf("logLevel" to kotlinx.serialization.json.JsonPrimitive(value)))
     }
 
+    /**
+     * Core routing mode: "rule" (profile rules decide), "global"
+     * (everything via the selected node) or "direct" (nothing via a
+     * node). Written into the generated config like the log level,
+     * so a change takes effect on the next connect.
+     */
+    fun coreMode(): String =
+        read()["coreMode"]?.jsonPrimitive?.contentOrNull ?: "rule"
+
+    fun setCoreMode(value: String) {
+        write(mapOf("coreMode" to kotlinx.serialization.json.JsonPrimitive(value)))
+    }
+
     /** Favorite node names, starred on the nodes page. Stored by name. */
     fun favoriteNodes(): Set<String> =
         read()["favoriteNodes"]?.jsonArray
