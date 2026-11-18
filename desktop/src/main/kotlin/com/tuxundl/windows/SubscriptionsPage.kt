@@ -251,6 +251,28 @@ fun SubscriptionsPage() {
             if (it.id in pinned) 0 else 1
         }
 
+        // One-line summary above the list: how many subscriptions
+        // there are, and how many need attention soon — counted
+        // with the same rule as the per-card warning (expired, or
+        // three days or less left), so the two never disagree.
+        if (subscriptions.isNotEmpty()) {
+            val expiring = subscriptions.count {
+                expiryWarning(it.expireAt) != null
+            }
+            Text(
+                text = if (expiring > 0) {
+                    "共 ${subscriptions.size} 个订阅，其中 $expiring 个" +
+                        "已过期或 3 天内到期"
+                } else {
+                    "共 ${subscriptions.size} 个订阅"
+                },
+                color = if (expiring > 0) WarnAmber else TextDim,
+                fontSize = 13.sp,
+            )
+
+            Spacer(Modifier.height(10.dp))
+        }
+
         LazyColumn(verticalArrangement = Arrangement.spacedBy(10.dp)) {
             items(ordered, key = { it.id }) { sub ->
                 SubscriptionCard(

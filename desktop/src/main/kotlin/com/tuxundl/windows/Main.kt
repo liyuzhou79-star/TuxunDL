@@ -25,6 +25,7 @@ import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -167,6 +168,58 @@ fun main() {
             )
         },
     )
+
+    // Single-clicking the tray icon toggles the window. Compose's
+    // Tray only reports an action on double-click (and the handler
+    // above can only ever show the window, never hide it), so find
+    // the AWT tray icon Compose installed and add our own mouse
+    // listener to it. AWT listeners are additive — the right-click
+    // menu and the double-click action keep working untouched. On
+    // desktops without an AWT system tray (some Linux setups) the
+    // icon never appears and nothing changes.
+    DisposableEffect(Unit) {
+        val disposed = java.util.concurrent.atomic.AtomicBoolean(false)
+        var trayIcon: java.awt.TrayIcon? = null
+        val listener = object : java.awt.event.MouseAdapter() {
+            override fun mouseClicked(e: java.awt.event.MouseEvent) {
+                if (!disposed.get() &&
+                    e.button == java.awt.event.MouseEvent.BUTTON1 &&
+                    e.clickCount == 1
+                ) {
+                    windowVisible = !windowVisible
+                }
+            }
+        }
+        // The icon is added to the system tray by the Tray
+        // composable's own effect; poll briefly until it shows up.
+        val finder = Thread {
+            var tries = 0
+            while (!disposed.get() && trayIcon == null && tries < 50) {
+                val icon = runCatching {
+                    if (java.awt.SystemTray.isSupported()) {
+                        java.awt.SystemTray.getSystemTray()
+                            .trayIcons.firstOrNull()
+                    } else {
+                        null
+                    }
+                }.getOrNull()
+                if (icon != null) {
+                    icon.addMouseListener(listener)
+                    trayIcon = icon
+                } else {
+                    tries++
+                    runCatching { Thread.sleep(200) }
+                }
+            }
+        }
+        finder.isDaemon = true
+        finder.name = "tray-click-toggle"
+        finder.start()
+        onDispose {
+            disposed.set(true)
+            trayIcon?.removeMouseListener(listener)
+        }
+    }
 
     if (windowVisible) {
         Window(

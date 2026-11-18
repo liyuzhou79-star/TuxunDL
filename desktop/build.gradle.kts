@@ -14,12 +14,12 @@ plugins {
 // One source tree, two desktop editions. The build follows the OS
 // of the machine running it: Windows CI builds the Windows edition,
 // Linux CI builds the Linux edition. Versions are independent from
-// here on — the Windows edition is at 1.6.6, the Linux edition
+// here on — the Windows edition is at 1.6.8, the Linux edition
 // starts at 1.0.0 — and each edition's update checker only follows
 // its own release tags (win-v* / linux-v*).
 val hostOsName = System.getProperty("os.name").lowercase()
 val linuxBuild = hostOsName.contains("linux")
-val editionVersion = if (linuxBuild) "1.0.0" else "1.6.7"
+val editionVersion = if (linuxBuild) "1.0.0" else "1.6.8"
 
 group = if (linuxBuild) "com.tuxundl.linux" else "com.tuxundl.windows"
 version = editionVersion
