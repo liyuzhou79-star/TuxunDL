@@ -46,7 +46,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.luminance
-import androidx.compose.ui.platform.LocalContext
+
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextAlign
@@ -56,7 +56,7 @@ import com.tuxundl.android.design.model.ThemePalette
 import com.tuxundl.android.design.store.UiStore
 import com.tuxundl.android.ui.theme.darkSchemeOf
 import com.tuxundl.android.ui.theme.lightSchemeOf
-import com.tuxundl.android.util.Haptics
+
 import kotlinx.coroutines.launch
 import com.tuxundl.android.design.R as DesignR
 
@@ -480,11 +480,8 @@ private fun ThemeStep(
     store: UiStore,
     onPaletteSelected: (ThemePalette) -> Unit,
 ) {
-    val context = LocalContext.current
     var palette by remember { mutableStateOf(store.themePalette) }
     var customSeed by remember { mutableStateOf(store.customThemeColor) }
-    var hapticsEnabled by remember { mutableStateOf(store.hapticsEnabled) }
-    var hapticsStrength by remember { mutableStateOf(store.hapticsStrength) }
     val darkTheme =
         MaterialTheme.colorScheme.background.luminance() < 0.5f
 
@@ -526,53 +523,10 @@ private fun ThemeStep(
 
         Spacer(modifier = Modifier.height(20.dp))
 
+        // Shared tuning block (1.4.0): switch, four presets and the
+        // custom amplitude slider — the same one settings shows.
         Column(modifier = Modifier.tuxunStagger(2)) {
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                verticalAlignment = Alignment.CenterVertically,
-            ) {
-                Text(
-                    text = stringResource(R.string.haptics),
-                    style = MaterialTheme.typography.bodyLarge,
-                    modifier = Modifier.weight(1f),
-                )
-                TuxunSwitch(
-                    checked = hapticsEnabled,
-                    onCheckedChange = {
-                        hapticsEnabled = it
-                        store.hapticsEnabled = it
-                    },
-                )
-            }
-            Spacer(modifier = Modifier.height(4.dp))
-            Text(
-                text = stringResource(R.string.haptics_summary),
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-            )
-            Spacer(modifier = Modifier.height(12.dp))
-            Text(
-                text = stringResource(R.string.haptics_strength),
-                style = MaterialTheme.typography.bodyMedium,
-            )
-            Spacer(modifier = Modifier.height(8.dp))
-            TuxunSegmentedRow(
-                options = listOf(
-                    stringResource(R.string.haptics_light),
-                    stringResource(R.string.haptics_medium),
-                    stringResource(R.string.haptics_strong),
-                ),
-                selectedIndex = hapticsStrength,
-                onSelect = { index ->
-                    hapticsStrength = index
-                    store.hapticsStrength = index
-                    // Preview the picked strength right away.
-                    if (hapticsEnabled) {
-                        Haptics.buzz(context, index, Haptics.Kind.Tap)
-                    }
-                },
-                modifier = Modifier.fillMaxWidth(),
-            )
+            HapticsTuning(store = store)
         }
     }
 }

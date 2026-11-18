@@ -24,6 +24,7 @@ import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.RadioButton
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
+import androidx.compose.material3.Slider
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
@@ -45,6 +46,7 @@ import com.tuxundl.android.util.UpdateCheckResult
 import com.tuxundl.android.util.UpdateChecker
 import com.tuxundl.android.util.UpdateInfo
 import com.tuxundl.android.util.WindowsInfo
+import kotlin.math.roundToInt
 import kotlinx.coroutines.launch
 import com.tuxundl.android.design.R as DesignR
 
@@ -86,8 +88,11 @@ class SettingsUiState {
     /** Haptic feedback switch (mirrors UiStore, 1.2.5). */
     var hapticsEnabled by mutableStateOf(true)
 
-    /** Haptic strength 0 light / 1 medium / 2 strong (1.2.5). */
+    /** Haptic strength 0 light / 1 medium / 2 strong / 3 custom (1.2.5). */
     var hapticsStrength by mutableStateOf(1)
+
+    /** Custom haptic amplitude 1..255, used when strength is 3 (1.4.0). */
+    var hapticsCustomAmplitude by mutableStateOf(140)
 }
 
 /**
@@ -115,6 +120,7 @@ fun SettingsScreen(
     onTrafficAlertThresholdChange: (Int) -> Unit,
     onHapticsChange: (Boolean) -> Unit,
     onHapticsStrengthChange: (Int) -> Unit,
+    onHapticsCustomChange: (Int) -> Unit,
     onLanguageChange: (String) -> Unit,
     onBack: () -> Unit,
 ) {
@@ -233,6 +239,7 @@ fun SettingsScreen(
                             when (state.hapticsStrength) {
                                 0 -> R.string.haptics_light
                                 2 -> R.string.haptics_strong
+                                3 -> R.string.haptics_custom
                                 else -> R.string.haptics_medium
                             },
                         ),
@@ -396,10 +403,14 @@ fun SettingsScreen(
     if (showHapticsDialog) {
         HapticsStrengthDialog(
             current = state.hapticsStrength,
+            customAmplitude = state.hapticsCustomAmplitude,
             onSelect = { strength ->
-                showHapticsDialog = false
+                // Picking "custom" keeps the dialog open so the
+                // slider below it can be tuned; presets close at once.
+                if (strength != 3) showHapticsDialog = false
                 onHapticsStrengthChange(strength)
             },
+            onCustomChange = onHapticsCustomChange,
             onDismiss = { showHapticsDialog = false },
         )
     }
@@ -482,18 +493,29 @@ fun SettingsScreen(
     }
 }
 
-/** Single-choice haptic strength picker (light / medium / strong). */
+/**
+ * Haptic strength picker (1.4.0): light / medium / strong presets
+ * plus a custom preset with an amplitude slider. Picking a preset
+ * closes the dialog (the caller previews it); picking custom keeps
+ * it open so the slider can be tuned, previewing on release.
+ */
 @Composable
 private fun HapticsStrengthDialog(
     current: Int,
+    customAmplitude: Int,
     onSelect: (Int) -> Unit,
+    onCustomChange: (Int) -> Unit,
     onDismiss: () -> Unit,
 ) {
     val options = listOf(
         0 to R.string.haptics_light,
         1 to R.string.haptics_medium,
         2 to R.string.haptics_strong,
+        3 to R.string.haptics_custom,
     )
+    var sliderValue by remember(customAmplitude) {
+        mutableStateOf(customAmplitude.toFloat())
+    }
 
     AlertDialog(
         onDismissRequest = onDismiss,
@@ -505,6 +527,36 @@ private fun HapticsStrengthDialog(
                         label = stringResource(label),
                         selected = current == value,
                         onClick = { onSelect(value) },
+                    )
+                }
+
+                if (current == 3) {
+                    Spacer(modifier = Modifier.height(8.dp))
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        Text(
+                            text = stringResource(R.string.haptics_custom),
+                            style = MaterialTheme.typography.bodyMedium,
+                            modifier = Modifier.weight(1f),
+                        )
+                        Text(
+                            text = "${sliderValue.roundToInt() * 100 / 255}%",
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                    }
+                    Slider(
+                        value = sliderValue,
+                        onValueChange = { sliderValue = it },
+                        onValueChangeFinished = {
+                            onCustomChange(
+                                sliderValue.roundToInt().coerceIn(10, 255),
+                            )
+                        },
+                        valueRange = 10f..255f,
+                        modifier = Modifier.fillMaxWidth(),
                     )
                 }
             }

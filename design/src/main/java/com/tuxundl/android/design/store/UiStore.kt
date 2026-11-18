@@ -260,10 +260,16 @@ class UiStore(context: Context) {
         defaultValue = true
     )
 
-    /** Haptic strength: 0 = light, 1 = medium, 2 = strong (1.2.5). */
+    /** Haptic strength: 0 = light, 1 = medium, 2 = strong, 3 = custom (1.2.5, custom added 1.4.0). */
     var hapticsStrength: Int by store.int(
         key = "haptics_strength",
         defaultValue = 1
+    )
+
+    /** Custom haptic amplitude (1..255), used when strength is 3 (1.4.0). */
+    var hapticsCustomAmplitude: Int by store.int(
+        key = "haptics_custom_amplitude",
+        defaultValue = 140
     )
 
     /** Remaining-traffic threshold (GiB) at which the alert fires. */

@@ -161,6 +161,7 @@ class SettingsActivity : BaseActivity<SettingsDesign>() {
         uiState.trafficAlertThresholdGb = uiStore.trafficAlertThresholdGb
         uiState.hapticsEnabled = uiStore.hapticsEnabled
         uiState.hapticsStrength = uiStore.hapticsStrength
+        uiState.hapticsCustomAmplitude = uiStore.hapticsCustomAmplitude
         uiState.appLanguage = uiStore.appLanguage
 
         val darkTheme = when (uiStore.darkMode) {
@@ -203,11 +204,24 @@ class SettingsActivity : BaseActivity<SettingsDesign>() {
                             uiStore.hapticsStrength = strength
                             uiState.hapticsStrength = strength
                             // Preview the picked strength right away so
-                            // tuning it is felt, not guessed.
+                            // tuning it is felt, not guessed. The store
+                            // overload resolves the custom preset to
+                            // its stored amplitude.
                             if (uiStore.hapticsEnabled) {
                                 com.tuxundl.android.util.Haptics.buzz(
                                     this@SettingsActivity,
-                                    strength,
+                                    uiStore,
+                                    com.tuxundl.android.util.Haptics.Kind.Tap,
+                                )
+                            }
+                        },
+                        onHapticsCustomChange = { amplitude ->
+                            uiStore.hapticsCustomAmplitude = amplitude
+                            uiState.hapticsCustomAmplitude = amplitude
+                            if (uiStore.hapticsEnabled) {
+                                com.tuxundl.android.util.Haptics.buzzAmplitude(
+                                    this@SettingsActivity,
+                                    amplitude,
                                     com.tuxundl.android.util.Haptics.Kind.Tap,
                                 )
                             }

@@ -38,6 +38,7 @@
     <string name="haptics_light">輕</string>
     <string name="haptics_medium">中</string>
     <string name="haptics_strong">強</string>
+    <string name="haptics_custom">自定義</string>
     <string name="update_check_failed">檢查更新失敗，請檢查網路後重試。</string>
     <string name="update_new_found">發現新版本 v%1$s。</string>
     <string name="import_from_album">從相簿選取圖片</string>
