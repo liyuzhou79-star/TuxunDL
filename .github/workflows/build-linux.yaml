@@ -54,6 +54,41 @@ jobs:
         if: success()
         run: ./gradlew -p desktop packageDeb packageAppImage --no-daemon --stacktrace
 
+      - name: Assemble AppImage
+        if: success()
+        # Compose's AppImage target only lays out the app directory
+        # (bin/ + lib/); the single-file AppImage users download is
+        # packed from that directory with appimagetool. The output
+        # file name follows the Linux edition version in
+        # desktop/build.gradle.kts — bump both together.
+        run: |
+          set -e
+          appdir="$RUNNER_TEMP/TuxunDL.AppDir"
+          mkdir -p "$appdir/usr"
+          cp -r desktop/build/compose/binaries/main/app/TuxunDL/. "$appdir/usr/"
+          cat > "$appdir/AppRun" <<'EOF'
+          #!/bin/sh
+          HERE="$(dirname "$(readlink -f "$0")")"
+          exec "$HERE/usr/bin/TuxunDL" "$@"
+          EOF
+          chmod +x "$appdir/AppRun"
+          cp desktop/build/compose/binaries/main/app/TuxunDL/lib/TuxunDL.png "$appdir/tuxundl.png"
+          ln -s tuxundl.png "$appdir/.DirIcon"
+          cat > "$appdir/TuxunDL.desktop" <<'EOF'
+          [Desktop Entry]
+          Type=Application
+          Name=TuxunDL
+          Comment=TuxunDL for Linux
+          Exec=TuxunDL
+          Icon=tuxundl
+          Categories=Network;
+          Terminal=false
+          EOF
+          curl -sSL -o "$RUNNER_TEMP/appimagetool" https://github.com/AppImage/AppImageKit/releases/download/continuous/appimagetool-x86_64.AppImage
+          chmod +x "$RUNNER_TEMP/appimagetool"
+          mkdir -p desktop/build/compose/binaries/main/appimage
+          ARCH=x86_64 "$RUNNER_TEMP/appimagetool" --appimage-extract-and-run "$appdir" desktop/build/compose/binaries/main/appimage/TuxunDL-1.0.0.AppImage
+
       - name: Upload installers
         uses: actions/upload-artifact@v7
         if: ${{ success() }}
