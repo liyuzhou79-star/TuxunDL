@@ -50,6 +50,7 @@ internal fun SettingsPage() {
     var autoStart by remember { mutableStateOf(SettingsStore.autoStart()) }
     var autoConnect by remember { mutableStateOf(SettingsStore.autoConnect()) }
     var closeToTray by remember { mutableStateOf(SettingsStore.closeToTray()) }
+    var autoSort by remember { mutableStateOf(SettingsStore.autoSortAfterTest()) }
     var intervalHours by remember {
         mutableStateOf(SettingsStore.autoUpdateIntervalHours())
     }
@@ -194,6 +195,26 @@ internal fun SettingsPage() {
                 "关闭窗口时将最小化到系统匣"
             } else {
                 "关闭窗口时将直接退出程序"
+            }
+        }
+
+        Spacer(Modifier.height(28.dp))
+
+        Text(text = "测速后自动按延迟排序", color = Color.White, fontSize = 16.sp)
+        Spacer(Modifier.height(4.dp))
+        Text(
+            text = "开启时，节点页每次测速（单个节点、全部测速、选最快）一结束就自动按延迟从低到高排好，最快的浮到最上面，不用再手动点节点页的「按延迟排序」。默认关闭，关着的时候行为和以前完全一样。",
+            color = TextDim,
+            fontSize = 13.sp,
+        )
+        Spacer(Modifier.height(10.dp))
+        ModeChip(if (autoSort) "已开启" else "已关闭", autoSort) {
+            autoSort = !autoSort
+            SettingsStore.setAutoSortAfterTest(autoSort)
+            note = if (autoSort) {
+                "测速后将自动按延迟排序"
+            } else {
+                "测速后自动排序已关闭"
             }
         }
 

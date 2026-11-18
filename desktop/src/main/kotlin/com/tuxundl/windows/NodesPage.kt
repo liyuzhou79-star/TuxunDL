@@ -65,6 +65,14 @@ internal fun NodesPage() {
     var testingAll by remember { mutableStateOf(false) }
     var pickingFastest by remember { mutableStateOf<String?>(null) }
     var favorites by remember { mutableStateOf(SettingsStore.favoriteNodes()) }
+    // When the most recent speed test finished (any kind: single
+    // node, test-all, pick-fastest); shown under the toolbar.
+    var lastTestAt by remember { mutableStateOf<Long?>(null) }
+
+    fun markTested() {
+        lastTestAt = System.currentTimeMillis()
+        if (SettingsStore.autoSortAfterTest()) sortByDelay = true
+    }
 
     fun toggleFavorite(node: String) {
         favorites = if (node in favorites) {
@@ -142,6 +150,7 @@ internal fun NodesPage() {
                                         .associateWith { result[it] }
                                 }
                                 testingAll = false
+                                markTested()
                             }
                         }
                         .padding(horizontal = 10.dp, vertical = 6.dp),
@@ -182,6 +191,22 @@ internal fun NodesPage() {
         }
 
         Spacer(Modifier.height(16.dp))
+
+        if (lastTestAt != null) {
+            val timeText = java.time.Instant.ofEpochMilli(lastTestAt!!)
+                .atZone(java.time.ZoneId.systemDefault())
+                .toLocalTime()
+                .format(
+                    java.time.format.DateTimeFormatter
+                        .ofPattern("HH:mm:ss"),
+                )
+            Text(
+                text = "上次测速 $timeText",
+                color = TextDim,
+                fontSize = 12.sp,
+            )
+            Spacer(Modifier.height(8.dp))
+        }
 
         if (loaded && groups.isEmpty()) {
             Text(
@@ -246,6 +271,7 @@ internal fun NodesPage() {
                                         ?: return@NodeRow
                                     scope.launch {
                                         delays = delays + (node to api.delay(node))
+                                        markTested()
                                     }
                                 },
                             )
@@ -320,6 +346,7 @@ internal fun NodesPage() {
                                             refresh()
                                         }
                                         pickingFastest = null
+                                        markTested()
                                     }
                                 }
                                 .padding(horizontal = 10.dp, vertical = 6.dp),
@@ -344,6 +371,7 @@ internal fun NodesPage() {
                                 val api = CoreBridge.api ?: return@NodeRow
                                 scope.launch {
                                     delays = delays + (node to api.delay(node))
+                                    markTested()
                                 }
                             },
                         )

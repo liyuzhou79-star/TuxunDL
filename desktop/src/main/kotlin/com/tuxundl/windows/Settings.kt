@@ -86,6 +86,23 @@ object SettingsStore {
         write(mapOf("closeToTray" to kotlinx.serialization.json.JsonPrimitive(value)))
     }
 
+    /**
+     * Sort the nodes page by delay automatically whenever a speed
+     * test finishes. Off by default; the manual "按延迟排序" chip
+     * on the nodes page works either way.
+     */
+    fun autoSortAfterTest(): Boolean =
+        read()["autoSortAfterTest"]?.jsonPrimitive?.booleanOrNull ?: false
+
+    fun setAutoSortAfterTest(value: Boolean) {
+        write(
+            mapOf(
+                "autoSortAfterTest" to
+                    kotlinx.serialization.json.JsonPrimitive(value),
+            ),
+        )
+    }
+
     /** Hours between automatic subscription refreshes (default 24). */
     fun autoUpdateIntervalHours(): Int =
         read()["autoUpdateIntervalHours"]?.jsonPrimitive?.intOrNull ?: 24

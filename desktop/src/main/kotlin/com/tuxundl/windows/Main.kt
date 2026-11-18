@@ -77,10 +77,17 @@ fun main() {
     // The tray menu also switches the routing mode; like every other
     // mode control it writes the setting and applies on next connect.
     var trayMode by remember { mutableStateOf(SettingsStore.coreMode()) }
+    // Today's totals for the tray menu, from the same persisted
+    // history as the home page's 24-hour chart. The tray menu is
+    // declarative — there is no "menu opened" event — so the poll
+    // loop below refreshes the figures every few seconds while
+    // connected, which is also the only time they change.
+    var trayToday by remember { mutableStateOf(TrafficHistory.todayTotals()) }
     LaunchedEffect(CoreBridge.running) {
         trayNode = null
         while (CoreBridge.running) {
             CoreBridge.api?.currentNode()?.let { trayNode = it }
+            trayToday = TrafficHistory.todayTotals()
             delay(5000)
         }
     }
@@ -116,6 +123,11 @@ fun main() {
                     onClick = { windowVisible = true },
                 )
             }
+            Item(
+                text = "今日流量：↓ ${fmtBytes(trayToday.first)} · " +
+                    "↑ ${fmtBytes(trayToday.second)}",
+                onClick = { windowVisible = true },
+            )
             Separator()
             Item(
                 text = "模式（下次连接生效）",

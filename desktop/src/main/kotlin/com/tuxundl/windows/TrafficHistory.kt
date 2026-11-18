@@ -68,6 +68,24 @@ object TrafficHistory {
         }
     }
 
+    /** Today's (download, upload) totals, summed from the buckets. */
+    @Synchronized
+    fun todayTotals(): Pair<Long, Long> {
+        val today = java.time.LocalDate.now()
+        var down = 0L
+        var up = 0L
+        for (bucket in load().values) {
+            val day = java.time.Instant.ofEpochSecond(bucket.hour)
+                .atZone(java.time.ZoneId.systemDefault())
+                .toLocalDate()
+            if (day == today) {
+                down += bucket.down
+                up += bucket.up
+            }
+        }
+        return down to up
+    }
+
     /** The last 24 hour buckets, oldest first, gaps zero-filled. */
     @Synchronized
     fun last24Hours(): List<HourTraffic> {
