@@ -76,6 +76,13 @@ class SettingsUiState {
     /** Non-null while the Windows-edition dialog is shown (1.2.4). */
     var windowsInfo by mutableStateOf<WindowsInfo?>(null)
 
+    /**
+     * Windows release attached to the latest update-check result
+     * (1.2.8): the result dialog offers a button that hands this over
+     * to [windowsInfo], opening the usual Windows-edition dialog.
+     */
+    var updateWindows by mutableStateOf<WindowsInfo?>(null)
+
     /** Haptic feedback switch (mirrors UiStore, 1.2.5). */
     var hapticsEnabled by mutableStateOf(true)
 
@@ -416,6 +423,7 @@ fun SettingsScreen(
             onDismissRequest = {
                 state.updateMessage = null
                 state.updateDownloadUrl = null
+                state.updateWindows = null
             },
             title = { Text(text = stringResource(R.string.check_update)) },
             text = { Text(text = message) },
@@ -434,7 +442,10 @@ fun SettingsScreen(
                     }
                 } else {
                     TextButton(
-                        onClick = { state.updateMessage = null },
+                        onClick = {
+                            state.updateMessage = null
+                            state.updateWindows = null
+                        },
                     ) {
                         Text(text = stringResource(DesignR.string.ok))
                     }
@@ -449,6 +460,21 @@ fun SettingsScreen(
                         },
                     ) {
                         Text(text = stringResource(DesignR.string.cancel))
+                    }
+                } else if (state.updateWindows != null) {
+                    // The result mentioned a Windows release (1.2.8):
+                    // the hint line is now a door — hand the info to
+                    // the Windows-edition dialog with its open/copy
+                    // actions instead of leaving it as dead text.
+                    TextButton(
+                        onClick = {
+                            val windows = state.updateWindows
+                            state.updateMessage = null
+                            state.updateWindows = null
+                            state.windowsInfo = windows
+                        },
+                    ) {
+                        Text(text = stringResource(R.string.update_windows_view))
                     }
                 }
             },

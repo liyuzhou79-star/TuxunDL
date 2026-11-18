@@ -23,6 +23,7 @@
     <string name="update_latest_detail">最新發布：v%1$s · %2$s</string>
     <string name="update_latest_version_only">最新發布：v%1$s</string>
     <string name="update_windows_hint">Windows 電腦版 v%1$s 也已發布，安裝包在同一個發布頁。</string>
+    <string name="update_windows_view">查看 Windows 電腦版</string>
     <string name="windows_section_title">Windows 電腦版</string>
     <string name="windows_entry_summary">查看電腦版最新版本，打開下載頁或複製連結</string>
     <string name="windows_latest">Windows 電腦版最新是 v%1$s。</string>

@@ -83,10 +83,15 @@ class SettingsActivity : BaseActivity<SettingsDesign>() {
             uiState.checkingUpdate = false
 
             when (result) {
-                is UpdateCheckResult.UpdateAvailable ->
+                is UpdateCheckResult.UpdateAvailable -> {
                     // Same full-screen page as the startup check.
                     uiState.updatePageInfo = result.info
+                    uiState.updateWindows = null
+                }
                 is UpdateCheckResult.UpToDate -> {
+                    // The Windows hint in this result becomes a button
+                    // on the result dialog (1.2.8).
+                    uiState.updateWindows = result.windows
                     // Detail line (1.2.6): name the newest version and
                     // its release date, so "already latest" is checkable
                     // instead of a bare claim.
@@ -115,7 +120,8 @@ class SettingsActivity : BaseActivity<SettingsDesign>() {
                     }
                     uiState.updateMessage = parts.joinToString("\n")
                 }
-                is UpdateCheckResult.Failed ->
+                is UpdateCheckResult.Failed -> {
+                    uiState.updateWindows = null
                     uiState.updateMessage = when (val failure = result.failure) {
                         UpdateFailure.Network ->
                             getString(R.string.update_check_failed_network)
@@ -129,6 +135,7 @@ class SettingsActivity : BaseActivity<SettingsDesign>() {
                         UpdateFailure.Parse ->
                             getString(R.string.update_check_failed_parse)
                     }
+                }
             }
         }
     }

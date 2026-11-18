@@ -46,6 +46,7 @@
     <string name="update_latest_detail">最新发布：v%1$s · %2$s</string>
     <string name="update_latest_version_only">最新发布：v%1$s</string>
     <string name="update_windows_hint">Windows 电脑版 v%1$s 也已发布，安装包在同一个发布页。</string>
+    <string name="update_windows_view">查看 Windows 电脑版</string>
     <string name="windows_section_title">Windows 电脑版</string>
     <string name="windows_entry_summary">查看电脑版最新版本，打开下载页或复制链接</string>
     <string name="windows_latest">Windows 电脑版最新是 v%1$s。</string>
