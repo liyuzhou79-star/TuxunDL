@@ -14,13 +14,18 @@ import com.tuxundl.android.ui.BackupScreen
 import com.tuxundl.android.ui.BackupUiState
 import com.tuxundl.android.ui.theme.TuxunDLTheme
 import com.tuxundl.android.ui.theme.customSeedColor
+import com.tuxundl.android.util.AutoBackupFile
+import com.tuxundl.android.util.autoBackupDir
 import com.tuxundl.android.util.buildBackupJson
+import com.tuxundl.android.util.deleteAutoBackup
+import com.tuxundl.android.util.listAutoBackups
 import com.tuxundl.android.util.restoreBackupJson
 import com.tuxundl.android.util.withProfile
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import org.json.JSONObject
+import java.io.File
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
@@ -130,6 +135,60 @@ class BackupActivity : BaseActivity<AppSettingsDesign>() {
         // callbacks in onCreate (lifecycleScope) above.
     }
 
+    /** Reload the automatic backup file list into the UI state (1.5.1). */
+    private fun refreshAutoBackups() {
+        lifecycleScope.launch {
+            val files = withContext(Dispatchers.IO) { listAutoBackups() }
+            uiState.autoBackups = files
+        }
+    }
+
+    /**
+     * Export one automatic backup (1.5.1): read the file and hand it to
+     * the same system file picker the manual export uses, so the user
+     * chooses where it goes. No FileProvider change needed.
+     */
+    private fun onExportAutoBackup(file: AutoBackupFile) {
+        if (uiState.working) return
+
+        lifecycleScope.launch {
+            uiState.working = true
+
+            try {
+                val bytes = withContext(Dispatchers.IO) {
+                    File(autoBackupDir(), file.name).readBytes()
+                }
+
+                pendingExport = bytes
+                exportLauncher.launch(file.name)
+            } catch (e: Exception) {
+                uiState.snackbarHostState.showSnackbar(
+                    message = getString(R.string.backup_export_failed),
+                )
+            } finally {
+                uiState.working = false
+            }
+        }
+    }
+
+    /** Delete one automatic backup (1.5.1); the UI already asked twice. */
+    private fun onDeleteAutoBackup(file: AutoBackupFile) {
+        lifecycleScope.launch {
+            val ok = withContext(Dispatchers.IO) { deleteAutoBackup(file.name) }
+
+            if (ok) {
+                refreshAutoBackups()
+                uiState.snackbarHostState.showSnackbar(
+                    message = getString(R.string.backup_auto_deleted),
+                )
+            } else {
+                uiState.snackbarHostState.showSnackbar(
+                    message = getString(R.string.backup_auto_delete_failed),
+                )
+            }
+        }
+    }
+
     private fun onExport() {
         if (uiState.working) return
 
@@ -165,6 +224,8 @@ class BackupActivity : BaseActivity<AppSettingsDesign>() {
         uiState.autoBackupEnabled = uiStore.autoBackupEnabled
         uiState.lastAutoBackupAt = uiStore.lastAutoBackupAt
 
+        refreshAutoBackups()
+
         val darkTheme = when (uiStore.darkMode) {
             DarkMode.Auto -> resources.configuration.uiMode and
                 Configuration.UI_MODE_NIGHT_MASK == Configuration.UI_MODE_NIGHT_YES
@@ -183,6 +244,8 @@ class BackupActivity : BaseActivity<AppSettingsDesign>() {
                             uiStore.autoBackupEnabled = enabled
                             uiState.autoBackupEnabled = enabled
                         },
+                        onExportAutoBackup = { file -> onExportAutoBackup(file) },
+                        onDeleteAutoBackup = { file -> onDeleteAutoBackup(file) },
                         onBack = { finish() },
                     )
                 }

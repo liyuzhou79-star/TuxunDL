@@ -3,6 +3,7 @@ package com.tuxundl.android.ui
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -22,6 +23,7 @@ import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -32,6 +34,8 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import com.tuxundl.android.R
 import com.tuxundl.android.design.R as DesignR
+import com.tuxundl.android.util.AutoBackupFile
+import kotlinx.coroutines.delay
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
@@ -46,6 +50,9 @@ class BackupUiState {
     /** Epoch millis of the last automatic backup; 0 = never. */
     var lastAutoBackupAt by mutableStateOf(0L)
 
+    /** Automatic backup files on this device, newest first (1.5.1). */
+    var autoBackups by mutableStateOf<List<AutoBackupFile>>(emptyList())
+
     /** Lines shown in the result dialog after a restore (or export). */
     var resultLines by mutableStateOf<List<String>?>(null)
 
@@ -59,8 +66,19 @@ fun BackupScreen(
     onExport: () -> Unit,
     onImport: () -> Unit,
     onAutoBackupToggle: (Boolean) -> Unit,
+    onExportAutoBackup: (AutoBackupFile) -> Unit,
+    onDeleteAutoBackup: (AutoBackupFile) -> Unit,
     onBack: () -> Unit,
 ) {
+    // Delete needs two taps within 3 seconds; the arming auto-expires.
+    var deleteArmedName by remember { mutableStateOf<String?>(null) }
+    LaunchedEffect(deleteArmedName) {
+        if (deleteArmedName != null) {
+            delay(3000)
+            deleteArmedName = null
+        }
+    }
+
     Scaffold(
         snackbarHost = { SnackbarHost(state.snackbarHostState) },
         topBar = {
@@ -163,6 +181,84 @@ fun BackupScreen(
                 )
             }
 
+            SectionCard(title = stringResource(R.string.backup_auto_files_title)) {
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 16.dp, vertical = 12.dp),
+                    verticalArrangement = Arrangement.spacedBy(8.dp),
+                ) {
+                    Text(
+                        text = stringResource(R.string.backup_auto_files_summary),
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                    if (state.autoBackups.isEmpty()) {
+                        Text(
+                            text = stringResource(R.string.backup_auto_files_empty),
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                    } else {
+                        state.autoBackups.forEach { file ->
+                            Column(
+                                modifier = Modifier.fillMaxWidth(),
+                                verticalArrangement = Arrangement.spacedBy(2.dp),
+                            ) {
+                                Text(
+                                    text = SimpleDateFormat(
+                                        "yyyy-MM-dd HH:mm",
+                                        Locale.getDefault(),
+                                    ).format(Date(file.lastModified)),
+                                    style = MaterialTheme.typography.titleSmall,
+                                )
+                                Text(
+                                    text = file.name + " · " + formatAutoBackupSize(file.sizeBytes),
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                )
+                                Row(
+                                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                                ) {
+                                    OutlinedButton(
+                                        onClick = { onExportAutoBackup(file) },
+                                        enabled = !state.working,
+                                    ) {
+                                        Text(text = stringResource(R.string.backup_auto_export))
+                                    }
+                                    TextButton(
+                                        onClick = {
+                                            if (deleteArmedName == file.name) {
+                                                deleteArmedName = null
+                                                onDeleteAutoBackup(file)
+                                            } else {
+                                                deleteArmedName = file.name
+                                            }
+                                        },
+                                        enabled = !state.working,
+                                    ) {
+                                        Text(
+                                            text = stringResource(
+                                                if (deleteArmedName == file.name) {
+                                                    R.string.backup_auto_delete_confirm
+                                                } else {
+                                                    R.string.backup_auto_delete
+                                                },
+                                            ),
+                                            color = if (deleteArmedName == file.name) {
+                                                MaterialTheme.colorScheme.error
+                                            } else {
+                                                MaterialTheme.colorScheme.onSurface
+                                            },
+                                        )
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+
             if (state.working) {
                 Spacer(modifier = Modifier.height(16.dp))
                 Column(
@@ -202,5 +298,14 @@ fun BackupScreen(
                 }
             },
         )
+    }
+}
+
+/** Human-readable file size for the automatic backup list (1.5.1). */
+private fun formatAutoBackupSize(bytes: Long): String {
+    return when {
+        bytes < 1024 -> "$bytes B"
+        bytes < 1024 * 1024 -> "%.1f KB".format(bytes / 1024f)
+        else -> "%.1f MB".format(bytes / (1024f * 1024f))
     }
 }
