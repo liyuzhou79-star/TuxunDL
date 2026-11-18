@@ -41,6 +41,7 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
+import androidx.compose.runtime.withFrameMillis
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -302,6 +303,7 @@ fun TrafficChartDialog(
                         },
                         onScrubBuzz = { buzz() },
                         maxCapRate = capRate,
+                        fullSpanMs = windowMs,
                         modifier = Modifier
                             .fillMaxWidth()
                             .height(320.dp),
@@ -786,6 +788,7 @@ private fun InteractiveChart(
     onReset: () -> Unit,
     onScrubBuzz: () -> Unit,
     maxCapRate: Long? = null,
+    fullSpanMs: Long,
     modifier: Modifier = Modifier,
 ) {
     val downColor = MaterialTheme.colorScheme.primary
@@ -834,37 +837,104 @@ private fun InteractiveChart(
     val onTransformRef = androidx.compose.runtime.rememberUpdatedState(onTransform)
     val onResetRef = androidx.compose.runtime.rememberUpdatedState(onReset)
     val onScrubBuzzRef = androidx.compose.runtime.rememberUpdatedState(onScrubBuzz)
+    val fullSpanRef = rememberUpdatedState(fullSpanMs)
+
+    // Shared between the gesture handler and the edge-pan frame loop.
+    val chartWidthPx = remember { mutableStateOf(0) }
+    val edgePanVelocity = remember { mutableStateOf(0f) }
+    val scrubXPx = remember { mutableStateOf(0f) }
+    val lastBuzzStart = remember { mutableStateOf(Long.MIN_VALUE) }
+    val lastBuzzAt = remember { mutableStateOf(0L) }
+
+    fun timeAtX(x: Float): Long {
+        val width = chartWidthPx.value
+        return viewStartRef.value +
+            if (width > 0) (x / width * viewSpanRef.value).roundToLong() else 0L
+    }
+
+    fun selectAt(x: Float) {
+        val target = timeAtX(x)
+        val candidate = pointsRef.value.minByOrNull {
+            abs(it.startMillis + it.windowMillis / 2 - target)
+        } ?: return
+        onSelectRef.value(candidate)
+        val now = System.currentTimeMillis()
+        if (candidate.startMillis != lastBuzzStart.value &&
+            now - lastBuzzAt.value > 70L
+        ) {
+            lastBuzzStart.value = candidate.startMillis
+            lastBuzzAt.value = now
+            onScrubBuzzRef.value()
+        }
+    }
+
+    fun clampEnd(end: Long, span: Long): Long {
+        val pts = pointsRef.value
+        val dataEnd = pts.lastOrNull()?.endMillis ?: end
+        val dataStart = pts.firstOrNull()?.startMillis ?: (dataEnd - span)
+        val minEnd = dataStart + span
+        return if (minEnd >= dataEnd) dataEnd else end.coerceIn(minEnd, dataEnd)
+    }
+
+    // Edge auto-pan (1.5.0): while a scrub is held inside the edge
+    // zone of a zoomed-in view, this loop keeps sliding the view so
+    // the whole window can be crossed in a single press — no lift,
+    // no zoom-out shuffle. The selection re-pins every frame, so the
+    // info card tracks the moment sliding under the finger.
+    LaunchedEffect(Unit) {
+        var lastFrameMs = 0L
+        while (true) {
+            withFrameMillis { frameMs ->
+                val velocity = edgePanVelocity.value
+                if (velocity != 0f && lastFrameMs > 0L) {
+                    val dtSec = (frameMs - lastFrameMs) / 1000f
+                    if (dtSec in 0.001f..0.1f) {
+                        val span = viewSpanRef.value
+                        val shift = (velocity * span * dtSec).roundToLong()
+                        if (shift != 0L) {
+                            val end = viewStartRef.value + span
+                            val newEnd = clampEnd(end + shift, span)
+                            if (newEnd != end) {
+                                onTransformRef.value(newEnd, span)
+                            }
+                            selectAt(scrubXPx.value)
+                        }
+                    }
+                }
+                lastFrameMs = frameMs
+            }
+        }
+    }
 
     Canvas(
         modifier = modifier
+            .onSizeChanged { chartWidthPx.value = it.width }
             .pointerInput(Unit) {
-                var lastBuzzStart = Long.MIN_VALUE
-                var lastBuzzAt = 0L
-
-                fun timeAtX(x: Float): Long =
-                    viewStartRef.value +
-                        (x / size.width * viewSpanRef.value).roundToLong()
-
-                fun selectAt(x: Float) {
-                    val target = timeAtX(x)
-                    val candidate = pointsRef.value.minByOrNull {
-                        abs(it.startMillis + it.windowMillis / 2 - target)
-                    } ?: return
-                    onSelectRef.value(candidate)
-                    val now = System.currentTimeMillis()
-                    if (candidate.startMillis != lastBuzzStart && now - lastBuzzAt > 70L) {
-                        lastBuzzStart = candidate.startMillis
-                        lastBuzzAt = now
-                        onScrubBuzzRef.value()
-                    }
-                }
-
-                fun clampEnd(end: Long, span: Long): Long {
-                    val pts = pointsRef.value
-                    val dataEnd = pts.lastOrNull()?.endMillis ?: end
-                    val dataStart = pts.firstOrNull()?.startMillis ?: (dataEnd - span)
-                    val minEnd = dataStart + span
-                    return if (minEnd >= dataEnd) dataEnd else end.coerceIn(minEnd, dataEnd)
+                // How hard the held scrub pushes against an edge:
+                // signed spans/second for the frame loop, eased with
+                // a smoothstep of the penetration depth so the slide
+                // starts and stops without a jolt (1.5.0).
+                fun updateEdgePan(x: Float) {
+                    scrubXPx.value = x
+                    val width = size.width.toFloat()
+                    val zone = 56.dp.toPx()
+                    edgePanVelocity.value =
+                        if (viewSpanRef.value < fullSpanRef.value &&
+                            width > 0f && zone > 0f
+                        ) {
+                            val signed = when {
+                                x > width - zone ->
+                                    ((x - (width - zone)) / zone).coerceIn(0f, 1f)
+                                x < zone ->
+                                    -((zone - x) / zone).coerceIn(0f, 1f)
+                                else -> 0f
+                            }
+                            val depth = abs(signed)
+                            val eased = depth * depth * (3f - 2f * depth)
+                            if (signed < 0f) -eased * 0.9f else eased * 0.9f
+                        } else {
+                            0f
+                        }
                 }
 
                 awaitEachGesture {
@@ -887,6 +957,7 @@ private fun InteractiveChart(
 
                         if (pressed.size >= 2) {
                             transformed = true
+                            edgePanVelocity.value = 0f
                             val p0 = pressed[0].position
                             val p1 = pressed[1].position
                             val centroidX = (p0.x + p1.x) / 2f
@@ -920,6 +991,7 @@ private fun InteractiveChart(
                                 if (scrubbing) {
                                     change.consume()
                                     selectAt(change.position.x)
+                                    updateEdgePan(change.position.x)
                                 } else {
                                     val dx = change.position.x - firstDown.position.x
                                     val dy = change.position.y - firstDown.position.y
@@ -930,6 +1002,7 @@ private fun InteractiveChart(
                                             scrubbing = true
                                             change.consume()
                                             selectAt(change.position.x)
+                                            updateEdgePan(change.position.x)
                                         } else {
                                             // Vertical wins: hand the
                                             // gesture to the page scroll.
@@ -948,6 +1021,9 @@ private fun InteractiveChart(
                     if (!transformed && !yielded && !scrubbing) {
                         selectAt(firstDown.position.x)
                     }
+
+                    // Finger up: the edge slide stops with it.
+                    edgePanVelocity.value = 0f
                 }
             }
             .pointerInput(Unit) {
