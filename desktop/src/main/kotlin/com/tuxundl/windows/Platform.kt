@@ -44,4 +44,27 @@ object Platform {
             java.awt.Desktop.getDesktop().open(dir)
         }
     }.isSuccess
+
+    /**
+     * Directory chooser for the data-dir pickers (onboarding and
+     * settings). AWT's FileDialog cannot pick folders portably, so
+     * this is Swing's JFileChooser in directories-only mode. Null
+     * when the user cancels or the dialog cannot open — callers
+     * then just keep the current folder and say so, never fail
+     * silently.
+     */
+    fun pickDirectory(title: String): File? = runCatching {
+        val chooser = javax.swing.JFileChooser().apply {
+            dialogTitle = title
+            fileSelectionMode = javax.swing.JFileChooser.DIRECTORIES_ONLY
+            isAcceptAllFileFilterUsed = false
+        }
+        if (chooser.showOpenDialog(null) ==
+            javax.swing.JFileChooser.APPROVE_OPTION
+        ) {
+            chooser.selectedFile
+        } else {
+            null
+        }
+    }.getOrNull()
 }

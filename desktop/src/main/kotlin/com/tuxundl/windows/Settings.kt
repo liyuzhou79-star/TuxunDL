@@ -214,6 +214,23 @@ object SettingsStore {
         )
     }
 
+    /**
+     * First-run onboarding completed. Deliberately not one of the
+     * [preferenceKeys]: resetting preferences to defaults must not
+     * bring the onboarding back.
+     */
+    fun onboardingDone(): Boolean =
+        read()["onboardingDone"]?.jsonPrimitive?.booleanOrNull ?: false
+
+    fun setOnboardingDone(value: Boolean) {
+        write(
+            mapOf(
+                "onboardingDone" to
+                    kotlinx.serialization.json.JsonPrimitive(value),
+            ),
+        )
+    }
+
     /** All settings as one JSON object, for backup export. */
     fun snapshot(): kotlinx.serialization.json.JsonObject =
         kotlinx.serialization.json.JsonObject(read())
