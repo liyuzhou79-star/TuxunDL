@@ -154,6 +154,8 @@
     <string name="power_chip_connecting">Connecting</string>
     <string name="power_chip_stopping">Stopping</string>
     <string name="power_chip_idle">Idle</string>
+    <string name="power_menu_test_group">Test current group</string>
+    <string name="power_menu_open_nodes">View nodes</string>
     <string name="onboarding_next">Next</string>
     <string name="onboarding_back">Back</string>
     <string name="onboarding_language_title">Choose your language</string>

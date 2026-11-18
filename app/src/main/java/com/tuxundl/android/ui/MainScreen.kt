@@ -57,7 +57,10 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.LinearProgressIndicator
@@ -602,9 +605,14 @@ private enum class PowerPhase {
  *   the label briefly reads "Connected".
  * - Stopping: the ring spins fast again, in grey.
  *
+ * Long-pressing the disc (1.3.1) opens a quick menu — switch mode,
+ * test the current group, or jump to the node page; a long press
+ * never toggles the tunnel.
+ *
  * The Reduced animation style drops rotation, breathing, floating,
  * pulsing and the shake; states then differ by colour and label only.
  */
+@OptIn(ExperimentalFoundationApi::class)
 @Composable
 private fun PowerCircle(
     state: MainUiState,
@@ -622,6 +630,13 @@ private fun PowerCircle(
     var stageElapsed by remember { mutableStateOf(0L) }
     var connectedFlash by remember { mutableStateOf(false) }
     var shakeCount by remember { mutableStateOf(0) }
+
+    // Long-press quick menu (1.3.1): switch mode, test the current
+    // group or jump to the node page without leaving home. A long
+    // press only opens the menu — it never toggles the tunnel.
+    var menuOpen by remember { mutableStateOf(false) }
+    val powerContext = LocalContext.current
+    val powerUiStore = remember { UiStore(powerContext) }
 
     // Follow the real running flag: it confirms or ends the transitional
     // phases the tap handler below starts.
@@ -1006,23 +1021,30 @@ private fun PowerCircle(
                     pressedScale = 0.95f,
                     spec = tuxunPowerPressSpec(style),
                 )
-                .clickable(
+                .combinedClickable(
                     interactionSource = powerInteraction,
                     indication = null,
                     enabled = phase == PowerPhase.Stopped || phase == PowerPhase.Connected,
-                ) {
-                    when (phase) {
-                        PowerPhase.Stopped -> {
-                            phase = PowerPhase.Connecting
-                            onRequest(MainDesign.Request.ToggleStatus)
+                    onClick = {
+                        when (phase) {
+                            PowerPhase.Stopped -> {
+                                phase = PowerPhase.Connecting
+                                onRequest(MainDesign.Request.ToggleStatus)
+                            }
+                            PowerPhase.Connected -> {
+                                phase = PowerPhase.Stopping
+                                onRequest(MainDesign.Request.ToggleStatus)
+                            }
+                            else -> Unit
                         }
-                        PowerPhase.Connected -> {
-                            phase = PowerPhase.Stopping
-                            onRequest(MainDesign.Request.ToggleStatus)
-                        }
-                        else -> Unit
-                    }
-                },
+                    },
+                    onLongClick = {
+                        // Quick menu only; the tap buzz goes through
+                        // the 1.2.5 haptics helper, like drag pickup.
+                        menuOpen = true
+                        Haptics.buzz(powerContext, powerUiStore, Haptics.Kind.Tap)
+                    },
+                ),
             contentAlignment = Alignment.Center,
         ) {
             // Frosted-glass light play over the disc fill (clipped to
@@ -1184,6 +1206,54 @@ private fun PowerCircle(
                 }
             }
 
+        }
+
+        // Long-press quick menu (1.3.1). Every action reuses an
+        // existing home request, so behaviour matches the mode
+        // selector row and the node tile exactly.
+        DropdownMenu(
+            expanded = menuOpen,
+            onDismissRequest = { menuOpen = false },
+        ) {
+            listOf(
+                TunnelState.Mode.Rule to DesignR.string.rule_mode,
+                TunnelState.Mode.Global to DesignR.string.global_mode,
+                TunnelState.Mode.Direct to DesignR.string.direct_mode,
+            ).forEach { (mode, labelRes) ->
+                DropdownMenuItem(
+                    text = { Text(text = stringResource(labelRes)) },
+                    onClick = {
+                        menuOpen = false
+                        onRequest(MainDesign.Request.SetMode(mode))
+                    },
+                    trailingIcon = {
+                        if (state.mode == mode) {
+                            Icon(
+                                painter = painterResource(
+                                    DesignR.drawable.ic_outline_check_circle,
+                                ),
+                                contentDescription = null,
+                            )
+                        }
+                    },
+                )
+            }
+            HorizontalDivider()
+            DropdownMenuItem(
+                text = { Text(text = stringResource(R.string.power_menu_test_group)) },
+                onClick = {
+                    menuOpen = false
+                    onRequest(MainDesign.Request.TestCurrentGroup)
+                },
+                enabled = running,
+            )
+            DropdownMenuItem(
+                text = { Text(text = stringResource(R.string.power_menu_open_nodes)) },
+                onClick = {
+                    menuOpen = false
+                    onRequest(MainDesign.Request.OpenProxy)
+                },
+            )
         }
     }
 }

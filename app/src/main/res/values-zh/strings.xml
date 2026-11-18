@@ -154,6 +154,8 @@
     <string name="power_chip_connecting">连接中</string>
     <string name="power_chip_stopping">停止中</string>
     <string name="power_chip_idle">待机中</string>
+    <string name="power_menu_test_group">测速当前组</string>
+    <string name="power_menu_open_nodes">查看节点</string>
     <string name="onboarding_next">下一步</string>
     <string name="onboarding_back">返回</string>
     <string name="onboarding_language_title">选择语言</string>
