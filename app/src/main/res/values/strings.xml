@@ -217,6 +217,8 @@
     <string name="traffic_chart_empty">Nothing recorded yet. Once connected, the last 2 hours are recorded here.</string>
     <string name="traffic_chart_collecting">Collecting data, give it a few seconds…</string>
     <string name="traffic_chart_back_now">Back to now</string>
+    <string name="traffic_cap_label">Y-axis cap</string>
+    <string name="traffic_cap_auto">Auto</string>
     <string name="traffic_chart_bucket_avg">10-second average</string>
     <string name="traffic_status_ok">Connection OK</string>
     <string name="traffic_status_poor">Connection struggling</string>

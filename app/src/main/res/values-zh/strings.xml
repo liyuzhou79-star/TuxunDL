@@ -217,6 +217,8 @@
     <string name="traffic_chart_empty">暂无记录。连接后，这里会记录最近 2 小时的流量。</string>
     <string name="traffic_chart_collecting">正在积累数据，稍等几秒…</string>
     <string name="traffic_chart_back_now">回到当前</string>
+    <string name="traffic_cap_label">纵轴上限</string>
+    <string name="traffic_cap_auto">自动</string>
     <string name="traffic_chart_bucket_avg">10 秒平均</string>
     <string name="traffic_status_ok">连接正常</string>
     <string name="traffic_status_poor">连接不佳</string>

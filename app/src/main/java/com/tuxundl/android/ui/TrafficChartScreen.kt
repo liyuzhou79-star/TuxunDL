@@ -17,6 +17,7 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -36,6 +37,7 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -48,9 +50,11 @@ import androidx.compose.ui.graphics.drawscope.DrawScope
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.drawscope.clipRect
 import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
@@ -69,6 +73,8 @@ import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
 import kotlin.math.abs
+import kotlin.math.exp
+import kotlin.math.roundToInt
 import kotlin.math.roundToLong
 import com.tuxundl.android.design.R as DesignR
 
@@ -139,15 +145,35 @@ fun TrafficChartDialog(
     var viewEndMs by remember { mutableStateOf(0L) }
     var selected by remember { mutableStateOf<TrafficPoint?>(null) }
 
+    // Peak cap (1.5.0): null = automatic (the Y axis tops out at the
+    // visible peak); a factor caps the axis at that fraction of the
+    // window peak, so one huge spike no longer flattens everything
+    // else. Display-only — the recorded data never changes.
+    var capFactor by remember { mutableStateOf<Float?>(null) }
+
     val dataEnd = points.lastOrNull()?.endMillis
         ?: System.currentTimeMillis()
     val effectiveEnd = if (follow) dataEnd else viewEndMs
     val viewStart = effectiveEnd - viewSpanMs
 
+    val windowPeak = remember(points, windowMs, dataEnd) {
+        val from = dataEnd - windowMs
+        points.filter { it.endMillis > from }
+            .maxOfOrNull { maxOf(it.upRate, it.downRate) } ?: 0L
+    }
+    val capRate = capFactor?.let { factor ->
+        if (windowPeak > 0L) {
+            (windowPeak * factor).roundToLong().coerceAtLeast(1L)
+        } else {
+            null
+        }
+    }
+
     LaunchedEffect(windowIndex) {
         follow = true
         viewSpanMs = windowMs
         selected = null
+        capFactor = null
     }
 
     fun buzz() = Haptics.buzz(context, uiStore, Haptics.Kind.Tap)
@@ -268,6 +294,7 @@ fun TrafficChartDialog(
                             buzz()
                         },
                         onScrubBuzz = { buzz() },
+                        maxCapRate = capRate,
                         modifier = Modifier
                             .fillMaxWidth()
                             .weight(1f),
@@ -298,6 +325,18 @@ fun TrafficChartDialog(
                             text = axisFormat.format(Date(effectiveEnd)),
                             style = MaterialTheme.typography.labelSmall,
                             color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                    }
+
+                    // Peak cap bar (1.5.0): drag vertically to squash
+                    // a towering spike and read the small traffic.
+                    if (windowPeak > 0L) {
+                        PeakScaleBar(
+                            peakRate = windowPeak,
+                            capFactor = capFactor,
+                            onCapChange = { capFactor = it },
+                            onDragBuzz = { buzz() },
+                            modifier = Modifier.fillMaxWidth(),
                         )
                     }
                 }
@@ -456,6 +495,165 @@ private fun LegendBar(color: Color) {
     )
 }
 
+/**
+ * Peak cap bar (1.5.0): a slim track under the chart. Dragging
+ * vertically on it scales the chart's Y-axis cap — drag down to
+ * squash a towering spike and read the small traffic underneath,
+ * drag up to raise the ceiling again. The cap is a fraction of the
+ * window peak and display-only; double-tapping the bar (or the
+ * reset button that appears while a cap is set) returns to auto.
+ */
+@Composable
+private fun PeakScaleBar(
+    peakRate: Long,
+    capFactor: Float?,
+    onCapChange: (Float?) -> Unit,
+    onDragBuzz: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    val capFactorRef = rememberUpdatedState(capFactor)
+    val onCapChangeRef = rememberUpdatedState(onCapChange)
+    val onDragBuzzRef = rememberUpdatedState(onDragBuzz)
+
+    val manual = capFactor != null
+    val fillFraction = (capFactor ?: 1f).coerceIn(0f, 1f)
+    var barWidth by remember { mutableStateOf(0) }
+
+    Row(
+        modifier = modifier,
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(10.dp),
+    ) {
+        Text(
+            text = stringResource(R.string.traffic_cap_label),
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
+
+        Box(
+            modifier = Modifier
+                .weight(1f)
+                .height(30.dp)
+                .onSizeChanged { barWidth = it.width }
+                .clip(RoundedCornerShape(15.dp))
+                .background(MaterialTheme.colorScheme.surfaceVariant)
+                .pointerInput(Unit) {
+                    detectTapGestures(onDoubleTap = {
+                        if (capFactorRef.value != null) {
+                            onCapChangeRef.value(null)
+                            onDragBuzzRef.value()
+                        }
+                    })
+                }
+                .pointerInput(Unit) {
+                    awaitEachGesture {
+                        val down = awaitFirstDown()
+                        val startFactor = capFactorRef.value ?: 1f
+                        var totalDyPx = 0f
+                        var lastStep = -1
+
+                        do {
+                            val event = awaitPointerEvent()
+                            val change = event.changes
+                                .firstOrNull { it.id == down.id } ?: break
+                            if (!change.pressed) break
+
+                            totalDyPx += change.position.y - change.previousPosition.y
+                            change.consume()
+
+                            // ~0.6% per dp, exponential so fine steps
+                            // near the bottom stay controllable.
+                            val factor = (startFactor * exp(-totalDyPx / density * 0.006))
+                                .toFloat()
+                                .coerceIn(0.02f, 3f)
+                            onCapChangeRef.value(factor)
+
+                            val step = (factor * 20).toInt()
+                            if (lastStep >= 0 && step != lastStep) {
+                                onDragBuzzRef.value()
+                            }
+                            lastStep = step
+                        } while (true)
+                    }
+                },
+        ) {
+            Box(
+                modifier = Modifier
+                    .fillMaxHeight()
+                    .fillMaxWidth(fillFraction)
+                    .clip(RoundedCornerShape(15.dp))
+                    .background(
+                        if (manual) {
+                            MaterialTheme.colorScheme.primary.copy(alpha = 0.35f)
+                        } else {
+                            MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.6f)
+                        },
+                    ),
+            )
+            // Thumb riding the fill's leading edge.
+            Box(
+                modifier = Modifier
+                    .offset {
+                        val thumbPx = 18.dp.toPx()
+                        IntOffset(
+                            x = ((barWidth - thumbPx) * fillFraction).roundToInt(),
+                            y = ((30.dp.toPx() - thumbPx) / 2f).roundToInt(),
+                        )
+                    }
+                    .size(18.dp)
+                    .clip(CircleShape)
+                    .background(Color.White),
+                contentAlignment = Alignment.Center,
+            ) {
+                Box(
+                    modifier = Modifier
+                        .size(12.dp)
+                        .clip(CircleShape)
+                        .background(
+                            if (manual) {
+                                MaterialTheme.colorScheme.primary
+                            } else {
+                                MaterialTheme.colorScheme.outline
+                            },
+                        ),
+                )
+            }
+        }
+
+        Text(
+            text = if (manual) {
+                formatRate(
+                    (peakRate * (capFactor ?: 1f)).roundToLong().coerceAtLeast(1L),
+                )
+            } else {
+                stringResource(R.string.traffic_cap_auto)
+            },
+            style = MaterialTheme.typography.bodySmall,
+            color = if (manual) {
+                MaterialTheme.colorScheme.primary
+            } else {
+                MaterialTheme.colorScheme.onSurfaceVariant
+            },
+        )
+
+        if (manual) {
+            IconButton(
+                onClick = {
+                    onCapChange(null)
+                    onDragBuzz()
+                },
+                modifier = Modifier.size(28.dp),
+            ) {
+                Icon(
+                    painter = painterResource(DesignR.drawable.ic_baseline_replay),
+                    contentDescription = null,
+                    modifier = Modifier.size(16.dp),
+                )
+            }
+        }
+    }
+}
+
 @Composable
 private fun SummaryStat(label: String, value: String, modifier: Modifier = Modifier) {
     Column(modifier = modifier) {
@@ -580,6 +778,7 @@ private fun InteractiveChart(
     onTransform: (endMs: Long, spanMs: Long) -> Unit,
     onReset: () -> Unit,
     onScrubBuzz: () -> Unit,
+    maxCapRate: Long? = null,
     modifier: Modifier = Modifier,
 ) {
     val downColor = MaterialTheme.colorScheme.primary
@@ -603,6 +802,10 @@ private fun InteractiveChart(
         ),
         label = "chartViewMax",
     )
+
+    // A manual peak cap replaces the animated auto max outright, so
+    // dragging the scale bar tracks the finger with no lag (1.5.0).
+    val displayMax = maxCapRate?.toFloat()?.coerceAtLeast(1f) ?: animatedMax
 
     // Entrance sweep: the series draws itself left to right once.
     val sweep = remember { androidx.compose.animation.core.Animatable(0f) }
@@ -775,7 +978,7 @@ private fun InteractiveChart(
         )
 
         clipRect(right = size.width * sweep.value) {
-            drawHistoryRuns(visible, viewStart, viewSpanMs, animatedMax, downColor, upColor)
+            drawHistoryRuns(visible, viewStart, viewSpanMs, displayMax, downColor, upColor)
         }
 
         // Crosshair on the pinned moment.
@@ -793,8 +996,12 @@ private fun InteractiveChart(
                     ),
                 )
                 val usable = size.height - 6.dp.toPx()
-                val downY = size.height - (pinned.downRate / animatedMax) * usable
-                val upY = size.height - (pinned.upRate / animatedMax) * usable
+                // With a peak cap the pinned point can sit above the
+                // visible range; keep its dots pinned to the top edge.
+                val downY = (size.height - (pinned.downRate / displayMax) * usable)
+                    .coerceIn(0f, size.height)
+                val upY = (size.height - (pinned.upRate / displayMax) * usable)
+                    .coerceIn(0f, size.height)
                 drawCircle(color = Color.White, radius = 4.dp.toPx(), center = Offset(cx, downY))
                 drawCircle(color = downColor, radius = 3.dp.toPx(), center = Offset(cx, downY))
                 drawCircle(color = Color.White, radius = 4.dp.toPx(), center = Offset(cx, upY))
