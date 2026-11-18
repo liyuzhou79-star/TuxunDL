@@ -15,6 +15,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -53,7 +54,12 @@ internal fun SettingsPage() {
     var note by remember { mutableStateOf<String?>(null) }
     var updateText by remember { mutableStateOf<String?>(null) }
     var updateUrl by remember { mutableStateOf<String?>(null) }
+    var coreVersion by remember { mutableStateOf<String?>(null) }
     val scope = rememberCoroutineScope()
+
+    LaunchedEffect(Unit) {
+        coreVersion = runCatching { CoreBridge.api?.version() }.getOrNull()
+    }
 
     Column(modifier = Modifier.fillMaxSize().padding(24.dp)) {
         Text(
@@ -360,6 +366,55 @@ internal fun SettingsPage() {
                 )
             }
         }
+
+        Spacer(Modifier.height(28.dp))
+
+        Text(text = "关于", color = Color.White, fontSize = 16.sp)
+        Spacer(Modifier.height(10.dp))
+        Text(
+            text = "应用版本：Windows v${WindowsUpdateCheck.CURRENT_VERSION}",
+            color = TextDim,
+            fontSize = 14.sp,
+        )
+        Spacer(Modifier.height(6.dp))
+        Text(
+            text = "核心版本：" + (coreVersion ?: "核心未运行"),
+            color = TextDim,
+            fontSize = 14.sp,
+            modifier = Modifier
+                .clip(RoundedCornerShape(8.dp))
+                .clickable {
+                    scope.launch {
+                        coreVersion = runCatching {
+                            CoreBridge.api?.version()
+                        }.getOrNull()
+                    }
+                }
+                .padding(horizontal = 4.dp, vertical = 2.dp),
+        )
+        Spacer(Modifier.height(4.dp))
+        Text(
+            text = "核心没在运行时显示「核心未运行」；连上之后点一下这行可以重新查询。",
+            color = TextDim,
+            fontSize = 13.sp,
+        )
+        Spacer(Modifier.height(10.dp))
+        Text(
+            text = "项目主页",
+            color = Color.White,
+            fontSize = 15.sp,
+            modifier = Modifier
+                .clip(RoundedCornerShape(8.dp))
+                .background(PanelDark)
+                .clickable {
+                    runCatching {
+                        Desktop.getDesktop().browse(
+                            URI("https://github.com/liyuzhou79-star/TuxunDL"),
+                        )
+                    }
+                }
+                .padding(horizontal = 16.dp, vertical = 10.dp),
+        )
     }
 }
 
