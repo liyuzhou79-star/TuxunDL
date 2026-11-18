@@ -2,6 +2,11 @@
 
 每個版本的詳細說明與下載見 [Releases](https://github.com/liyuzhou79-star/TuxunDL/releases)。所有版本都同時發布標準版（arm64）與老機型版（armeabi-v7a），同版本號、同一發布頁。自 Windows 版起，每個發布頁都同時附上 Android 與 Windows 兩個平台的最新安裝包。
 
+## Windows 1.4.0 — 大更新：系統代理殘留自檢與清理
+- 首頁自檢：系統代理開著並指向本程序端口、但核心沒在運行時，頂部提醒一鍵清理殘留代理
+- 設置加「重置系統代理」按鈕（系統代理維護區），無條件走清理路徑關閉系統代理開關
+- 檢測只認本程序自己的回環端口，不碰其他軟件的代理設置
+
 ## Windows 1.3.3 — 日誌級別可選
 - 設置加「日誌級別」：info／warning／error／silent 四檔，生成配置時寫入 log-level，下次連接生效
 

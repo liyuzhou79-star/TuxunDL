@@ -237,6 +237,10 @@ private fun HomePage() {
     var rateText by remember { mutableStateOf("↓ 0 B/s   ↑ 0 B/s") }
     var sessionText by remember { mutableStateOf("本次会话 0 B") }
     var durationText by remember { mutableStateOf("") }
+    // Leftover system proxy from an unclean exit (crash, killed
+    // process): Windows still points browsers at our port while the
+    // core is down. Detected read-only; the banner offers the fix.
+    var staleProxy by remember { mutableStateOf(false) }
     // (down, up) bytes-per-second samples for the home traffic chart,
     // one every two seconds, the last two minutes kept.
     var samples by remember { mutableStateOf<List<Pair<Long, Long>>>(emptyList()) }
@@ -281,6 +285,13 @@ private fun HomePage() {
         }
     }
 
+    // Check for a leftover system proxy whenever the connection
+    // state settles to stopped (page open included).
+    LaunchedEffect(connected) {
+        staleProxy = !connected &&
+            SystemProxy.pointsAtAppPort(SettingsStore.mixedPort())
+    }
+
     // Auto-connect once when the home page first appears, if the
     // user turned it on and a profile is ready. This is the same
     // start path as the power button below, elevation included.
@@ -314,6 +325,41 @@ private fun HomePage() {
             .padding(28.dp),
         horizontalAlignment = Alignment.CenterHorizontally,
     ) {
+        if (staleProxy) {
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clip(RoundedCornerShape(12.dp))
+                    .background(Color(0xFF3A2A1E))
+                    .padding(horizontal = 16.dp, vertical = 12.dp),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Text(
+                    text = "系统代理还开着并指向本程序的端口，但核心没有在运行——" +
+                        "多半是上次没正常退出留下的，浏览器会因此上不了网。",
+                    color = Color(0xFFF0D9B5),
+                    fontSize = 13.sp,
+                    modifier = Modifier.weight(1f),
+                )
+                Spacer(Modifier.width(12.dp))
+                Text(
+                    text = "清理",
+                    color = Color.White,
+                    fontSize = 14.sp,
+                    modifier = Modifier
+                        .clip(RoundedCornerShape(8.dp))
+                        .background(Indigo)
+                        .clickable {
+                            SystemProxy.disable()
+                            staleProxy = false
+                            statusNote = "已清理残留的系统代理"
+                        }
+                        .padding(horizontal = 14.dp, vertical = 8.dp),
+                )
+            }
+            Spacer(Modifier.height(16.dp))
+        }
+
         Spacer(Modifier.height(12.dp))
 
         WindowMascot(size = 84)

@@ -283,6 +283,30 @@ internal fun SettingsPage() {
 
         Spacer(Modifier.height(28.dp))
 
+        Text(text = "系统代理维护", color = Color.White, fontSize = 16.sp)
+        Spacer(Modifier.height(4.dp))
+        Text(
+            text = "如果程序异常退出（崩溃、被强制结束），系统代理可能还开着并指向本程序，浏览器会因此上不了网。首页检测到这种情况会提醒你一键清理；这里也可以随时手动重置一次，走的是和断开连接时同一条清理路径，只关系统代理开关。",
+            color = TextDim,
+            fontSize = 13.sp,
+        )
+        Spacer(Modifier.height(10.dp))
+        Text(
+            text = "重置系统代理",
+            color = Color.White,
+            fontSize = 15.sp,
+            modifier = Modifier
+                .clip(RoundedCornerShape(8.dp))
+                .background(PanelDark)
+                .clickable {
+                    SystemProxy.disable()
+                    note = "系统代理已重置（开关已关闭）"
+                }
+                .padding(horizontal = 16.dp, vertical = 10.dp),
+        )
+
+        Spacer(Modifier.height(28.dp))
+
         Text(text = "检查更新", color = Color.White, fontSize = 16.sp)
         Spacer(Modifier.height(4.dp))
         Text(
