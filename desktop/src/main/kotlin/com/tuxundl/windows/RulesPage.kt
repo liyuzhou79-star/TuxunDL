@@ -28,6 +28,8 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
@@ -51,7 +53,9 @@ private data class RuleRow(
  * active subscription config.
  */
 @Composable
-internal fun RulesPage() {
+internal fun RulesPage(
+    searchFocusRequester: FocusRequester = FocusRequester(),
+) {
     val scope = rememberCoroutineScope()
     var rules by remember { mutableStateOf<List<RuleRow>>(emptyList()) }
     var loaded by remember { mutableStateOf(false) }
@@ -130,7 +134,7 @@ internal fun RulesPage() {
             onValueChange = { query = it },
             placeholder = { Text("搜索规则（域名、类型或走向）", color = TextDim, fontSize = 14.sp) },
             singleLine = true,
-            modifier = Modifier.fillMaxWidth(),
+            modifier = Modifier.fillMaxWidth().focusRequester(searchFocusRequester),
         )
 
         if (ruleTypes.size > 1) {

@@ -226,6 +226,42 @@ object SettingsStore {
         applyAutoStart(autoStart())
     }
 
+    /**
+     * Keys that hold preferences, as opposed to user data. Removing
+     * them is a reset to defaults: every getter falls back to its
+     * built-in default when its key is absent.
+     */
+    private val preferenceKeys = setOf(
+        "tunMode",
+        "mixedPort",
+        "autoStart",
+        "autoConnect",
+        "closeToTray",
+        "autoSortAfterTest",
+        "autoUpdateIntervalHours",
+        "logLevel",
+        "coreMode",
+        "themeColorHex",
+        "autoBackupWeekly",
+    )
+
+    /**
+     * Reset every preference to its default. User data kept in the
+     * same file — favorite nodes, pinned subscriptions and the
+     * auto-backup timestamp — is left untouched, and subscriptions
+     * themselves live in a different store entirely.
+     */
+    fun resetToDefaults() {
+        val kept = read().filterKeys { it !in preferenceKeys }
+        CoreBridge.workDir.mkdirs()
+        file.writeText(buildJsonObject {
+            kept.forEach { (key, value) -> put(key, value) }
+        }.toString())
+        // Autostart has a system side effect; re-apply it so the
+        // default (off) removes any entry a previous value created.
+        applyAutoStart(autoStart())
+    }
+
     private fun applyAutoStart(value: Boolean) {
         if (Platform.isLinux) {
             applyAutoStartLinux(value)

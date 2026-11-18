@@ -39,6 +39,7 @@ import java.net.URI
 private val Indigo get() = ThemeState.accent
 private val PanelDark = Color(0xFF1E1E2A)
 private val TextDim = Color(0xFF9A9AB0)
+private val WarnRed = Color(0xFFC04545)
 
 /**
  * Settings page: connection mode and the local mixed port. Changes
@@ -64,6 +65,9 @@ internal fun SettingsPage() {
     var updateText by remember { mutableStateOf<String?>(null) }
     var updateUrl by remember { mutableStateOf<String?>(null) }
     var coreVersion by remember { mutableStateOf<String?>(null) }
+    // Two-step confirm for "恢复默认设置", same pattern as the log
+    // page's clear button: first click arms, second click executes.
+    var confirmReset by remember { mutableStateOf(false) }
     val scope = rememberCoroutineScope()
 
     LaunchedEffect(Unit) {
@@ -518,6 +522,61 @@ internal fun SettingsPage() {
                             }
                         }
                         .padding(horizontal = 8.dp, vertical = 6.dp),
+                )
+            }
+        }
+
+        Spacer(Modifier.height(28.dp))
+
+        Text(text = "恢复默认设置", color = Color.White, fontSize = 16.sp)
+        Spacer(Modifier.height(4.dp))
+        Text(
+            text = "把连接模式、混合端口和这一页的全部开关、主题色恢复成默认。订阅、收藏的节点、置顶的订阅都不会动。模式和端口在下次连接时生效。",
+            color = TextDim,
+            fontSize = 13.sp,
+        )
+        Spacer(Modifier.height(10.dp))
+        Row {
+            Text(
+                text = if (confirmReset) "再点一次确认恢复" else "恢复默认设置",
+                color = Color.White,
+                fontSize = 15.sp,
+                modifier = Modifier
+                    .clip(RoundedCornerShape(8.dp))
+                    .background(if (confirmReset) WarnRed else PanelDark)
+                    .clickable {
+                        if (!confirmReset) {
+                            confirmReset = true
+                        } else {
+                            SettingsStore.resetToDefaults()
+                            ThemeState.resetAccent()
+                            tun = SettingsStore.tunMode()
+                            autoStart = SettingsStore.autoStart()
+                            autoConnect = SettingsStore.autoConnect()
+                            closeToTray = SettingsStore.closeToTray()
+                            autoSort = SettingsStore.autoSortAfterTest()
+                            autoBackup = SettingsStore.autoBackupWeekly()
+                            intervalHours =
+                                SettingsStore.autoUpdateIntervalHours()
+                            logLevel = SettingsStore.logLevel()
+                            portText = SettingsStore.mixedPort().toString()
+                            confirmReset = false
+                            note = "已恢复默认设置；订阅和收藏没有动，" +
+                                "模式与端口在下次连接时生效"
+                        }
+                    }
+                    .padding(horizontal = 16.dp, vertical = 10.dp),
+            )
+            if (confirmReset) {
+                Spacer(Modifier.width(10.dp))
+                Text(
+                    text = "取消",
+                    color = TextDim,
+                    fontSize = 15.sp,
+                    modifier = Modifier
+                        .clip(RoundedCornerShape(8.dp))
+                        .clickable { confirmReset = false }
+                        .padding(horizontal = 12.dp, vertical = 10.dp),
                 )
             }
         }

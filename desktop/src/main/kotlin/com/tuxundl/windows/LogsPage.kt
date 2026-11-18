@@ -23,6 +23,8 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.SpanStyle
 import androidx.compose.ui.text.buildAnnotatedString
@@ -49,7 +51,9 @@ private val LogError = Color(0xFFFF6B6B)
  * instead of hiding in a wall of grey text.
  */
 @Composable
-internal fun LogsPage() {
+internal fun LogsPage(
+    searchFocusRequester: FocusRequester = FocusRequester(),
+) {
     var source by remember { mutableStateOf("app") }
     var tick by remember { mutableStateOf(0) }
     var query by remember { mutableStateOf("") }
@@ -174,7 +178,7 @@ internal fun LogsPage() {
             onValueChange = { query = it },
             placeholder = { Text("搜索日志", color = TextDim, fontSize = 14.sp) },
             singleLine = true,
-            modifier = Modifier.fillMaxWidth(),
+            modifier = Modifier.fillMaxWidth().focusRequester(searchFocusRequester),
         )
 
         if (exportNote != null) {

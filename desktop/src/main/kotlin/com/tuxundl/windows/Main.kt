@@ -36,6 +36,13 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.input.key.Key
+import androidx.compose.ui.input.key.KeyEventType
+import androidx.compose.ui.input.key.isCtrlPressed
+import androidx.compose.ui.input.key.key
+import androidx.compose.ui.input.key.onPreviewKeyEvent
+import androidx.compose.ui.input.key.type
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
@@ -246,10 +253,39 @@ fun main() {
 internal fun App() {
     var selectedNav by remember { mutableStateOf(0) }
 
+    // Ctrl+F targets for the pages that have a search field; the
+    // root key handler below routes the shortcut to whichever page
+    // is on screen. Pages without a search field ignore it.
+    val nodesSearchFocus = remember { FocusRequester() }
+    val connectionsSearchFocus = remember { FocusRequester() }
+    val rulesSearchFocus = remember { FocusRequester() }
+    val logsSearchFocus = remember { FocusRequester() }
+
     Row(
         modifier = Modifier
             .fillMaxSize()
-            .background(BgDark),
+            .background(BgDark)
+            .onPreviewKeyEvent { event ->
+                if (event.type == KeyEventType.KeyDown &&
+                    event.isCtrlPressed && event.key == Key.F
+                ) {
+                    val target = when (selectedNav) {
+                        1 -> nodesSearchFocus
+                        2 -> connectionsSearchFocus
+                        4 -> rulesSearchFocus
+                        5 -> logsSearchFocus
+                        else -> null
+                    }
+                    if (target != null) {
+                        runCatching { target.requestFocus() }
+                        true
+                    } else {
+                        false
+                    }
+                } else {
+                    false
+                }
+            },
     ) {
         Sidebar(
             selected = selectedNav,
@@ -259,11 +295,11 @@ internal fun App() {
         Box(modifier = Modifier.fillMaxSize()) {
             when (selectedNav) {
                 0 -> HomePage()
-                1 -> NodesPage()
-                2 -> ConnectionsPage()
+                1 -> NodesPage(nodesSearchFocus)
+                2 -> ConnectionsPage(connectionsSearchFocus)
                 3 -> SubscriptionsPage()
-                4 -> RulesPage()
-                5 -> LogsPage()
+                4 -> RulesPage(rulesSearchFocus)
+                5 -> LogsPage(logsSearchFocus)
                 6 -> SettingsPage()
                 else -> Text(
                     text = "${NAV_ITEMS[selectedNav]}（开发中）",

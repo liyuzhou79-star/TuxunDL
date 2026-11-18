@@ -25,6 +25,8 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
@@ -65,7 +67,9 @@ private fun SortChip(label: String, active: Boolean, onClick: () -> Unit) {
  * actions. This is the page the 1.1.0 update adds.
  */
 @Composable
-fun ConnectionsPage() {
+fun ConnectionsPage(
+    searchFocusRequester: FocusRequester = FocusRequester(),
+) {
     var connections by remember {
         mutableStateOf<List<MihomoApi.ConnectionInfo>>(emptyList())
     }
@@ -170,7 +174,7 @@ fun ConnectionsPage() {
             onValueChange = { query = it },
             placeholder = { Text("搜索连接（目标、进程、规则或节点）", color = TextDim, fontSize = 14.sp) },
             singleLine = true,
-            modifier = Modifier.fillMaxWidth(),
+            modifier = Modifier.fillMaxWidth().focusRequester(searchFocusRequester),
         )
         Spacer(Modifier.height(12.dp))
 

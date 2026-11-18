@@ -26,6 +26,8 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
@@ -64,7 +66,9 @@ private const val FAVORITES_SECTION = "\u0000favorites"
  * runs a fresh delay test for that node.
  */
 @Composable
-internal fun NodesPage() {
+internal fun NodesPage(
+    searchFocusRequester: FocusRequester = FocusRequester(),
+) {
     val scope = rememberCoroutineScope()
     var groups by remember { mutableStateOf<List<ProxyGroup>>(emptyList()) }
     var delays by remember { mutableStateOf<Map<String, Long?>>(emptyMap()) }
@@ -218,7 +222,7 @@ internal fun NodesPage() {
                 onValueChange = { query = it },
                 placeholder = { Text("搜索节点", color = TextDim, fontSize = 14.sp) },
                 singleLine = true,
-                modifier = Modifier.weight(1f),
+                modifier = Modifier.weight(1f).focusRequester(searchFocusRequester),
             )
             Spacer(Modifier.padding(horizontal = 4.dp))
             Text(

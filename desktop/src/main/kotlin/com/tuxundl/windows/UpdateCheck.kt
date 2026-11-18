@@ -44,7 +44,7 @@ object DesktopUpdateCheck {
     /** Release tag prefix of the running edition: "win-v" / "linux-v". */
     val TAG_PREFIX: String = if (Platform.isLinux) "linux-v" else "win-v"
 
-    private const val WINDOWS_VERSION = "1.6.8"
+    private const val WINDOWS_VERSION = "1.6.9"
     private const val LINUX_VERSION = "1.0.0"
 
     /** Version of the running edition (kept in sync with build.gradle.kts). */

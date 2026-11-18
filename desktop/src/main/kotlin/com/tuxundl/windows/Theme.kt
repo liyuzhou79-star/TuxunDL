@@ -49,6 +49,15 @@ object ThemeState {
         SettingsStore.setThemeColorHex(hexOf(color))
     }
 
+    /**
+     * Back to the default preset, in memory only — used by the
+     * settings page's "恢复默认设置", which removes the stored key
+     * itself, so there is nothing to persist here.
+     */
+    fun resetAccent() {
+        accent = presets[0].second
+    }
+
     private fun hexOf(color: Color): String =
         "%08X".format(color.toArgb())
 }
