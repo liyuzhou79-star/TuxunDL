@@ -49,8 +49,10 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.scale
+import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.onSizeChanged
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
@@ -68,6 +70,8 @@ import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
 import com.tuxundl.android.R
 import com.tuxundl.android.design.model.AnimationStyle
+import com.tuxundl.android.design.store.UiStore
+import com.tuxundl.android.util.Haptics
 import com.tuxundl.android.design.R as DesignR
 import kotlin.math.roundToInt
 
@@ -781,6 +785,8 @@ fun TuxunSegmentedRow(
     modifier: Modifier = Modifier,
 ) {
     val style = LocalAnimStyle.current
+    val context = LocalContext.current
+    val uiStore = remember { UiStore(context) }
     var rowWidth by remember { mutableStateOf(0) }
 
     val count = options.size
@@ -807,14 +813,23 @@ fun TuxunSegmentedRow(
             .onSizeChanged { rowWidth = it.width },
     ) {
         if (selectedIndex >= 0 && segmentWidth > 0) {
+            // The selected pill is a solid theme-colour chip with a
+            // soft shadow (1.5.0): the old secondaryContainer fill
+            // sat too close to the track colour in the custom
+            // palettes, so the current choice was easy to miss.
             Box(
                 modifier = Modifier
                     .offset { IntOffset((indicatorFraction * segmentWidth).roundToInt(), 0) }
                     .width(with(LocalDensity.current) { segmentWidth.toDp() })
                     .fillMaxHeight()
                     .padding(3.dp)
+                    .shadow(
+                        elevation = 3.dp,
+                        shape = RoundedCornerShape(17.dp),
+                        clip = false,
+                    )
                     .clip(RoundedCornerShape(17.dp))
-                    .background(MaterialTheme.colorScheme.secondaryContainer),
+                    .background(MaterialTheme.colorScheme.primary),
             )
         }
 
@@ -823,7 +838,7 @@ fun TuxunSegmentedRow(
                 val selected = index == selectedIndex
                 val textColor by animateColorAsState(
                     targetValue = if (selected) {
-                        MaterialTheme.colorScheme.onSecondaryContainer
+                        MaterialTheme.colorScheme.onPrimary
                     } else {
                         MaterialTheme.colorScheme.onSurfaceVariant
                     },
@@ -836,12 +851,23 @@ fun TuxunSegmentedRow(
                         .weight(1f)
                         .fillMaxHeight()
                         .clip(RoundedCornerShape(20.dp))
-                        .clickable { onSelect(index) },
+                        .clickable {
+                            if (index != selectedIndex) {
+                                Haptics.buzz(context, uiStore, Haptics.Kind.Tap)
+                            }
+                            onSelect(index)
+                        },
                     contentAlignment = Alignment.Center,
                 ) {
                     Text(
                         text = label,
-                        style = MaterialTheme.typography.labelLarge,
+                        style = if (selected) {
+                            MaterialTheme.typography.labelLarge.copy(
+                                fontWeight = FontWeight.SemiBold,
+                            )
+                        } else {
+                            MaterialTheme.typography.labelLarge
+                        },
                         color = textColor,
                     )
                 }
