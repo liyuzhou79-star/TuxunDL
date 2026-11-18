@@ -2,7 +2,7 @@
 
 每個版本的詳細說明與下載見 [Releases](https://github.com/liyuzhou79-star/TuxunDL/releases)。所有版本都同時發布標準版（arm64）與老機型版（armeabi-v7a），同版本號、同一發布頁。自 Windows 版起，每個發布頁都同時附上 Android 與 Windows 兩個平台的最新安裝包。
 
-## TV 0.1.0 Beta — 安卓電視版首個試水版（待發布）
+## TV 0.1.0 Beta — 安卓電視版首個試水版（已發布）
 - 新增 tv flavor：獨立包名 com.tuxundl.android.tv、獨立版本線 0.1.0（versionCode 100，自成公式不與手機版打架），與手機版互不覆蓋、可並存；顯示名仍為 TuxunDL；core 模塊同步新增同名 golang source set（foss 來源與 alpha/meta 相同）
 - 電視入口沿用主清單既有的 Leanback 啟動入口與 320×180 橫幅圖（ic_banner），uses-feature leanback/touchscreen 皆 required=false，手機上安裝不衝突
 - 遙控器基本適配：可點擊卡片（TuxunCard）、模式分段按鈕、主頁功能磚在獲得焦點時顯示主題色邊框；電視版主頁電源鍵自動取得焦點並帶焦點環，OK 可開關、長按選單可達；拖拽排序、圖表手勢等觸摸操作不在本版遙控範圍，未逐頁做遙控審計
