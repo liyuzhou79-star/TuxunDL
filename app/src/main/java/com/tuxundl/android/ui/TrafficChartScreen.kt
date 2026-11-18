@@ -230,7 +230,7 @@ fun TrafficChartDialog(
                         // reachable. The chart itself arbitrates drag
                         // direction — horizontal scrubs, vertical scrolls.
                         .verticalScroll(rememberScrollState())
-                        .padding(horizontal = 16.dp, bottom = 16.dp),
+                        .padding(start = 16.dp, end = 16.dp, bottom = 16.dp),
                     verticalArrangement = Arrangement.spacedBy(12.dp),
                 ) {
 
