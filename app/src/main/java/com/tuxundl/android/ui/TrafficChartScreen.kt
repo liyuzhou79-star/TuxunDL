@@ -25,6 +25,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.safeDrawingPadding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.CircleShape
@@ -194,16 +195,19 @@ fun TrafficChartDialog(
                 modifier = Modifier
                     .fillMaxSize()
                     .tuxunPageEnter()
-                    // The page scrolls (1.5.0): the selection and
-                    // summary cards below the chart are always
-                    // reachable. The chart itself arbitrates drag
-                    // direction — horizontal scrubs, vertical scrolls.
-                    .verticalScroll(rememberScrollState())
-                    .padding(horizontal = 16.dp, vertical = 16.dp),
-                verticalArrangement = Arrangement.spacedBy(12.dp),
+                    // Keep the whole page clear of the system bars
+                    // (1.5.3): the app draws edge-to-edge, and without
+                    // the insets the page bottom slides under the
+                    // gesture bar, where taps are eaten by the system.
+                    // The header is pinned outside the scroll area,
+                    // so the close button stays reachable at any
+                    // scroll position; only the body below scrolls.
+                    .safeDrawingPadding(),
             ) {
                 Row(
-                    modifier = Modifier.fillMaxWidth(),
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(start = 16.dp, top = 16.dp, end = 16.dp, bottom = 12.dp),
                     verticalAlignment = Alignment.CenterVertically,
                 ) {
                     Text(
@@ -218,229 +222,241 @@ fun TrafficChartDialog(
                         )
                     }
                 }
-
-                // Plain segmented window switcher (no big buttons).
-                TuxunSegmentedRow(
-                    options = TRAFFIC_WINDOW_LABEL_RES.map { stringResource(it) },
-                    selectedIndex = windowIndex,
-                    onSelect = { index ->
-                        if (index != windowIndex) {
-                            state.trafficWindowIndex = index
-                            buzz()
-                        }
-                    },
-                    modifier = Modifier.fillMaxWidth(),
-                )
-
-                // Legend: series colours + health marks.
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.spacedBy(14.dp),
-                    verticalAlignment = Alignment.CenterVertically,
+                Column(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        // The body scrolls (1.5.0): the selection and
+                        // summary cards below the chart are always
+                        // reachable. The chart itself arbitrates drag
+                        // direction — horizontal scrubs, vertical scrolls.
+                        .verticalScroll(rememberScrollState())
+                        .padding(horizontal = 16.dp, bottom = 16.dp),
+                    verticalArrangement = Arrangement.spacedBy(12.dp),
                 ) {
-                    LegendDot(color = MaterialTheme.colorScheme.primary)
-                    Text(
-                        text = "↓",
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    )
-                    LegendDot(color = MaterialTheme.colorScheme.tertiary)
-                    Text(
-                        text = "↑",
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    )
-                    LegendBar(color = PoorFill)
-                    Text(
-                        text = stringResource(R.string.traffic_legend_poor),
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    )
-                    LegendBar(color = OutageRed)
-                    Text(
-                        text = stringResource(R.string.traffic_legend_outage),
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    )
-                }
 
-                if (points.isEmpty()) {
-                    ChartEmptyState(
-                        text = stringResource(R.string.traffic_chart_empty),
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .height(320.dp),
-                    )
-                } else if (points.size < 2) {
-                    ChartEmptyState(
-                        text = stringResource(R.string.traffic_chart_collecting),
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .height(320.dp),
-                    )
-                } else {
-                    InteractiveChart(
-                        points = points,
-                        segments = segments,
-                        disconnectTimes = state.disconnectTimes,
-                        viewStart = viewStart,
-                        viewSpanMs = viewSpanMs,
-                        selected = selected,
-                        onSelect = { point ->
-                            if (point?.startMillis != selected?.startMillis) {
-                                selected = point
+                    // Plain segmented window switcher (no big buttons).
+                    TuxunSegmentedRow(
+                        options = TRAFFIC_WINDOW_LABEL_RES.map { stringResource(it) },
+                        selectedIndex = windowIndex,
+                        onSelect = { index ->
+                            if (index != windowIndex) {
+                                state.trafficWindowIndex = index
+                                buzz()
                             }
                         },
-                        onTransform = { newEnd, newSpan ->
-                            follow = false
-                            viewEndMs = newEnd
-                            viewSpanMs = newSpan
-                        },
-                        onReset = {
-                            follow = true
-                            viewSpanMs = windowMs
-                            selected = null
-                            buzz()
-                        },
-                        onScrubBuzz = { buzz() },
-                        maxCapRate = capRate,
-                        fullSpanMs = windowMs,
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .height(320.dp),
+                        modifier = Modifier.fillMaxWidth(),
                     )
 
-                    // Axis labels: start / middle / end of the view.
-                    val axisFormat = remember(viewSpanMs) {
-                        SimpleDateFormat(
-                            if (viewSpanMs <= 600_000L) "HH:mm:ss" else "HH:mm",
-                            Locale.US,
-                        )
-                    }
+                    // Legend: series colours + health marks.
                     Row(
                         modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.SpaceBetween,
+                        horizontalArrangement = Arrangement.spacedBy(14.dp),
+                        verticalAlignment = Alignment.CenterVertically,
                     ) {
+                        LegendDot(color = MaterialTheme.colorScheme.primary)
                         Text(
-                            text = axisFormat.format(Date(viewStart)),
-                            style = MaterialTheme.typography.labelSmall,
+                            text = "↓",
+                            style = MaterialTheme.typography.bodySmall,
                             color = MaterialTheme.colorScheme.onSurfaceVariant,
                         )
+                        LegendDot(color = MaterialTheme.colorScheme.tertiary)
                         Text(
-                            text = axisFormat.format(Date(viewStart + viewSpanMs / 2)),
-                            style = MaterialTheme.typography.labelSmall,
+                            text = "↑",
+                            style = MaterialTheme.typography.bodySmall,
                             color = MaterialTheme.colorScheme.onSurfaceVariant,
                         )
+                        LegendBar(color = PoorFill)
                         Text(
-                            text = axisFormat.format(Date(effectiveEnd)),
-                            style = MaterialTheme.typography.labelSmall,
+                            text = stringResource(R.string.traffic_legend_poor),
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                        LegendBar(color = OutageRed)
+                        Text(
+                            text = stringResource(R.string.traffic_legend_outage),
+                            style = MaterialTheme.typography.bodySmall,
                             color = MaterialTheme.colorScheme.onSurfaceVariant,
                         )
                     }
 
-                    // Peak cap bar (1.5.0): drag vertically to squash
-                    // a towering spike and read the small traffic.
-                    if (windowPeak > 0L) {
-                        PeakScaleBar(
-                            peakRate = windowPeak,
-                            capFactor = capFactor,
-                            onCapChange = { capFactor = it },
-                            onDragBuzz = { buzz() },
+                    if (points.isEmpty()) {
+                        ChartEmptyState(
+                            text = stringResource(R.string.traffic_chart_empty),
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .height(320.dp),
+                        )
+                    } else if (points.size < 2) {
+                        ChartEmptyState(
+                            text = stringResource(R.string.traffic_chart_collecting),
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .height(320.dp),
+                        )
+                    } else {
+                        InteractiveChart(
+                            points = points,
+                            segments = segments,
+                            disconnectTimes = state.disconnectTimes,
+                            viewStart = viewStart,
+                            viewSpanMs = viewSpanMs,
+                            selected = selected,
+                            onSelect = { point ->
+                                if (point?.startMillis != selected?.startMillis) {
+                                    selected = point
+                                }
+                            },
+                            onTransform = { newEnd, newSpan ->
+                                follow = false
+                                viewEndMs = newEnd
+                                viewSpanMs = newSpan
+                            },
+                            onReset = {
+                                follow = true
+                                viewSpanMs = windowMs
+                                selected = null
+                                buzz()
+                            },
+                            onScrubBuzz = { buzz() },
+                            maxCapRate = capRate,
+                            fullSpanMs = windowMs,
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .height(320.dp),
+                        )
+
+                        // Axis labels: start / middle / end of the view.
+                        val axisFormat = remember(viewSpanMs) {
+                            SimpleDateFormat(
+                                if (viewSpanMs <= 600_000L) "HH:mm:ss" else "HH:mm",
+                                Locale.US,
+                            )
+                        }
+                        Row(
                             modifier = Modifier.fillMaxWidth(),
-                        )
-                    }
-                }
-
-                // Selection info / hint, cross-fading between moments.
-                TuxunCard(
-                    shape = RoundedCornerShape(TuxunCardCornerLarge),
-                    modifier = Modifier.fillMaxWidth(),
-                ) {
-                    AnimatedContent(
-                        targetState = selected?.startMillis,
-                        transitionSpec = {
-                            fadeIn(tuxunFadeSpec(style, entering = true)) togetherWith
-                                fadeOut(tuxunFadeSpec(style, entering = false))
-                        },
-                        label = "chartSelection",
-                    ) { selectedStart ->
-                        val point = selected?.takeIf { it.startMillis == selectedStart }
-                        if (point == null) {
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                        ) {
                             Text(
-                                text = stringResource(R.string.traffic_chart_hint),
-                                style = MaterialTheme.typography.bodyMedium,
+                                text = axisFormat.format(Date(viewStart)),
+                                style = MaterialTheme.typography.labelSmall,
                                 color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                modifier = Modifier.padding(16.dp),
                             )
-                        } else {
-                            SelectionInfo(
-                                point = point,
-                                probes = probes,
-                                segments = segments,
+                            Text(
+                                text = axisFormat.format(Date(viewStart + viewSpanMs / 2)),
+                                style = MaterialTheme.typography.labelSmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            )
+                            Text(
+                                text = axisFormat.format(Date(effectiveEnd)),
+                                style = MaterialTheme.typography.labelSmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            )
+                        }
+
+                        // Peak cap bar (1.5.0): drag vertically to squash
+                        // a towering spike and read the small traffic.
+                        if (windowPeak > 0L) {
+                            PeakScaleBar(
+                                peakRate = windowPeak,
+                                capFactor = capFactor,
+                                onCapChange = { capFactor = it },
+                                onDragBuzz = { buzz() },
+                                modifier = Modifier.fillMaxWidth(),
                             )
                         }
                     }
-                }
 
-                // Window summary: average delay / total traffic / drops.
-                val windowStart = dataEnd - windowMs
-                val avgDelay = remember(probes, windowStart, dataEnd) {
-                    averageDelayIn(probes, windowStart, dataEnd)
-                }
-                val outageCount = remember(segments, state.disconnectTimes, windowStart, dataEnd) {
-                    val outages = segments.count {
-                        it.kind == HealthKind.Outage && it.endMillis > windowStart
-                    }
-                    val resets = state.disconnectTimes.count { at ->
-                        at in windowStart..dataEnd && segments.none { segment ->
-                            segment.kind == HealthKind.Outage &&
-                                at in segment.startMillis..segment.endMillis
-                        }
-                    }
-                    outages + resets
-                }
-                val windowTotals = remember(points, windowStart, dataEnd) {
-                    totalsInWindow(points, windowStart, dataEnd)
-                }
-
-                TuxunCard(
-                    shape = RoundedCornerShape(TuxunCardCornerLarge),
-                    modifier = Modifier.fillMaxWidth(),
-                ) {
-                    Row(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(horizontal = 16.dp, vertical = 12.dp),
-                    ) {
-                        SummaryStat(
-                            label = stringResource(R.string.quality_avg_delay),
-                            value = avgDelay?.let { "$it ms" }
-                                ?: stringResource(R.string.traffic_status_nodata),
-                            modifier = Modifier.weight(1f),
-                        )
-                        SummaryStat(
-                            label = stringResource(R.string.traffic_summary_traffic),
-                            value = "↓ ${windowTotals.second.toBytesString()}\n" +
-                                "↑ ${windowTotals.first.toBytesString()}",
-                            modifier = Modifier.weight(1f),
-                        )
-                        SummaryStat(
-                            label = stringResource(R.string.traffic_summary_disconnects),
-                            value = outageCount.toString(),
-                            modifier = Modifier.weight(1f),
-                        )
-                    }
-                }
-
-                AnimatedVisibility(visible = !follow) {
-                    Button(
-                        onClick = {
-                            follow = true
-                            buzz()
-                        },
+                    // Selection info / hint, cross-fading between moments.
+                    TuxunCard(
+                        shape = RoundedCornerShape(TuxunCardCornerLarge),
                         modifier = Modifier.fillMaxWidth(),
                     ) {
-                        Text(text = stringResource(R.string.traffic_chart_back_now))
+                        AnimatedContent(
+                            targetState = selected?.startMillis,
+                            transitionSpec = {
+                                fadeIn(tuxunFadeSpec(style, entering = true)) togetherWith
+                                    fadeOut(tuxunFadeSpec(style, entering = false))
+                            },
+                            label = "chartSelection",
+                        ) { selectedStart ->
+                            val point = selected?.takeIf { it.startMillis == selectedStart }
+                            if (point == null) {
+                                Text(
+                                    text = stringResource(R.string.traffic_chart_hint),
+                                    style = MaterialTheme.typography.bodyMedium,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                    modifier = Modifier.padding(16.dp),
+                                )
+                            } else {
+                                SelectionInfo(
+                                    point = point,
+                                    probes = probes,
+                                    segments = segments,
+                                )
+                            }
+                        }
+                    }
+
+                    // Window summary: average delay / total traffic / drops.
+                    val windowStart = dataEnd - windowMs
+                    val avgDelay = remember(probes, windowStart, dataEnd) {
+                        averageDelayIn(probes, windowStart, dataEnd)
+                    }
+                    val outageCount = remember(segments, state.disconnectTimes, windowStart, dataEnd) {
+                        val outages = segments.count {
+                            it.kind == HealthKind.Outage && it.endMillis > windowStart
+                        }
+                        val resets = state.disconnectTimes.count { at ->
+                            at in windowStart..dataEnd && segments.none { segment ->
+                                segment.kind == HealthKind.Outage &&
+                                    at in segment.startMillis..segment.endMillis
+                            }
+                        }
+                        outages + resets
+                    }
+                    val windowTotals = remember(points, windowStart, dataEnd) {
+                        totalsInWindow(points, windowStart, dataEnd)
+                    }
+
+                    TuxunCard(
+                        shape = RoundedCornerShape(TuxunCardCornerLarge),
+                        modifier = Modifier.fillMaxWidth(),
+                    ) {
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(horizontal = 16.dp, vertical = 12.dp),
+                        ) {
+                            SummaryStat(
+                                label = stringResource(R.string.quality_avg_delay),
+                                value = avgDelay?.let { "$it ms" }
+                                    ?: stringResource(R.string.traffic_status_nodata),
+                                modifier = Modifier.weight(1f),
+                            )
+                            SummaryStat(
+                                label = stringResource(R.string.traffic_summary_traffic),
+                                value = "↓ ${windowTotals.second.toBytesString()}\n" +
+                                    "↑ ${windowTotals.first.toBytesString()}",
+                                modifier = Modifier.weight(1f),
+                            )
+                            SummaryStat(
+                                label = stringResource(R.string.traffic_summary_disconnects),
+                                value = outageCount.toString(),
+                                modifier = Modifier.weight(1f),
+                            )
+                        }
+                    }
+
+                    AnimatedVisibility(visible = !follow) {
+                        Button(
+                            onClick = {
+                                follow = true
+                                buzz()
+                            },
+                            modifier = Modifier.fillMaxWidth(),
+                        ) {
+                            Text(text = stringResource(R.string.traffic_chart_back_now))
+                        }
                     }
                 }
             }

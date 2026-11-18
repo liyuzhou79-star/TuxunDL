@@ -10,6 +10,7 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.safeDrawingPadding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
@@ -61,6 +62,12 @@ fun UpdateFullScreen(
                 modifier = Modifier
                     .fillMaxSize()
                     .tuxunPageEnter()
+                    // Keep the page clear of the system bars (1.5.3):
+                    // the app draws edge-to-edge, and the bottom
+                    // buttons ("update now" / "later") used to sit
+                    // right on top of the gesture bar, which ate
+                    // their taps — the page looked impossible to exit.
+                    .safeDrawingPadding()
                     .padding(horizontal = 24.dp, vertical = 16.dp),
             ) {
                 Row(modifier = Modifier.fillMaxWidth()) {
