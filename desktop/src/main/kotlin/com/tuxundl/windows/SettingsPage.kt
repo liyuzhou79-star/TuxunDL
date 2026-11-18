@@ -51,6 +51,10 @@ internal fun SettingsPage() {
     var autoConnect by remember { mutableStateOf(SettingsStore.autoConnect()) }
     var closeToTray by remember { mutableStateOf(SettingsStore.closeToTray()) }
     var autoSort by remember { mutableStateOf(SettingsStore.autoSortAfterTest()) }
+    var autoBackup by remember { mutableStateOf(SettingsStore.autoBackupWeekly()) }
+    var lastAutoBackup by remember {
+        mutableStateOf(SettingsStore.lastAutoBackupAt())
+    }
     var intervalHours by remember {
         mutableStateOf(SettingsStore.autoUpdateIntervalHours())
     }
@@ -346,6 +350,10 @@ internal fun SettingsPage() {
                                     autoStart = SettingsStore.autoStart()
                                     autoConnect = SettingsStore.autoConnect()
                                     closeToTray = SettingsStore.closeToTray()
+                                    autoBackup =
+                                        SettingsStore.autoBackupWeekly()
+                                    lastAutoBackup =
+                                        SettingsStore.lastAutoBackupAt()
                                     intervalHours =
                                         SettingsStore.autoUpdateIntervalHours()
                                     logLevel = SettingsStore.logLevel()
@@ -362,6 +370,32 @@ internal fun SettingsPage() {
                     .padding(horizontal = 16.dp, vertical = 10.dp),
             )
         }
+        Spacer(Modifier.height(14.dp))
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            ModeChip(if (autoBackup) "每周自动备份：已开启" else "每周自动备份：已关闭", autoBackup) {
+                autoBackup = !autoBackup
+                SettingsStore.setAutoBackupWeekly(autoBackup)
+                note = if (autoBackup) {
+                    "每周自动备份已开启：启动时超过 7 天没备就自动导出一份到数据文件夹的 backups 里"
+                } else {
+                    "每周自动备份已关闭"
+                }
+            }
+        }
+        Spacer(Modifier.height(6.dp))
+        Text(
+            text = "开启后，程序每次启动时检查一次：距上次自动备份超过 7 天（或从没备过），就用和手动导出相同的格式自动存一份到数据文件夹的 backups 子文件夹，文件名带日期时间。只存在本机，不上传任何地方。" +
+                if (lastAutoBackup > 0) {
+                    "上次自动备份：" + java.text.SimpleDateFormat(
+                        "yyyy-MM-dd HH:mm",
+                        java.util.Locale.getDefault(),
+                    ).format(java.util.Date(lastAutoBackup)) + "。"
+                } else {
+                    ""
+                },
+            color = TextDim,
+            fontSize = 13.sp,
+        )
 
         Spacer(Modifier.height(28.dp))
 

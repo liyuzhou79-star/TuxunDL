@@ -72,7 +72,8 @@ fun ConnectionsPage() {
     var loaded by remember { mutableStateOf(false) }
     var query by remember { mutableStateOf("") }
     // List order: "default" keeps the core's newest-first order;
-    // the other two sort the filtered list by traffic volume.
+    // the others sort the filtered list by traffic volume — total
+    // (down + up combined), download only, or upload only.
     var sortMode by remember { mutableStateOf("default") }
     val scope = rememberCoroutineScope()
     val api = CoreBridge.api
@@ -88,6 +89,7 @@ fun ConnectionsPage() {
         }
     }
     val shown = when (sortMode) {
+        "total" -> filtered.sortedByDescending { it.download + it.upload }
         "download" -> filtered.sortedByDescending { it.download }
         "upload" -> filtered.sortedByDescending { it.upload }
         else -> filtered
@@ -175,6 +177,7 @@ fun ConnectionsPage() {
         if (loaded && connections.isNotEmpty()) {
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 SortChip("默认排序", sortMode == "default") { sortMode = "default" }
+                SortChip("按总流量", sortMode == "total") { sortMode = "total" }
                 SortChip("按下载量", sortMode == "download") { sortMode = "download" }
                 SortChip("按上传量", sortMode == "upload") { sortMode = "upload" }
             }

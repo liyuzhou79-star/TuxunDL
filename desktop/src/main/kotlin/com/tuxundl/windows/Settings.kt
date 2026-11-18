@@ -5,6 +5,7 @@ import kotlinx.serialization.json.booleanOrNull
 import kotlinx.serialization.json.buildJsonObject
 import kotlinx.serialization.json.contentOrNull
 import kotlinx.serialization.json.intOrNull
+import kotlinx.serialization.json.longOrNull
 import kotlinx.serialization.json.jsonArray
 import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.jsonPrimitive
@@ -143,6 +144,36 @@ object SettingsStore {
 
     fun setThemeColorHex(value: String) {
         write(mapOf("themeColor" to kotlinx.serialization.json.JsonPrimitive(value)))
+    }
+
+    /**
+     * Weekly automatic backup: when on, startup exports a fresh
+     * backup into the data dir's backups/ folder whenever the last
+     * automatic one is over a week old. Off by default.
+     */
+    fun autoBackupWeekly(): Boolean =
+        read()["autoBackupWeekly"]?.jsonPrimitive?.booleanOrNull ?: false
+
+    fun setAutoBackupWeekly(value: Boolean) {
+        write(
+            mapOf(
+                "autoBackupWeekly" to
+                    kotlinx.serialization.json.JsonPrimitive(value),
+            ),
+        )
+    }
+
+    /** When the last automatic backup was written (epoch millis, 0 = never). */
+    fun lastAutoBackupAt(): Long =
+        read()["lastAutoBackupAt"]?.jsonPrimitive?.longOrNull ?: 0L
+
+    fun setLastAutoBackupAt(value: Long) {
+        write(
+            mapOf(
+                "lastAutoBackupAt" to
+                    kotlinx.serialization.json.JsonPrimitive(value),
+            ),
+        )
     }
 
     /** Favorite node names, starred on the nodes page. Stored by name. */

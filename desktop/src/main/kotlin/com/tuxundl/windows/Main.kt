@@ -67,6 +67,9 @@ fun main() {
     // never waits on the network to open.
     kotlinx.coroutines.CoroutineScope(kotlinx.coroutines.Dispatchers.IO).launch {
         runCatching { SubscriptionStore.autoUpdateStale() }
+        // Weekly automatic backup, when the user turned it on:
+        // exports at most once a week, checked here at startup.
+        runCatching { BackupManager.maybeAutoBackup() }
     }
     application {
     var windowVisible by remember { mutableStateOf(true) }

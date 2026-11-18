@@ -49,6 +49,32 @@ object BackupManager {
         SettingsStore.restore(backup.settings)
         backup.subscriptions.size
     }
+
+    /** One week in milliseconds: the automatic backup interval. */
+    private const val AUTO_INTERVAL_MS = 7L * 24 * 3600 * 1000
+
+    /**
+     * The weekly automatic backup, checked once at startup: when
+     * the setting is on and the last automatic backup is over a
+     * week old (or never happened), export a fresh one — same
+     * format as the manual export — into the backups/ folder of
+     * the data dir, named with its date and time. The check is
+     * best-effort: any failure is left for the next launch, and
+     * the manual export in settings is unaffected either way.
+     */
+    fun maybeAutoBackup() {
+        if (!SettingsStore.autoBackupWeekly()) return
+        val now = System.currentTimeMillis()
+        if (now - SettingsStore.lastAutoBackupAt() < AUTO_INTERVAL_MS) return
+        val dir = File(CoreBridge.workDir, "backups").apply { mkdirs() }
+        val stamp = java.time.LocalDateTime.now().format(
+            java.time.format.DateTimeFormatter.ofPattern("yyyyMMdd-HHmmss"),
+        )
+        val file = File(dir, "tuxundl-backup-auto-$stamp.json")
+        if (export(file).isSuccess) {
+            SettingsStore.setLastAutoBackupAt(now)
+        }
+    }
 }
 
 /**
