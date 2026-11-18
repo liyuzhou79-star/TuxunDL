@@ -362,6 +362,7 @@
     <string name="toast_profile_updated_failed">Update profile %1$s failed: %2$s</string>
     <string name="toast_update_all_done">All profiles updated: %1$d succeeded</string>
     <string name="toast_update_all_summary">Update all finished: %1$d succeeded, %2$d failed (%3$s)</string>
+    <string name="toast_update_all_none">No subscriptions to update</string>
     <string name="external_control_activity">External Control</string>
     <string name="external_control_started">TuxunDL service started</string>
     <string name="external_control_stopped">TuxunDL service stopped</string>

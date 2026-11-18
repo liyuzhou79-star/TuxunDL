@@ -261,6 +261,7 @@
     <string name="toast_profile_updated_failed">Update profile %1$s failed: %2$s</string>
     <string name="toast_update_all_done">全部更新完成：成功 %1$d 個</string>
     <string name="toast_update_all_summary">更新完成：成功 %1$d 個，失敗 %2$d 個（%3$s）</string>
+    <string name="toast_update_all_none">沒有可更新的訂閱</string>
     <string name="external_control_activity">External Control</string>
     <string name="external_control_started">TuxunDL service started</string>
     <string name="external_control_stopped">TuxunDL service stopped</string>

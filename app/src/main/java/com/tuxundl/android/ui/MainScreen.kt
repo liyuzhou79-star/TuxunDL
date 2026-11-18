@@ -1288,6 +1288,13 @@ private fun PowerCircle(
                 enabled = running,
             )
             DropdownMenuItem(
+                text = { Text(text = stringResource(R.string.power_menu_update_all)) },
+                onClick = {
+                    menuOpen = false
+                    onRequest(MainDesign.Request.UpdateAllProfiles)
+                },
+            )
+            DropdownMenuItem(
                 text = { Text(text = stringResource(R.string.power_menu_open_nodes)) },
                 onClick = {
                     menuOpen = false

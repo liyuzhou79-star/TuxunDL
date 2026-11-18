@@ -49,6 +49,7 @@ import com.tuxundl.android.util.DailyTrafficStore
 import com.tuxundl.android.util.DelaySample
 import com.tuxundl.android.util.SavedConnection
 import com.tuxundl.android.util.SavedConnectionStore
+import com.tuxundl.android.util.UpdateAllTracker
 import com.tuxundl.android.util.UpdateChecker
 import com.tuxundl.android.util.UpdateCheckResult
 import com.tuxundl.android.util.summarizeQuality
@@ -69,6 +70,7 @@ import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.selects.select
 import kotlinx.coroutines.withContext
+import java.util.UUID
 import java.util.concurrent.TimeUnit
 import kotlin.math.roundToLong
 import com.tuxundl.android.design.R as DesignR
@@ -159,6 +161,29 @@ class MainActivity : BaseActivity<MainDesign>() {
     // Traffic-alert cadence: re-read the subscription every 30 ticks
     // and re-evaluate whether the low-traffic notification should fire.
     private var alertTickCount = 0
+
+    // "Update all subscriptions" batch tracking for the power
+    // circle's long-press quick menu (1.4.1): the same tracker the
+    // profiles screen uses, so a batch fired from home produces the
+    // same one-line summary when the last profile reports back.
+    private val updateAllTracker = UpdateAllTracker { succeeded, failedNames ->
+        launch {
+            val message = if (failedNames.isEmpty()) {
+                getString(DesignR.string.toast_update_all_done, succeeded)
+            } else {
+                getString(
+                    DesignR.string.toast_update_all_summary,
+                    succeeded,
+                    failedNames.size,
+                    failedNames.joinToString(", "),
+                )
+            }
+            uiState.snackbarHostState.showSnackbar(
+                message = message,
+                duration = SnackbarDuration.Long,
+            )
+        }
+    }
 
     override suspend fun main() {
         dailyTraffic = DailyTrafficStore(filesDir.resolve("traffic-daily.json"))
@@ -298,6 +323,48 @@ class MainActivity : BaseActivity<MainDesign>() {
                                         // Core stopped mid-test: keep last delays.
                                     } finally {
                                         uiState.testingAll = false
+                                    }
+                                }
+                            }
+                        }
+                        MainDesign.Request.UpdateAllProfiles -> {
+                            // Same target set and firing loop as the
+                            // profiles screen's "update all"; the
+                            // tracker turns the per-profile callbacks
+                            // into one summary (see onFinished above).
+                            // A batch already in flight swallows
+                            // repeat taps.
+                            if (!updateAllTracker.isActive) {
+                                var targetCount = -1
+
+                                try {
+                                    withProfile {
+                                        val targets = queryAll().filter { p ->
+                                            p.imported && p.type != Profile.Type.File
+                                        }
+
+                                        targetCount = targets.size
+                                        updateAllTracker.begin(
+                                            targets.map { it.uuid },
+                                        )
+                                        targets.forEach { p -> update(p.uuid) }
+                                    }
+                                } catch (e: Exception) {
+                                    // Firing the updates failed midway:
+                                    // abandon the batch so no summary
+                                    // is ever shown for it.
+                                    updateAllTracker.abandon()
+                                    targetCount = -1
+                                }
+
+                                if (targetCount == 0) {
+                                    launch {
+                                        uiState.snackbarHostState.showSnackbar(
+                                            message = getString(
+                                                DesignR.string.toast_update_all_none,
+                                            ),
+                                            duration = SnackbarDuration.Short,
+                                        )
                                     }
                                 }
                             }
@@ -892,6 +959,35 @@ class MainActivity : BaseActivity<MainDesign>() {
         if (cause != null && activityStarted) {
             launch {
                 uiState.snackbarHostState.showSnackbar(message = cause)
+            }
+        }
+    }
+
+    /**
+     * Feed the quick menu's "update all" batch (1.4.1). The super
+     * calls keep the base class's event flow untouched; updates that
+     * are not batch members change nothing here.
+     */
+    override fun onProfileUpdateCompleted(uuid: UUID?) {
+        super.onProfileUpdateCompleted(uuid)
+
+        if (uuid != null) {
+            updateAllTracker.onCompleted(uuid)
+        }
+    }
+
+    override fun onProfileUpdateFailed(uuid: UUID?, reason: String?) {
+        super.onProfileUpdateFailed(uuid, reason)
+
+        if (uuid == null) return
+
+        if (updateAllTracker.onFailed(uuid)) {
+            launch {
+                var name: String? = null
+                withProfile {
+                    name = queryByUUID(uuid)?.name
+                }
+                updateAllTracker.onFailureNameResolved(uuid, name)
             }
         }
     }

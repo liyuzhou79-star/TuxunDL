@@ -33,6 +33,9 @@ class MainDesign(context: Context) : Design<MainDesign.Request>(context) {
         /** Run a delay test on every proxy group. */
         object TestAllGroups : Request()
 
+        /** Update every imported subscription (long-press quick menu, 1.4.1). */
+        object UpdateAllProfiles : Request()
+
         /** Dismiss the "new version" card for the version it announced. */
         object DismissUpdate : Request()
 

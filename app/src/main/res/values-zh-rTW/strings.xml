@@ -158,6 +158,7 @@
     <string name="power_chip_idle">待機中</string>
     <string name="power_menu_test_group">測速目前群組</string>
     <string name="power_menu_open_nodes">查看節點</string>
+    <string name="power_menu_update_all">更新全部訂閱</string>
     <string name="onboarding_next">下一步</string>
     <string name="onboarding_back">返回</string>
     <string name="onboarding_language_title">選擇語言</string>

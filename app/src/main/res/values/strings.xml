@@ -173,6 +173,7 @@
     <string name="power_chip_idle">Idle</string>
     <string name="power_menu_test_group">Test current group</string>
     <string name="power_menu_open_nodes">View nodes</string>
+    <string name="power_menu_update_all">Update all subscriptions</string>
     <string name="onboarding_next">Next</string>
     <string name="onboarding_back">Back</string>
     <string name="onboarding_language_title">Choose your language</string>
