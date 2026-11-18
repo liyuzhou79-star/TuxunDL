@@ -50,6 +50,22 @@ object CoreBridge {
     var api: MihomoApi? = null
         private set
 
+    /**
+     * Why the last [start] failed, in user-facing words, when the
+     * cause is one the user can act on (a busy port). Null when the
+     * last start succeeded or failed for a generic reason — the UI
+     * falls back to its "details in the log" message then.
+     */
+    @Volatile
+    var lastStartError: String? = null
+        private set
+
+    /** True when nothing is bound to the port yet. */
+    private fun isPortFree(port: Int): Boolean = runCatching {
+        java.net.ServerSocket(port).use { }
+        true
+    }.getOrDefault(false)
+
     private var process: Process? = null
 
     /**
@@ -91,6 +107,7 @@ object CoreBridge {
         controllerPort: Int = 9090,
     ): Boolean = withContext(Dispatchers.IO) {
         if (running) return@withContext true
+        lastStartError = null
 
         val exe = coreExecutable()
         if (!exe.exists()) {
@@ -104,6 +121,27 @@ object CoreBridge {
         }
         if (!exe.exists()) {
             log("core executable not found at ${exe.absolutePath}")
+            return@withContext false
+        }
+
+        // Port pre-flight: if the mixed or controller port is already
+        // taken (another proxy client, or a leftover core from a run
+        // that did not exit cleanly), the core would die on its bind
+        // and the only symptom here would be a generic API timeout.
+        // Name the port and the fix instead.
+        val busyPort = listOf(mixedPort, controllerPort)
+            .firstOrNull { !isPortFree(it) }
+        if (busyPort != null) {
+            val message = if (busyPort == mixedPort) {
+                "连接失败：混合端口 $busyPort 已被占用，多半是其他代理程序" +
+                    "或上次残留的核心还在用它。到设置页把混合端口改成别的" +
+                    "数字，或者关掉占用它的程序再试"
+            } else {
+                "连接失败：控制端口 $busyPort 已被占用，多半是其他代理程序" +
+                    "或上次残留的核心还在用它。关掉占用它的程序再试"
+            }
+            log(message)
+            lastStartError = message
             return@withContext false
         }
 

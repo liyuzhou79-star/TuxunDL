@@ -41,6 +41,12 @@ private val PanelDark = Color(0xFF1E1E2A)
 private val TextDim = Color(0xFF9A9AB0)
 private val StarGold = Color(0xFFFFB84D)
 
+// Delay tiers for the node list: green under 100 ms, yellow up to
+// 300 ms, red beyond that and for timeouts.
+private val DelayGood = Color(0xFF4ADE80)
+private val DelayMid = Color(0xFFFACC15)
+private val DelayBad = Color(0xFFFF6B6B)
+
 private data class ProxyGroup(
     val name: String,
     val now: String?,
@@ -517,7 +523,13 @@ private fun NodeRow(
                 delayMs == null -> "超时 · 再测"
                 else -> "$delayMs ms"
             },
-            color = if (selected) Color.White else TextDim,
+            color = when {
+                !tested -> if (selected) Color.White else TextDim
+                delayMs == null -> DelayBad
+                delayMs < 100 -> DelayGood
+                delayMs <= 300 -> DelayMid
+                else -> DelayBad
+            },
             fontSize = 13.sp,
             modifier = Modifier
                 .clip(RoundedCornerShape(6.dp))

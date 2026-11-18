@@ -381,7 +381,7 @@ private fun HomePage() {
             tunMode = SettingsStore.tunMode(),
             mixedPort = SettingsStore.mixedPort(),
         )
-        if (!ok) statusNote = "自动连接失败，细节在日志页"
+        if (!ok) statusNote = CoreBridge.lastStartError ?: "自动连接失败，细节在日志页"
         busy = false
     }
 
@@ -465,7 +465,8 @@ private fun HomePage() {
                             statusNote = if (ok) {
                                 null
                             } else {
-                                "核心启动失败，细节在日志页"
+                                CoreBridge.lastStartError
+                                    ?: "核心启动失败，细节在日志页"
                             }
                         }
                     }
