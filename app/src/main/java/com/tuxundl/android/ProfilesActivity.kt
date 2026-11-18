@@ -38,6 +38,19 @@ class ProfilesActivity : BaseActivity<ProfilesDesign>() {
     private val uiState = ProfilesUiState()
     private val uiRequests = Channel<ProfilesDesign.Request>(Channel.UNLIMITED)
 
+    /**
+     * "Update all" batch tracking (1.3.5): while a batch is running, the
+     * per-profile callbacks feed these counters instead of popping an
+     * individual snackbar for every profile; when the last one lands,
+     * a single summary is shown.
+     */
+    private var updateAllPending: MutableSet<UUID>? = null
+    private var updateAllSucceeded = 0
+    private val updateAllFailedNames = mutableListOf<String>()
+
+    /** Failed batch members whose display name is still being looked up. */
+    private var updateAllNameLookups = 0
+
     override suspend fun main() {
         val ticker = ticker(TimeUnit.MINUTES.toMillis(1))
 
@@ -66,7 +79,20 @@ class ProfilesActivity : BaseActivity<ProfilesDesign>() {
                                     }
                                     uiState.updatingUuids =
                                         uiState.updatingUuids + targets.map { it.uuid }
+                                    if (targets.isNotEmpty()) {
+                                        updateAllPending =
+                                            targets.map { it.uuid }.toMutableSet()
+                                        updateAllSucceeded = 0
+                                        updateAllFailedNames.clear()
+                                        updateAllNameLookups = 0
+                                    }
                                     targets.forEach { p -> update(p.uuid) }
+                                } catch (e: Exception) {
+                                    // Firing the updates failed midway:
+                                    // abandon the batch so no summary is
+                                    // ever shown for it.
+                                    updateAllPending = null
+                                    throw e
                                 }
                                 finally {
                                     uiState.allUpdating = false
@@ -174,6 +200,13 @@ class ProfilesActivity : BaseActivity<ProfilesDesign>() {
         if (uuid == null)
             return
         uiState.updatingUuids = uiState.updatingUuids - uuid
+
+        if (updateAllPending?.remove(uuid) == true) {
+            updateAllSucceeded++
+            showUpdateAllSummaryIfDone()
+            return
+        }
+
         launch {
             var name: String? = null
             withProfile {
@@ -190,11 +223,24 @@ class ProfilesActivity : BaseActivity<ProfilesDesign>() {
         if (uuid == null)
             return
         uiState.updatingUuids = uiState.updatingUuids - uuid
+
+        val inBatch = updateAllPending?.remove(uuid) == true
+        if (inBatch)
+            updateAllNameLookups++
+
         launch {
             var name: String? = null
             withProfile {
                 name = queryByUUID(uuid)?.name
             }
+
+            if (inBatch) {
+                updateAllFailedNames += name ?: uuid.toString()
+                updateAllNameLookups--
+                showUpdateAllSummaryIfDone()
+                return@launch
+            }
+
             val result = uiState.snackbarHostState.showSnackbar(
                 message = getString(R.string.toast_profile_updated_failed, name, reason),
                 actionLabel = getString(R.string.edit),
@@ -204,6 +250,41 @@ class ProfilesActivity : BaseActivity<ProfilesDesign>() {
             if (result == SnackbarResult.ActionPerformed) {
                 startActivity(PropertiesActivity::class.intent.setUUID(uuid))
             }
+        }
+    }
+
+    /**
+     * Shows the one-line "update all" summary once every batched
+     * profile has reported back; called from both update callbacks.
+     * Batch members never pop individual snackbars, so this is the
+     * only feedback a batch produces.
+     */
+    private fun showUpdateAllSummaryIfDone() {
+        val pending = updateAllPending ?: return
+        if (pending.isNotEmpty() || updateAllNameLookups > 0)
+            return
+
+        updateAllPending = null
+        val succeeded = updateAllSucceeded
+        val failedNames = updateAllFailedNames.toList()
+        updateAllSucceeded = 0
+        updateAllFailedNames.clear()
+
+        launch {
+            val message = if (failedNames.isEmpty()) {
+                getString(R.string.toast_update_all_done, succeeded)
+            } else {
+                getString(
+                    R.string.toast_update_all_summary,
+                    succeeded,
+                    failedNames.size,
+                    failedNames.joinToString(", "),
+                )
+            }
+            uiState.snackbarHostState.showSnackbar(
+                message = message,
+                duration = SnackbarDuration.Long,
+            )
         }
     }
 
