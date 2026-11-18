@@ -395,9 +395,91 @@ private fun HomePage() {
             )
         }
 
+        // The active subscription's data plan, when the provider
+        // reports one: used / total as a bar, plus the expiry date.
+        val activeSub = remember { SubscriptionStore.active() }
+        if (activeSub != null && activeSub.trafficTotal > 0) {
+            Spacer(Modifier.height(16.dp))
+            SubscriptionTrafficCard(
+                sub = activeSub,
+                modifier = Modifier.fillMaxWidth(),
+            )
+        }
+
         if (connected) {
             Spacer(Modifier.height(16.dp))
             TrafficChart(samples = samples, modifier = Modifier.fillMaxWidth())
+        }
+    }
+}
+
+/**
+ * The active subscription's data plan at a glance: how much of the
+ * quota is used, as a bar, and when the plan expires. Only composed
+ * when the provider reports usage (subscription-userinfo).
+ */
+@Composable
+private fun SubscriptionTrafficCard(
+    sub: Subscription,
+    modifier: Modifier = Modifier,
+) {
+    val fraction = if (sub.trafficTotal > 0) {
+        (sub.trafficUsed.toDouble() / sub.trafficTotal.toDouble())
+            .coerceIn(0.0, 1.0)
+            .toFloat()
+    } else {
+        0f
+    }
+    val expireText = if (sub.expireAt > 0) {
+        val date = java.time.Instant.ofEpochSecond(sub.expireAt)
+            .atZone(java.time.ZoneId.systemDefault())
+            .toLocalDate()
+        " · 到期 $date"
+    } else {
+        ""
+    }
+    Card(
+        modifier = modifier,
+        shape = RoundedCornerShape(16.dp),
+        colors = CardDefaults.cardColors(containerColor = PanelDark),
+    ) {
+        Column(modifier = Modifier.padding(18.dp)) {
+            Row {
+                Text(
+                    text = "订阅流量 · ${sub.name}",
+                    color = TextDim,
+                    fontSize = 13.sp,
+                    modifier = Modifier.weight(1f),
+                )
+                Text(
+                    text = "${(fraction * 100).toInt()}%",
+                    color = IndigoSoft,
+                    fontSize = 13.sp,
+                )
+            }
+            Spacer(Modifier.height(10.dp))
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(8.dp)
+                    .clip(RoundedCornerShape(4.dp))
+                    .background(Color(0xFF2A2A3A)),
+            ) {
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth(fraction)
+                        .fillMaxHeight()
+                        .clip(RoundedCornerShape(4.dp))
+                        .background(Indigo),
+                )
+            }
+            Spacer(Modifier.height(8.dp))
+            Text(
+                text = "已用 ${fmtBytes(sub.trafficUsed)} / 共 " +
+                    "${fmtBytes(sub.trafficTotal)}$expireText",
+                color = Color.White,
+                fontSize = 14.sp,
+            )
         }
     }
 }

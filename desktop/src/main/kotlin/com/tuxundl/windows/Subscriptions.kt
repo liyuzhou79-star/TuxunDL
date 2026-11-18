@@ -135,6 +135,24 @@ object SubscriptionStore {
         return Triple(used, total, fields["expire"] ?: 0L)
     }
 
+    /**
+     * The subscription whose fetched config is currently the active
+     * profile (the one the home page connects with), if any. The
+     * active profile is a copy of the subscription's own file, so
+     * this compares contents.
+     */
+    fun active(): Subscription? {
+        val activeFile = CoreBridge.profileFile()
+        if (!activeFile.exists()) return null
+        val activeText = runCatching { activeFile.readText() }.getOrNull()
+            ?: return null
+        return load().firstOrNull { sub ->
+            val file = profileFile(sub)
+            file.exists() &&
+                runCatching { file.readText() }.getOrNull() == activeText
+        }
+    }
+
     /** Make a fetched subscription the one the home page connects with. */
     fun activate(sub: Subscription) {
         profileFile(sub).copyTo(CoreBridge.profileFile(), overwrite = true)
