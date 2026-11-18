@@ -19,7 +19,7 @@ plugins {
 // its own release tags (win-v* / linux-v*).
 val hostOsName = System.getProperty("os.name").lowercase()
 val linuxBuild = hostOsName.contains("linux")
-val editionVersion = if (linuxBuild) "1.0.0" else "1.6.9"
+val editionVersion = if (linuxBuild) "1.0.0" else "1.6.10"
 
 group = if (linuxBuild) "com.tuxundl.linux" else "com.tuxundl.windows"
 version = editionVersion

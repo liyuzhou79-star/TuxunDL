@@ -53,6 +53,24 @@ object BackupManager {
     /** One week in milliseconds: the automatic backup interval. */
     private const val AUTO_INTERVAL_MS = 7L * 24 * 3600 * 1000
 
+    /** The folder weekly automatic backups are written into. */
+    fun autoBackupDir(): File = File(CoreBridge.workDir, "backups")
+
+    /**
+     * The automatic backup files currently on disk, newest first.
+     * Only files this app wrote (the auto-backup name pattern)
+     * count — anything else the user dropped into the folder is
+     * left alone and not listed.
+     */
+    fun listAutoBackups(): List<File> {
+        val dir = autoBackupDir()
+        if (!dir.isDirectory) return emptyList()
+        return dir.listFiles { f ->
+            f.isFile && f.name.startsWith("tuxundl-backup-auto-") &&
+                f.name.endsWith(".json")
+        }?.sortedByDescending { it.lastModified() } ?: emptyList()
+    }
+
     /**
      * The weekly automatic backup, checked once at startup: when
      * the setting is on and the last automatic backup is over a
@@ -66,7 +84,7 @@ object BackupManager {
         if (!SettingsStore.autoBackupWeekly()) return
         val now = System.currentTimeMillis()
         if (now - SettingsStore.lastAutoBackupAt() < AUTO_INTERVAL_MS) return
-        val dir = File(CoreBridge.workDir, "backups").apply { mkdirs() }
+        val dir = autoBackupDir().apply { mkdirs() }
         val stamp = java.time.LocalDateTime.now().format(
             java.time.format.DateTimeFormatter.ofPattern("yyyyMMdd-HHmmss"),
         )

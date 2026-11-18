@@ -32,6 +32,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import java.awt.Desktop
 import java.net.URI
@@ -56,6 +57,15 @@ internal fun SettingsPage() {
     var lastAutoBackup by remember {
         mutableStateOf(SettingsStore.lastAutoBackupAt())
     }
+    // Auto-backup files on disk, read when the page opens and
+    // re-read after each delete.
+    var autoBackupFiles by remember {
+        mutableStateOf(BackupManager.listAutoBackups())
+    }
+    // Two-step delete for one auto-backup file: the first click
+    // arms (stores the file name), the second deletes; the armed
+    // state clears itself after a few seconds.
+    var pendingDelete by remember { mutableStateOf<String?>(null) }
     var intervalHours by remember {
         mutableStateOf(SettingsStore.autoUpdateIntervalHours())
     }
@@ -72,6 +82,14 @@ internal fun SettingsPage() {
 
     LaunchedEffect(Unit) {
         coreVersion = runCatching { CoreBridge.api?.version() }.getOrNull()
+    }
+
+    // The armed "confirm delete" state disarms itself after 3 seconds.
+    LaunchedEffect(pendingDelete) {
+        if (pendingDelete != null) {
+            delay(3000)
+            pendingDelete = null
+        }
     }
 
     Column(modifier = Modifier.fillMaxSize().padding(24.dp)) {
@@ -400,6 +418,95 @@ internal fun SettingsPage() {
             color = TextDim,
             fontSize = 13.sp,
         )
+        Spacer(Modifier.height(14.dp))
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Text(text = "自动备份文件", color = Color.White, fontSize = 15.sp)
+            Spacer(Modifier.width(12.dp))
+            Text(
+                text = "打开备份文件夹",
+                color = Color.White,
+                fontSize = 14.sp,
+                modifier = Modifier
+                    .clip(RoundedCornerShape(8.dp))
+                    .background(PanelDark)
+                    .clickable {
+                        val dir = BackupManager.autoBackupDir()
+                        dir.mkdirs()
+                        note = if (Platform.openInFileManager(dir)) {
+                            "已打开自动备份文件夹"
+                        } else {
+                            "没能自动打开，文件夹在数据文件夹的 backups 子文件夹里"
+                        }
+                    }
+                    .padding(horizontal = 12.dp, vertical = 7.dp),
+            )
+        }
+        Spacer(Modifier.height(8.dp))
+        if (autoBackupFiles.isEmpty()) {
+            Text(
+                text = "还没有自动备份文件。开启上面的每周自动备份后，存下来的备份会列在这里。",
+                color = TextDim,
+                fontSize = 13.sp,
+            )
+        } else {
+            autoBackupFiles.forEach { file ->
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    modifier = Modifier.fillMaxWidth(),
+                ) {
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text(
+                            text = file.name,
+                            color = Color.White,
+                            fontSize = 14.sp,
+                        )
+                        Text(
+                            text = java.text.SimpleDateFormat(
+                                "yyyy-MM-dd HH:mm",
+                                java.util.Locale.getDefault(),
+                            ).format(java.util.Date(file.lastModified())) +
+                                " · " + fmtFileSize(file.length()),
+                            color = TextDim,
+                            fontSize = 12.sp,
+                        )
+                    }
+                    Text(
+                        text = if (pendingDelete == file.name) {
+                            "确认删除？"
+                        } else {
+                            "删除"
+                        },
+                        color = if (pendingDelete == file.name) {
+                            WarnRed
+                        } else {
+                            TextDim
+                        },
+                        fontSize = 14.sp,
+                        modifier = Modifier
+                            .clip(RoundedCornerShape(8.dp))
+                            .clickable {
+                                if (pendingDelete == file.name) {
+                                    val deleted = runCatching {
+                                        file.delete()
+                                    }.getOrDefault(false)
+                                    pendingDelete = null
+                                    autoBackupFiles =
+                                        BackupManager.listAutoBackups()
+                                    note = if (deleted) {
+                                        "已删除自动备份 ${file.name}"
+                                    } else {
+                                        "删除没有成功，文件可能正被占用"
+                                    }
+                                } else {
+                                    pendingDelete = file.name
+                                }
+                            }
+                            .padding(horizontal = 10.dp, vertical = 7.dp),
+                    )
+                }
+                Spacer(Modifier.height(6.dp))
+            }
+        }
 
         Spacer(Modifier.height(28.dp))
 
@@ -630,6 +737,14 @@ internal fun SettingsPage() {
                 .padding(horizontal = 16.dp, vertical = 10.dp),
         )
     }
+}
+
+/** Short human-readable size for one backup file. */
+private fun fmtFileSize(bytes: Long): String = when {
+    bytes < 1024 -> "$bytes B"
+    bytes < 1024 * 1024 -> "%.1f KB".format(bytes / 1024.0)
+    bytes < 1024 * 1024 * 1024 -> "%.1f MB".format(bytes / 1024.0 / 1024.0)
+    else -> "%.2f GB".format(bytes / 1024.0 / 1024.0 / 1024.0)
 }
 
 @Composable

@@ -136,6 +136,7 @@ fun SubscriptionsPage() {
                     busy = true
                     scope.launch {
                         var failures = 0
+                        val failedNames = mutableListOf<String>()
                         targets.forEachIndexed { index, sub ->
                             updateAllProgress = index to targets.size
                             status = "正在更新 ${sub.name}" +
@@ -161,6 +162,7 @@ fun SubscriptionsPage() {
                                 }
                                 .onFailure {
                                     failures++
+                                    failedNames.add(sub.name)
                                     updateErrors = updateErrors +
                                         (sub.id to updateFailureReason(it))
                                 }
@@ -171,7 +173,8 @@ fun SubscriptionsPage() {
                             "全部更新完成（共 ${targets.size} 个）"
                         } else {
                             "更新完成：成功 ${targets.size - failures} 个，" +
-                                "失败 $failures 个"
+                                "失败 $failures 个" +
+                                "（${failedNames.joinToString("、")}）"
                         }
                         updateAllProgress = null
                         busy = false
