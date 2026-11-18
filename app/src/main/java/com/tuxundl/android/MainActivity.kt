@@ -49,8 +49,9 @@ import com.tuxundl.android.util.SavedConnection
 import com.tuxundl.android.util.SavedConnectionStore
 import com.tuxundl.android.util.TrafficSampler
 import com.tuxundl.android.util.UpdateAllTracker
-import com.tuxundl.android.util.UpdateChecker
+import com.tuxundl.android.util.UpdateCheckCenter
 import com.tuxundl.android.util.UpdateCheckResult
+import com.tuxundl.android.util.UpdateCheckSnapshot
 import com.tuxundl.android.util.summarizeQuality
 import com.tuxundl.android.util.startClashService
 import com.tuxundl.android.util.stopClashService
@@ -529,20 +530,48 @@ class MainActivity : BaseActivity<MainDesign>() {
     }
 
     /**
-     * One update check per activity start, using the shared three-state
-     * result. Up-to-date and failed stay invisible here; a newer release
-     * lights the home update card and — once per version per launch,
-     * unless the user already dismissed that version — the full-screen
-     * update page.
+     * Update state on the home screen (1.6.0): everything renders
+     * from [UpdateCheckCenter]'s single shared snapshot — the same
+     * state Settings reads — so the home card can never disagree
+     * with a Settings check again. The last known verdict is applied
+     * instantly (it survives process death), a throttled automatic
+     * check refreshes it in the background, and the collector keeps
+     * mirroring later results (e.g. a manual check run from
+     * Settings) for the rest of this activity's life.
      */
     private fun checkUpdateOnStartup() {
         launch {
             val current = packageManager
                 .getPackageInfo(packageName, 0).versionName ?: return@launch
 
-            val result = UpdateChecker.check(this@MainActivity, current)
+            applyUpdateSnapshot(
+                UpdateCheckCenter.peek(this@MainActivity, current),
+            )
+            UpdateCheckCenter.check(
+                this@MainActivity,
+                current,
+                manual = false,
+            )
+        }
 
-            if (result is UpdateCheckResult.UpdateAvailable) {
+        launch {
+            UpdateCheckCenter.state.collect { snapshot ->
+                applyUpdateSnapshot(snapshot)
+            }
+        }
+    }
+
+    /**
+     * Mirror one shared snapshot onto the home card / full-screen
+     * page. A newer release lights the card and — once per version
+     * per launch, unless the user already dismissed that version —
+     * the page. A definitive up-to-date retires a card an earlier
+     * check lit; a failure changes nothing here (the last successful
+     * verdict stands, and Settings shows the failure itself).
+     */
+    private fun applyUpdateSnapshot(snapshot: UpdateCheckSnapshot) {
+        when (val result = snapshot.result) {
+            is UpdateCheckResult.UpdateAvailable -> {
                 val info = result.info
 
                 // A dismissed version wins over everything: no card, no page.
@@ -553,8 +582,16 @@ class MainActivity : BaseActivity<MainDesign>() {
                         fullScreenUpdateShownFor = info.version
                         uiState.updatePageInfo = info
                     }
+                } else {
+                    uiState.updateInfo = null
                 }
             }
+
+            is UpdateCheckResult.UpToDate -> {
+                uiState.updateInfo = null
+            }
+
+            is UpdateCheckResult.Failed, null -> Unit
         }
     }
 
