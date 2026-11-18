@@ -111,6 +111,10 @@
     <string name="access_control_all_mode_hint">当前模式允许所有应用，下面这份名单不会生效；切换模式后才会按名单放行或拦截。</string>
     <string name="access_control_apply_running">正在连接中：改动会在你退出本页时自动重连后生效。</string>
     <string name="access_control_apply_next">改动会在下次连接时生效。</string>
+    <string name="access_control_mode_all_short">全部</string>
+    <string name="access_control_mode_accept_short">仅所选</string>
+    <string name="access_control_mode_deny_short">排除所选</string>
+    <string name="access_control_empty">没有可显示的应用</string>
     <string name="no_profile_selected">没有选择配置文件</string>
     <string name="copied">已复制</string>
     <string name="google_play">Google Play</string>

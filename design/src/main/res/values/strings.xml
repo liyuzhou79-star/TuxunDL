@@ -275,6 +275,10 @@
     <string name="access_control_all_mode_hint">All apps are allowed in this mode, so the list below has no effect. Switch the mode to allow or deny by list.</string>
     <string name="access_control_apply_running">You are connected: changes take effect when you leave this page, and the connection restarts automatically.</string>
     <string name="access_control_apply_next">Changes take effect the next time you connect.</string>
+    <string name="access_control_mode_all_short">All</string>
+    <string name="access_control_mode_accept_short">Selected only</string>
+    <string name="access_control_mode_deny_short">Exclude selected</string>
+    <string name="access_control_empty">No apps to show</string>
 
     <string name="no_profile_selected">No profile selected</string>
 

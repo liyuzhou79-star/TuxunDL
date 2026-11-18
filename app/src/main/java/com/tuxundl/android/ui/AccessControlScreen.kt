@@ -6,15 +6,19 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.interaction.collectIsPressedAsState
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material3.Checkbox
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -219,6 +223,89 @@ fun AccessControlScreen(
                 .padding(padding)
                 .tuxunPageEnter(),
         ) {
+            // Header card: the mode switch lives on this page now (it
+            // used to sit only in Network Settings, while this page
+            // showed neither the mode nor whether the list mattered).
+            // Below the segmented row, a status block discloses the
+            // selected count and when an edit takes effect — with the
+            // mode set to "allow all" the checkboxes used to silently
+            // do nothing. Reading selectionTick keeps the count live
+            // as boxes are toggled.
+            val modeLabel = stringResource(
+                when (state.mode) {
+                    AccessControlMode.AcceptAll ->
+                        DesignR.string.allow_all_apps
+                    AccessControlMode.AcceptSelected ->
+                        DesignR.string.allow_selected_apps
+                    AccessControlMode.DenySelected ->
+                        DesignR.string.deny_selected_apps
+                }
+            )
+            val selectedCount = state.selectionTick.let { selected.size }
+
+            Box(
+                modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp),
+            ) {
+                TuxunCard(modifier = Modifier.fillMaxWidth()) {
+                    Column(modifier = Modifier.padding(16.dp)) {
+                        TuxunSegmentedRow(
+                            options = listOf(
+                                stringResource(
+                                    DesignR.string.access_control_mode_all_short
+                                ),
+                                stringResource(
+                                    DesignR.string.access_control_mode_accept_short
+                                ),
+                                stringResource(
+                                    DesignR.string.access_control_mode_deny_short
+                                ),
+                            ),
+                            selectedIndex = state.mode.ordinal,
+                            onSelect = { index ->
+                                onModeChange(
+                                    AccessControlMode.values()[index]
+                                )
+                            },
+                            modifier = Modifier.fillMaxWidth(),
+                        )
+
+                        Spacer(modifier = Modifier.height(10.dp))
+
+                        Text(
+                            text = stringResource(
+                                DesignR.string.access_control_current_mode,
+                                modeLabel,
+                            ) + " · " + stringResource(
+                                DesignR.string.access_control_selected_count,
+                                selectedCount,
+                            ),
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                        if (state.mode == AccessControlMode.AcceptAll) {
+                            Text(
+                                text = stringResource(
+                                    DesignR.string.access_control_all_mode_hint
+                                ),
+                                style = MaterialTheme.typography.bodyMedium,
+                                color = MaterialTheme.colorScheme.error,
+                            )
+                        }
+                        Text(
+                            text = stringResource(
+                                if (running) {
+                                    DesignR.string.access_control_apply_running
+                                } else {
+                                    DesignR.string.access_control_apply_next
+                                }
+                            ),
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                    }
+                }
+            }
+
             OutlinedTextField(
                 value = keyword,
                 onValueChange = { keyword = it },
@@ -247,61 +334,6 @@ fun AccessControlScreen(
                 },
             )
 
-            // Status disclosure: which mode is active, how many apps
-            // are picked, and when an edit takes effect. This page used
-            // to show none of it — with the mode set to "allow all"
-            // the checkboxes silently did nothing. Reading
-            // selectionTick keeps the count live as boxes are toggled.
-            val modeLabel = stringResource(
-                when (state.mode) {
-                    AccessControlMode.AcceptAll ->
-                        DesignR.string.allow_all_apps
-                    AccessControlMode.AcceptSelected ->
-                        DesignR.string.allow_selected_apps
-                    AccessControlMode.DenySelected ->
-                        DesignR.string.deny_selected_apps
-                }
-            )
-            val selectedCount = state.selectionTick.let { selected.size }
-
-            Column(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(horizontal = 16.dp, vertical = 4.dp),
-            ) {
-                Text(
-                    text = stringResource(
-                        DesignR.string.access_control_current_mode,
-                        modeLabel,
-                    ) + " · " + stringResource(
-                        DesignR.string.access_control_selected_count,
-                        selectedCount,
-                    ),
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                )
-                if (state.mode == AccessControlMode.AcceptAll) {
-                    Text(
-                        text = stringResource(
-                            DesignR.string.access_control_all_mode_hint
-                        ),
-                        style = MaterialTheme.typography.bodyMedium,
-                        color = MaterialTheme.colorScheme.error,
-                    )
-                }
-                Text(
-                    text = stringResource(
-                        if (running) {
-                            DesignR.string.access_control_apply_running
-                        } else {
-                            DesignR.string.access_control_apply_next
-                        }
-                    ),
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                )
-            }
-
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
@@ -323,12 +355,36 @@ fun AccessControlScreen(
                 )
             }
 
-            LazyColumn(
+            Box(
                 modifier = Modifier
                     .weight(1f)
                     .fillMaxWidth(),
             ) {
-                items(displayed, key = { it.packageName }) { app ->
+                when {
+                    // First load reads every installed app's label and
+                    // icon, which takes a moment on app-heavy phones;
+                    // say so instead of showing a blank page.
+                    !state.loaded -> {
+                        CircularProgressIndicator(
+                            modifier = Modifier.align(Alignment.Center),
+                        )
+                    }
+
+                    displayed.isEmpty() -> {
+                        Text(
+                            text = stringResource(
+                                DesignR.string.access_control_empty
+                            ),
+                            style = MaterialTheme.typography.bodyLarge,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            modifier = Modifier.align(Alignment.Center),
+                        )
+                    }
+
+                    else -> LazyColumn(
+                        modifier = Modifier.fillMaxSize(),
+                    ) {
+                        items(displayed, key = { it.packageName }) { app ->
                     // Reading selectionTick subscribes this item to selection changes.
                     val checked = state.selectionTick.let { app.packageName in selected }
 
@@ -393,6 +449,8 @@ fun AccessControlScreen(
                                 style = MaterialTheme.typography.bodyMedium,
                                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                             )
+                        }
+                    }
                         }
                     }
                 }
