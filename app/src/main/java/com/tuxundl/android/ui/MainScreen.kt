@@ -1707,10 +1707,11 @@ private fun HomeCards(
         tilesByKey["traffic"] = HomeTile(
             icon = DesignR.drawable.ic_baseline_swap_vert,
             title = R.string.traffic,
-            lines = listOf(
-                "↑ ${state.traffic.trafficUpload()}",
-                "↓ ${state.traffic.trafficDownload()}",
-            ),
+            // The totals lines are filled in by TrafficInfoTile when
+            // the brick renders: the packed counter ticks about once
+            // a second while connected, and reading it here would
+            // recompose this whole cards section on every tick.
+            lines = emptyList(),
             request = MainDesign.Request.OpenTrafficAdvanced,
             testRequest = MainDesign.Request.TestAllGroups,
             testing = state.testingAll,
@@ -2011,6 +2012,7 @@ private fun HomeCards(
                                                 ) {
                                                     BrickContent(
                                                         id = id,
+                                                        state = state,
                                                         nodeTile = nodeTile,
                                                         tilesByKey = tilesByKey,
                                                         onRequest = onRequest,
@@ -2051,6 +2053,7 @@ private fun HomeCards(
                                             ) {
                                                 BrickContent(
                                                     id = id,
+                                                    state = state,
                                                     nodeTile = nodeTile,
                                                     tilesByKey = tilesByKey,
                                                     onRequest = onRequest,
@@ -2075,13 +2078,18 @@ private fun HomeCards(
 @Composable
 private fun BrickContent(
     id: String,
+    state: MainUiState,
     nodeTile: HomeTile?,
     tilesByKey: Map<String, HomeTile>,
     onRequest: (MainDesign.Request) -> Unit,
 ) {
     when (id) {
         "node" -> nodeTile?.let { InfoTile(tile = it, onRequest = onRequest) }
-        "traffic", "proxy", "profile", "providers" ->
+        "traffic" ->
+            tilesByKey[id]?.let {
+                TrafficInfoTile(state = state, tile = it, onRequest = onRequest)
+            }
+        "proxy", "profile", "providers" ->
             tilesByKey[id]?.let { InfoTile(tile = it, onRequest = onRequest) }
         "logs" -> NavBrick(
             icon = DesignR.drawable.ic_baseline_assignment,
@@ -2100,6 +2108,35 @@ private fun BrickContent(
             title = DesignR.string.about,
         )
     }
+}
+
+/**
+ * The traffic totals brick. The packed traffic counter in
+ * [MainUiState] ticks about once a second while connected; reading
+ * it here — in this brick's own scope, instead of where the brick
+ * list is built — confines the per-second recomposition to this
+ * one brick instead of the whole home cards section.
+ */
+@Composable
+private fun TrafficInfoTile(
+    state: MainUiState,
+    tile: HomeTile,
+    onRequest: (MainDesign.Request) -> Unit,
+) {
+    InfoTile(
+        tile = HomeTile(
+            icon = tile.icon,
+            title = tile.title,
+            lines = listOf(
+                "↑ ${state.traffic.trafficUpload()}",
+                "↓ ${state.traffic.trafficDownload()}",
+            ),
+            request = tile.request,
+            testRequest = tile.testRequest,
+            testing = tile.testing,
+        ),
+        onRequest = onRequest,
+    )
 }
 
 /**
