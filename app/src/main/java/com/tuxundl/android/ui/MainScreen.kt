@@ -234,6 +234,16 @@ class MainUiState {
     /** True while the advanced traffic panel is shown. */
     var showTrafficAdvanced by mutableStateOf(false)
 
+    /** True while the fullscreen traffic chart (1.4.0) is shown. */
+    var showTrafficChart by mutableStateOf(false)
+
+    /**
+     * Selected chart window (index into TRAFFIC_WINDOW_MS: 2 min …
+     * 2 hours), shared by the home monitor card and the fullscreen
+     * chart. Session-only, not persisted.
+     */
+    var trafficWindowIndex by mutableStateOf(0)
+
     /** Lifetime forwarded bytes (all days, app-open time only). */
     var lifetimeUp by mutableStateOf(0L)
     var lifetimeDown by mutableStateOf(0L)
@@ -400,6 +410,14 @@ fun MainScreen(
             state = state,
             onRequest = onRequest,
             onClose = { state.showTrafficAdvanced = false },
+        )
+    }
+
+    // Fullscreen traffic chart + connection analysis (1.4.0).
+    if (state.showTrafficChart) {
+        TrafficChartDialog(
+            state = state,
+            onClose = { state.showTrafficChart = false },
         )
     }
 }
@@ -2127,19 +2145,80 @@ private fun TrafficMonitorCard(
                 }
             }
 
-            // Window caption (2 minutes of samples) and the peak rates
-            // inside the window, so the chart's scale is readable.
+            // Window caption with the range switcher beside it
+            // (1.4.0: five windows, 2 minutes … 2 hours) and the peak
+            // rates inside the window, so the chart's scale is
+            // readable. The fullscreen button opens the big chart
+            // with the connection analysis.
+            val windowIndex = state.trafficWindowIndex
+                .coerceIn(0, TRAFFIC_WINDOW_MS.lastIndex)
+            val windowMs = TRAFFIC_WINDOW_MS[windowIndex]
+            var windowMenuOpen by remember { mutableStateOf(false) }
+            val cardContext = LocalContext.current
+            val cardUiStore = remember { UiStore(cardContext) }
+
             Row(
                 modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically,
             ) {
                 Text(
-                    text = stringResource(R.string.traffic_last_2_min),
+                    text = stringResource(TRAFFIC_WINDOW_CAPTION_RES[windowIndex]),
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
-                val peakDown = state.trafficSamples.maxOfOrNull { it.downRate } ?: 0L
-                val peakUp = state.trafficSamples.maxOfOrNull { it.upRate } ?: 0L
+                Box {
+                    IconButton(
+                        onClick = { windowMenuOpen = true },
+                        modifier = Modifier.size(32.dp),
+                    ) {
+                        Icon(
+                            painter = painterResource(DesignR.drawable.ic_baseline_schedule),
+                            contentDescription = stringResource(R.string.traffic_switch_window),
+                            tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                            modifier = Modifier.size(17.dp),
+                        )
+                    }
+                    DropdownMenu(
+                        expanded = windowMenuOpen,
+                        onDismissRequest = { windowMenuOpen = false },
+                    ) {
+                        TRAFFIC_WINDOW_LABEL_RES.forEachIndexed { index, labelRes ->
+                            DropdownMenuItem(
+                                text = {
+                                    Text(
+                                        text = stringResource(labelRes),
+                                        color = if (index == windowIndex) {
+                                            MaterialTheme.colorScheme.primary
+                                        } else {
+                                            MaterialTheme.colorScheme.onSurface
+                                        },
+                                    )
+                                },
+                                onClick = {
+                                    windowMenuOpen = false
+                                    if (index != windowIndex) {
+                                        state.trafficWindowIndex = index
+                                        com.tuxundl.android.util.Haptics.buzz(
+                                            cardContext,
+                                            cardUiStore,
+                                            com.tuxundl.android.util.Haptics.Kind.Tap,
+                                        )
+                                    }
+                                },
+                            )
+                        }
+                    }
+                }
+                Spacer(modifier = Modifier.weight(1f))
+                val (peakDown, peakUp) = if (windowIndex == 0) {
+                    (state.trafficSamples.maxOfOrNull { it.downRate } ?: 0L) to
+                        (state.trafficSamples.maxOfOrNull { it.upRate } ?: 0L)
+                } else {
+                    val end = state.historyPoints.lastOrNull()?.endMillis ?: 0L
+                    val slice = state.historyPoints.filter { it.endMillis > end - windowMs }
+                    (slice.maxOfOrNull { it.downRate } ?: 0L) to
+                        (slice.maxOfOrNull { it.upRate } ?: 0L)
+                }
                 Text(
                     text = stringResource(
                         R.string.traffic_peak,
@@ -2149,14 +2228,53 @@ private fun TrafficMonitorCard(
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
+                IconButton(
+                    onClick = {
+                        state.showTrafficChart = true
+                        com.tuxundl.android.util.Haptics.buzz(
+                            cardContext,
+                            cardUiStore,
+                            com.tuxundl.android.util.Haptics.Kind.Tap,
+                        )
+                    },
+                    modifier = Modifier.size(32.dp),
+                ) {
+                    Icon(
+                        painter = painterResource(DesignR.drawable.ic_baseline_fullscreen),
+                        contentDescription = stringResource(R.string.traffic_fullscreen),
+                        tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                        modifier = Modifier.size(17.dp),
+                    )
+                }
             }
 
-            TrafficChart(
-                samples = state.trafficSamples,
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .height(96.dp),
-            )
+            // The 2-minute window keeps the original morphing chart;
+            // longer windows draw the tiered history. Switching
+            // cross-fades between the two.
+            AnimatedContent(
+                targetState = windowIndex,
+                transitionSpec = {
+                    fadeIn(todayEnterSpec) togetherWith fadeOut(todayExitSpec)
+                },
+                label = "trafficWindowChart",
+            ) { index ->
+                if (index == 0) {
+                    TrafficChart(
+                        samples = state.trafficSamples,
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(96.dp),
+                    )
+                } else {
+                    HistoryChart(
+                        points = state.historyPoints,
+                        windowMs = TRAFFIC_WINDOW_MS[index],
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(96.dp),
+                    )
+                }
+            }
 
             // Live totals cross-fade as they tick up (1.3.0).
             AnimatedContent(
