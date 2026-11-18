@@ -46,6 +46,7 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
@@ -78,14 +79,17 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.composed
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.scale
+import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Rect
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Path
+import androidx.compose.ui.graphics.PathEffect
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.StrokeJoin
 import androidx.compose.ui.graphics.drawscope.DrawScope
@@ -110,15 +114,20 @@ import com.tuxundl.android.core.util.trafficUpload
 import com.tuxundl.android.design.MainDesign
 import com.tuxundl.android.design.util.toBytesString
 import com.tuxundl.android.design.util.toDateStr
+import com.tuxundl.android.design.store.UiStore
 import com.tuxundl.android.util.DailyTrafficDay
 import com.tuxundl.android.util.DelaySample
+import com.tuxundl.android.util.Haptics
 import com.tuxundl.android.util.HourTrafficBucket
 import com.tuxundl.android.util.SavedConnection
 import com.tuxundl.android.util.UpdateInfo
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
+import kotlin.math.PI
+import kotlin.math.cos
 import kotlin.math.roundToInt
 import kotlin.math.roundToLong
+import kotlin.math.sin
 import com.tuxundl.android.design.R as DesignR
 
 /**
@@ -164,6 +173,17 @@ class MainUiState {
 
     /** False until the first-run disclaimer is accepted (gate screen). */
     var disclaimerAccepted by mutableStateOf(false)
+
+    /** True once the 1.3.0 onboarding flow is done (or grandfathered). */
+    var onboardingCompleted by mutableStateOf(false)
+
+    /**
+     * Home entrance counter: MainActivity bumps it on every onResume,
+     * and the home sections replay their staggered entrance whenever
+     * it changes — so returning from any other page animates the home
+     * screen back in. The first composition plays it too.
+     */
+    var entranceTick by mutableStateOf(0)
 
     /**
      * Per-second traffic rates (bytes/s) for the monitor chart, oldest
@@ -254,6 +274,11 @@ fun MainScreen(
     val scrollState = rememberScrollState()
     var homeDragActive by remember { mutableStateOf(false) }
 
+    // Drag pickup / drop buzzes go through the 1.2.5 haptics helper,
+    // which honours the master switch and strength setting.
+    val homeContext = LocalContext.current
+    val homeUiStore = remember { UiStore(homeContext) }
+
     Scaffold(
         snackbarHost = { SnackbarHost(state.snackbarHostState) },
         topBar = {
@@ -276,18 +301,29 @@ fun MainScreen(
             UpdateCard(state = state, onRequest = onRequest)
 
             Box(
-                modifier = Modifier.fillMaxWidth(),
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .homeEntrance(0, state.entranceTick),
                 contentAlignment = Alignment.Center,
             ) {
                 PowerCircle(state = state, onRequest = onRequest)
             }
 
-            ModeSelector(state = state, onRequest = onRequest)
+            Box(modifier = Modifier.homeEntrance(1, state.entranceTick)) {
+                ModeSelector(state = state, onRequest = onRequest)
+            }
 
             HomeCards(
                 state = state,
                 onRequest = onRequest,
                 onDragActiveChange = { homeDragActive = it },
+                entranceTick = state.entranceTick,
+                onDragPickup = {
+                    Haptics.buzz(homeContext, homeUiStore, Haptics.Kind.Tap)
+                },
+                onDragDrop = {
+                    Haptics.buzz(homeContext, homeUiStore, Haptics.Kind.Tap)
+                },
             )
         }
     }
@@ -475,6 +511,44 @@ private fun UpdateCard(
     }
 }
 
+/**
+ * Staggered entrance for one home section: it fades in while rising
+ * a few dp, [index] steps behind the previous section. Replays
+ * whenever [tick] changes — MainActivity bumps the tick on every
+ * onResume, so coming back from any other page animates the home
+ * screen in again — while plain recompositions never retrigger it.
+ * The Reduced style keeps only the fade.
+ */
+@Composable
+private fun Modifier.homeEntrance(index: Int, tick: Int): Modifier = composed {
+    val style = LocalAnimStyle.current
+    val progress = remember { Animatable(0f) }
+
+    LaunchedEffect(tick) {
+        progress.snapTo(0f)
+        if (style != AnimationStyle.Reduced) {
+            delay((index * 55).coerceAtMost(330).toLong())
+        }
+        progress.animateTo(
+            targetValue = 1f,
+            animationSpec = when (style) {
+                AnimationStyle.Spring ->
+                    spring(dampingRatio = 0.72f, stiffness = 300f)
+                AnimationStyle.Soft ->
+                    tween(durationMillis = 240, easing = FastOutSlowInEasing)
+                AnimationStyle.Reduced -> tween(durationMillis = 130)
+            },
+        )
+    }
+
+    val drift = if (style == AnimationStyle.Reduced) 0f else 18f
+
+    this.graphicsLayer {
+        alpha = progress.value.coerceIn(0f, 1f)
+        translationY = (1f - progress.value) * drift.dp.toPx()
+    }
+}
+
 internal fun formatDuration(millis: Long): String {
     val totalSeconds = millis / 1000
     val hours = totalSeconds / 3600
@@ -503,23 +577,33 @@ private enum class PowerPhase {
 /**
  * The big round start/stop button at the center of the home screen.
  *
+ * Look (1.3.0): Material You wavy ring + frosted glass + floating.
+ * A scalloped ring in the theme colour wraps the disc — semi-
+ * transparent and crystal-like, drawn as a soft wide pass under a
+ * crisper stroke — and the disc itself is a pale frosted-glass dome
+ * (radial gradient, a light bloom at the top-left, a soft inner
+ * shadow at the bottom) hovering over the page on a large blurred
+ * shadow. A small capsule under the status text mirrors the state.
+ *
  * Four states, each with its own motion (the core exposes no
  * transitional tunnel state, so Connecting/Stopping are tracked at the
  * UI layer between the tap and the running flag flipping):
  *
- * - Stopped: hollow ring breathing slowly, grey hint text.
- * - Connecting: a fast rotating arc whose sweep breathes, the disc
- *   pulses gently, and the label walks "Connecting" -> "Handshaking";
- *   if the core never comes up within 4 s the button shakes once and
- *   falls back to Stopped (e.g. VPN permission denied).
- * - Connected: filled disc, live speed inside, slow rotating halo;
- *   when the total rate suddenly doubles its recent average the halo
- *   "heartbeats" (its stroke swells once). Right after connecting, the
- *   label briefly reads "Connected".
- * - Stopping: the rotating arc again, in grey.
+ * - Stopped: the wavy ring turns grey and still, the float stops,
+ *   grey hint text.
+ * - Connecting: the ring spins fast, the disc pulses gently, and the
+ *   label walks "Connecting" -> "Handshaking"; if the core never
+ *   comes up within 4 s the button shakes once and falls back to
+ *   Stopped (e.g. VPN permission denied).
+ * - Connected: the ring rotates slowly and breathes, the whole
+ *   button floats (a barely-there vertical drift), live speed inside;
+ *   when the total rate suddenly doubles its recent average the ring
+ *   "heartbeats" (its stroke swells once). Right after connecting,
+ *   the label briefly reads "Connected".
+ * - Stopping: the ring spins fast again, in grey.
  *
- * The Reduced animation style drops rotation, breathing, pulsing and
- * the shake; states then differ by colour and label only.
+ * The Reduced animation style drops rotation, breathing, floating,
+ * pulsing and the shake; states then differ by colour and label only.
  */
 @Composable
 private fun PowerCircle(
@@ -607,9 +691,14 @@ private fun PowerCircle(
             val now = SystemClock.elapsedRealtime()
 
             if (prevAt != 0L && now > prevAt) {
+                // Real elapsed time, and counter-reset aware deltas
+                // (a restarted core's counters drop toward zero; the
+                // current value is what it counted since, 1.3.0).
                 val seconds = (now - prevAt) / 1000.0
-                val upRate = ((up - prevUp).coerceAtLeast(0) / seconds).roundToLong()
-                val downRate = ((down - prevDown).coerceAtLeast(0) / seconds).roundToLong()
+                val deltaUp = if (up >= prevUp) up - prevUp else up
+                val deltaDown = if (down >= prevDown) down - prevDown else down
+                val upRate = (deltaUp / seconds).roundToLong()
+                val downRate = (deltaDown / seconds).roundToLong()
                 upSpeed = formatSpeed(upRate)
                 downSpeed = formatSpeed(downRate)
 
@@ -686,7 +775,7 @@ private fun PowerCircle(
         ),
         label = "ringAlpha",
     )
-    // Connecting/stopping: a quicker rotation and a breathing sweep.
+    // Connecting/stopping: a quicker rotation.
     val fastRotation by infiniteTransition.animateFloat(
         initialValue = 0f,
         targetValue = 360f,
@@ -696,14 +785,15 @@ private fun PowerCircle(
         ),
         label = "fastRotation",
     )
-    val sweepAngle by infiniteTransition.animateFloat(
-        initialValue = 50f,
-        targetValue = 280f,
+    // Floating drift (connected only): a slow, barely-there bob.
+    val floatShift by infiniteTransition.animateFloat(
+        initialValue = 0f,
+        targetValue = 5f,
         animationSpec = infiniteRepeatable(
-            animation = tween(durationMillis = 1100, easing = FastOutSlowInEasing),
+            animation = tween(durationMillis = 2800, easing = FastOutSlowInEasing),
             repeatMode = RepeatMode.Reverse,
         ),
-        label = "sweepAngle",
+        label = "floatShift",
     )
     // Stopped: the hollow ring breathes (alpha, slow 3.6 s cycle,
     // small amplitude — a calm sine-like swell, not a blink).
@@ -747,7 +837,7 @@ private fun PowerCircle(
     // in the other phases both stops sit at surface colour (flat).
     val fillTop by animateColorAsState(
         targetValue = if (connected) {
-            primary.lightened(0.28f)
+            primary.lightened(0.38f)
         } else {
             MaterialTheme.colorScheme.surface
         },
@@ -782,6 +872,33 @@ private fun PowerCircle(
         animationSpec = circleSizeSpec,
         label = "circleSize",
     )
+    // Floating shadow: deep and soft while connected (the disc
+    // hovers), shallow while parked.
+    val discShadow by animateDpAsState(
+        targetValue = if (connected) 26.dp else 9.dp,
+        animationSpec = circleSizeSpec,
+        label = "discShadow",
+    )
+    // Status capsule colours (dot + wash) follow the phase.
+    val chipBackground by animateColorAsState(
+        targetValue = when (phase) {
+            PowerPhase.Connected -> onPrimary.copy(alpha = 0.22f)
+            PowerPhase.Stopping -> grey.copy(alpha = 0.14f)
+            PowerPhase.Connecting -> primary.copy(alpha = 0.12f)
+            PowerPhase.Stopped -> primary.copy(alpha = 0.10f)
+        },
+        animationSpec = tuxunColorSpec(style),
+        label = "chipBackground",
+    )
+    val chipDot by animateColorAsState(
+        targetValue = when (phase) {
+            PowerPhase.Connected -> Color(0xFF8CE99A)
+            PowerPhase.Connecting -> primary
+            else -> grey
+        },
+        animationSpec = tuxunColorSpec(style),
+        label = "chipDot",
+    )
     val animatedContentColor by animateColorAsState(
         targetValue = contentColor,
         animationSpec = tuxunColorSpec(style),
@@ -792,62 +909,56 @@ private fun PowerCircle(
     Box(
         modifier = Modifier
             .size(224.dp)
-            .offset { IntOffset(shakeOffset.value.roundToInt(), 0) },
+            .offset { IntOffset(shakeOffset.value.roundToInt(), 0) }
+            .graphicsLayer {
+                // Floating: while connected the whole button hovers
+                // with a slow vertical drift; parked in every other
+                // phase (and always in the Reduced style).
+                translationY = if (connected && !reduced) {
+                    -floatShift.dp.toPx()
+                } else {
+                    0f
+                }
+            },
         contentAlignment = Alignment.Center,
     ) {
         Canvas(modifier = Modifier.fillMaxSize()) {
-            val strokeWidth = 6.dp.toPx()
-
+            // The Material You wavy ring. Colour, spin and breath all
+            // follow the phase; the heartbeat Animatable (ringWidth)
+            // swells the band. Stopped is grey and perfectly still.
+            val waveColor: Color
+            val waveAlpha: Float
+            val waveRotation: Float
             when (phase) {
                 PowerPhase.Stopped -> {
-                    drawCircle(
-                        color = track.copy(alpha = if (reduced) 0.55f else breathAlpha),
-                        style = Stroke(width = strokeWidth),
-                    )
+                    waveColor = grey
+                    waveAlpha = if (reduced) 0.45f else breathAlpha * 0.75f
+                    waveRotation = 0f
                 }
                 PowerPhase.Connecting -> {
-                    drawCircle(
-                        color = track,
-                        style = Stroke(width = strokeWidth),
-                    )
-                    drawArc(
-                        color = primary,
-                        startAngle = if (reduced) -90f else fastRotation,
-                        sweepAngle = if (reduced) 270f else sweepAngle,
-                        useCenter = false,
-                        style = Stroke(width = strokeWidth, cap = StrokeCap.Round),
-                    )
+                    waveColor = primary
+                    waveAlpha = 0.9f
+                    waveRotation = if (reduced) 0f else fastRotation
                 }
                 PowerPhase.Connected -> {
-                    drawCircle(
-                        color = track,
-                        style = Stroke(width = strokeWidth),
-                    )
-                    drawArc(
-                        color = primary.copy(alpha = if (reduced) 1f else ringAlpha),
-                        startAngle = if (reduced) -90f else ringRotation,
-                        sweepAngle = 270f,
-                        useCenter = false,
-                        style = Stroke(
-                            width = ringWidth.value.dp.toPx(),
-                            cap = StrokeCap.Round,
-                        ),
-                    )
+                    waveColor = primary
+                    waveAlpha = if (reduced) 0.9f else ringAlpha
+                    waveRotation = if (reduced) 0f else ringRotation
                 }
                 PowerPhase.Stopping -> {
-                    drawCircle(
-                        color = track,
-                        style = Stroke(width = strokeWidth),
-                    )
-                    drawArc(
-                        color = grey,
-                        startAngle = if (reduced) -90f else fastRotation,
-                        sweepAngle = 120f,
-                        useCenter = false,
-                        style = Stroke(width = strokeWidth, cap = StrokeCap.Round),
-                    )
+                    waveColor = grey
+                    waveAlpha = 0.75f
+                    waveRotation = if (reduced) 0f else fastRotation
                 }
             }
+
+            drawWavyRing(
+                color = waveColor,
+                alpha = waveAlpha,
+                rotationDegrees = waveRotation,
+                bandWidth = (ringWidth.value + 2f).dp.toPx(),
+                trackColor = track,
+            )
         }
 
         // Soft same-colour glow behind the disc (connected only; the
@@ -871,9 +982,17 @@ private fun PowerCircle(
                         scaleY = discPulse
                     }
                 }
+                .shadow(
+                    elevation = discShadow,
+                    shape = CircleShape,
+                    ambientColor = primary.copy(alpha = 0.30f),
+                    spotColor = primary.copy(alpha = 0.38f),
+                )
                 .clip(CircleShape)
                 .background(
-                    Brush.verticalGradient(listOf(fillTop, fillBottom)),
+                    // Frosted-glass dome: a radial wash, brightest
+                    // toward the top, settling into the full colour.
+                    Brush.radialGradient(listOf(fillTop, fillBottom)),
                 )
                 .then(
                     when (phase) {
@@ -906,6 +1025,37 @@ private fun PowerCircle(
                 },
             contentAlignment = Alignment.Center,
         ) {
+            // Frosted-glass light play over the disc fill (clipped to
+            // the circle by the parent's clip): a soft bloom toward
+            // the top-left and a gentle inner shadow at the bottom,
+            // so the dome reads as glass rather than flat paint.
+            Canvas(modifier = Modifier.fillMaxSize()) {
+                drawCircle(
+                    brush = Brush.radialGradient(
+                        colors = listOf(
+                            Color.White.copy(alpha = if (connected) 0.32f else 0.45f),
+                            Color.Transparent,
+                        ),
+                        center = Offset(size.width * 0.30f, size.height * 0.20f),
+                        radius = size.width * 0.85f,
+                    ),
+                    radius = size.width * 0.85f,
+                    center = Offset(size.width * 0.30f, size.height * 0.20f),
+                )
+                drawCircle(
+                    brush = Brush.radialGradient(
+                        colors = listOf(
+                            Color.Black.copy(alpha = 0.16f),
+                            Color.Transparent,
+                        ),
+                        center = Offset(size.width * 0.5f, size.height * 1.08f),
+                        radius = size.width * 0.9f,
+                    ),
+                    radius = size.width * 0.9f,
+                    center = Offset(size.width * 0.5f, size.height * 1.08f),
+                )
+            }
+
             Column(
                 modifier = Modifier.padding(horizontal = 20.dp),
                 horizontalAlignment = Alignment.CenterHorizontally,
@@ -1002,9 +1152,96 @@ private fun PowerCircle(
                         }
                     }
                 }
+
+                // Status capsule: a small pill with a state dot,
+                // mirroring the phase under the status text.
+                Row(
+                    modifier = Modifier
+                        .clip(RoundedCornerShape(percent = 50))
+                        .background(chipBackground)
+                        .padding(horizontal = 10.dp, vertical = 4.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(6.dp),
+                ) {
+                    Box(
+                        modifier = Modifier
+                            .size(7.dp)
+                            .clip(CircleShape)
+                            .background(chipDot),
+                    )
+                    Text(
+                        text = stringResource(
+                            when (phase) {
+                                PowerPhase.Connected -> R.string.power_chip_active
+                                PowerPhase.Connecting -> R.string.power_chip_connecting
+                                PowerPhase.Stopping -> R.string.power_chip_stopping
+                                PowerPhase.Stopped -> R.string.power_chip_idle
+                            },
+                        ),
+                        style = MaterialTheme.typography.labelMedium,
+                        color = animatedContentColor,
+                    )
+                }
             }
+
         }
     }
+}
+
+/**
+ * Draw the Material You wavy ring: a full faint track, then the
+ * scalloped band itself as two strokes — a wide, very soft pass that
+ * reads as crystal glow, and a crisper pass on top. The scallops are
+ * a sinusoidal radius modulation; [rotationDegrees] phase-shifts the
+ * pattern so the whole ring appears to rotate.
+ */
+private fun DrawScope.drawWavyRing(
+    color: Color,
+    alpha: Float,
+    rotationDegrees: Float,
+    bandWidth: Float,
+    trackColor: Color,
+) {
+    val center = Offset(size.width / 2f, size.height / 2f)
+    val baseRadius = size.minDimension / 2f - 7.dp.toPx()
+    val amplitude = 4.5.dp.toPx()
+    val waves = 14
+    val phaseRad = Math.toRadians(rotationDegrees.toDouble())
+
+    drawCircle(
+        color = trackColor.copy(alpha = 0.5f),
+        radius = baseRadius,
+        center = center,
+        style = Stroke(width = 2.dp.toPx()),
+    )
+
+    val path = Path()
+    val steps = 180
+    for (i in 0..steps) {
+        val theta = i.toDouble() / steps * 2.0 * PI
+        val radius = baseRadius +
+            amplitude * sin(waves * (theta - phaseRad)).toFloat()
+        val x = center.x + radius * cos(theta).toFloat()
+        val y = center.y + radius * sin(theta).toFloat()
+        if (i == 0) {
+            path.moveTo(x, y)
+        } else {
+            path.lineTo(x, y)
+        }
+    }
+    path.close()
+
+    // Crystal glow pass, then the crisper band.
+    drawPath(
+        path = path,
+        color = color.copy(alpha = alpha * 0.22f),
+        style = Stroke(width = bandWidth * 2.1f, cap = StrokeCap.Round),
+    )
+    drawPath(
+        path = path,
+        color = color.copy(alpha = alpha),
+        style = Stroke(width = bandWidth, cap = StrokeCap.Round),
+    )
 }
 
 /** Rule / Global / Direct switch, right under the power circle. */
@@ -1126,6 +1363,8 @@ private fun DraggableHomeItem(
     onDragMove: (draggingKey: String) -> Unit,
     modifier: Modifier = Modifier,
     pressScale: Boolean = false,
+    onDragPickup: () -> Unit = {},
+    onDragDrop: () -> Unit = {},
     content: @Composable () -> Unit,
 ) {
     val style = animStyle()
@@ -1184,6 +1423,7 @@ private fun DraggableHomeItem(
             drag.blockedKey = null
             drag.settling = false
             drag.frozenBounds = emptyMap()
+            onDragDrop()
         }
     }
 
@@ -1295,6 +1535,7 @@ private fun DraggableHomeItem(
                                         drag.grabOffset = local
                                         drag.dragTotal = Offset.Zero
                                         drag.dragSlotTopLeft = itemBounds.topLeft
+                                        onDragPickup()
                                     }
                                 }
                             },
@@ -1335,6 +1576,9 @@ private fun HomeCards(
     state: MainUiState,
     onRequest: (MainDesign.Request) -> Unit,
     onDragActiveChange: (Boolean) -> Unit,
+    entranceTick: Int,
+    onDragPickup: () -> Unit,
+    onDragDrop: () -> Unit,
 ) {
     val style = animStyle()
 
@@ -1424,6 +1668,14 @@ private fun HomeCards(
 
     val visibleBricks = state.brickOrder.filter(::brickVisible)
 
+    // Settings and Logs live in their own dock row at the very
+    // bottom of the home screen (1.3.0), out of the main grid flow.
+    // Their relative order still comes from brickOrder, and a brick
+    // drag only ever swaps within the grid or within the dock.
+    val dockIds = listOf("logs", "settings")
+    val gridBricks = visibleBricks.filter { it !in dockIds }
+    val dockBricks = visibleBricks.filter { it in dockIds }
+
     // Block order: the monitor block sits where cardOrder puts the
     // "monitor" key relative to the first tile key.
     val firstTileIndex = state.cardOrder.indexOfFirst { it != "monitor" }
@@ -1494,7 +1746,9 @@ private fun HomeCards(
         // also moves the dragged item's recorded slot, so its rendered
         // position (raw travel compensated by the slot delta) stays
         // glued to the finger instead of jumping to the new slot.
-        for (id in visibleBricks) {
+        // Grid bricks and dock bricks never swap across the divide.
+        val candidates = if (draggingKey in dockIds) dockBricks else gridBricks
+        for (id in candidates) {
             if (id == draggingKey || id == drag.blockedKey) continue
             val b = frozen[id] ?: continue
             val inner = Rect(
@@ -1579,7 +1833,11 @@ private fun HomeCards(
                             },
                             onEnterEditMode = { editMode = true },
                             onDragMove = ::onDragMove,
-                            modifier = Modifier.fillMaxWidth(),
+                            onDragPickup = onDragPickup,
+                            onDragDrop = onDragDrop,
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .homeEntrance(2, entranceTick),
                         ) {
                             Column(
                                 verticalArrangement = Arrangement.spacedBy(12.dp),
@@ -1594,26 +1852,70 @@ private fun HomeCards(
                     }
 
                     else -> {
-                        // The bricks grid (registers its own bounds so
-                        // the monitor block can hit-test against it).
                         Column(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .onGloballyPositioned { coordinates ->
-                                    drag.bounds["bricks"] = Rect(
-                                        offset = coordinates.positionInRoot() -
-                                            drag.containerOrigin,
-                                        size = Size(coordinates.size.width.toFloat(), coordinates.size.height.toFloat()),
-                                    )
-                                },
                             verticalArrangement = Arrangement.spacedBy(12.dp),
                         ) {
-                            visibleBricks.chunked(2).forEach { rowBricks ->
+                            // The bricks grid (registers its own bounds
+                            // so the monitor block can hit-test it).
+                            Column(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .homeEntrance(3, entranceTick)
+                                    .onGloballyPositioned { coordinates ->
+                                        drag.bounds["bricks"] = Rect(
+                                            offset = coordinates.positionInRoot() -
+                                                drag.containerOrigin,
+                                            size = Size(coordinates.size.width.toFloat(), coordinates.size.height.toFloat()),
+                                        )
+                                    },
+                                verticalArrangement = Arrangement.spacedBy(12.dp),
+                            ) {
+                                gridBricks.chunked(2).forEach { rowBricks ->
+                                    Row(
+                                        modifier = Modifier.fillMaxWidth(),
+                                        horizontalArrangement = Arrangement.spacedBy(12.dp),
+                                    ) {
+                                        rowBricks.forEach { id ->
+                                            key(id) {
+                                                DraggableHomeItem(
+                                                    key = id,
+                                                    drag = drag,
+                                                    editMode = editMode,
+                                                    wiggleSeed = id.hashCode(),
+                                                    onClick = brickClick(id),
+                                                    onEnterEditMode = { editMode = true },
+                                                    onDragMove = ::onDragMove,
+                                                    onDragPickup = onDragPickup,
+                                                    onDragDrop = onDragDrop,
+                                                    modifier = Modifier.weight(1f),
+                                                    pressScale = true,
+                                                ) {
+                                                    BrickContent(
+                                                        id = id,
+                                                        nodeTile = nodeTile,
+                                                        tilesByKey = tilesByKey,
+                                                        onRequest = onRequest,
+                                                    )
+                                                }
+                                            }
+                                        }
+                                        if (rowBricks.size == 1) {
+                                            Spacer(modifier = Modifier.weight(1f))
+                                        }
+                                    }
+                                }
+                            }
+
+                            // Dock row: Settings and Logs, sunk to the
+                            // very bottom in their own row.
+                            if (dockBricks.isNotEmpty()) {
                                 Row(
-                                    modifier = Modifier.fillMaxWidth(),
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .homeEntrance(4, entranceTick),
                                     horizontalArrangement = Arrangement.spacedBy(12.dp),
                                 ) {
-                                    rowBricks.forEach { id ->
+                                    dockBricks.forEach { id ->
                                         key(id) {
                                             DraggableHomeItem(
                                                 key = id,
@@ -1623,6 +1925,8 @@ private fun HomeCards(
                                                 onClick = brickClick(id),
                                                 onEnterEditMode = { editMode = true },
                                                 onDragMove = ::onDragMove,
+                                                onDragPickup = onDragPickup,
+                                                onDragDrop = onDragDrop,
                                                 modifier = Modifier.weight(1f),
                                                 pressScale = true,
                                             ) {
@@ -1635,7 +1939,7 @@ private fun HomeCards(
                                             }
                                         }
                                     }
-                                    if (rowBricks.size == 1) {
+                                    if (dockBricks.size == 1) {
                                         Spacer(modifier = Modifier.weight(1f))
                                     }
                                 }
@@ -1768,20 +2072,30 @@ private fun TrafficMonitorCard(
                     .height(96.dp),
             )
 
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween,
-            ) {
-                Text(
-                    text = "↓ ${state.traffic.trafficDownload()}",
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = MaterialTheme.colorScheme.primary,
-                )
-                Text(
-                    text = "↑ ${state.traffic.trafficUpload()}",
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = MaterialTheme.colorScheme.tertiary,
-                )
+            // Live totals cross-fade as they tick up (1.3.0).
+            AnimatedContent(
+                targetState = state.traffic.trafficDownload() to
+                    state.traffic.trafficUpload(),
+                transitionSpec = {
+                    fadeIn(todayEnterSpec) togetherWith fadeOut(todayExitSpec)
+                },
+                label = "totalsRow",
+            ) { (downText, upText) ->
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                ) {
+                    Text(
+                        text = "↓ $downText",
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.primary,
+                    )
+                    Text(
+                        text = "↑ $upText",
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.tertiary,
+                    )
+                }
             }
 
             // Today's forwarded total (app-open time only) plus the
@@ -1942,6 +2256,7 @@ private fun TrafficChart(
     val downColor = MaterialTheme.colorScheme.primary
     val upColor = MaterialTheme.colorScheme.tertiary
     val baselineColor = MaterialTheme.colorScheme.outlineVariant
+    val style = animStyle()
 
     var sweepTarget by remember { mutableStateOf(0f) }
     val sweep by animateFloatAsState(
@@ -1953,6 +2268,42 @@ private fun TrafficChart(
         sweepTarget = 1f
     }
 
+    // Curve morphing (1.3.0): when a new sample lands, the drawn
+    // series interpolates from the previous window over ~280 ms
+    // instead of jumping, and the vertical scale eases toward the
+    // new maximum rather than snapping.
+    var prevSamples by remember { mutableStateOf<List<TrafficSample>>(emptyList()) }
+    var displaySamples by remember { mutableStateOf(samples) }
+    val morph = remember { Animatable(1f) }
+    LaunchedEffect(samples) {
+        val from = prevSamples
+        prevSamples = samples
+        if (style == AnimationStyle.Reduced || from.isEmpty() ||
+            samples.isEmpty() || from == samples
+        ) {
+            displaySamples = samples
+            morph.snapTo(1f)
+        } else {
+            morph.snapTo(0f)
+            morph.animateTo(
+                targetValue = 1f,
+                animationSpec = tween(durationMillis = 280, easing = FastOutSlowInEasing),
+            ) {
+                displaySamples = interpolateTrafficSamples(from, samples, value)
+            }
+            displaySamples = samples
+        }
+    }
+
+    val rawMax = displaySamples.maxOfOrNull { maxOf(it.upRate, it.downRate) }
+        ?.toFloat()
+        ?: 1f
+    val animatedMax by animateFloatAsState(
+        targetValue = rawMax.coerceAtLeast(1f),
+        animationSpec = tween(durationMillis = 300, easing = FastOutSlowInEasing),
+        label = "chartMax",
+    )
+
     Canvas(modifier = modifier) {
         drawLine(
             color = baselineColor,
@@ -1961,24 +2312,72 @@ private fun TrafficChart(
             strokeWidth = 1.dp.toPx(),
         )
 
-        if (samples.size < 2) return@Canvas
+        if (displaySamples.size < 2) return@Canvas
 
-        val maxRate = samples.maxOf { maxOf(it.upRate, it.downRate) }
-            .coerceAtLeast(1)
-            .toFloat()
+        val maxRate = animatedMax
         val usableHeight = size.height - 6.dp.toPx()
 
-        fun pointsOf(up: Boolean): List<Offset> = samples.mapIndexed { index, sample ->
-            val rate = if (up) sample.upRate else sample.downRate
-            Offset(
-                x = size.width * index / (samples.size - 1),
-                y = size.height - (rate / maxRate) * usableHeight,
-            )
-        }
+        fun pointsOf(up: Boolean): List<Offset> =
+            displaySamples.mapIndexed { index, sample ->
+                val rate = if (up) sample.upRate else sample.downRate
+                Offset(
+                    x = size.width * index / (displaySamples.size - 1),
+                    y = size.height - (rate / maxRate) * usableHeight,
+                )
+            }
+
+        val downPoints = pointsOf(up = false)
 
         // Download carries the gradient fill; upload is a plain line.
-        drawSeries(pointsOf(up = false), downColor, sweep, filled = true)
+        drawSeries(downPoints, downColor, sweep, filled = true)
         drawSeries(pointsOf(up = true), upColor, sweep, filled = false)
+
+        // Peak marker: a dot and a faint dashed guide at the highest
+        // download point inside the revealed part of the window (the
+        // card header prints the peak values as text).
+        val peakIndex = displaySamples.indices
+            .maxByOrNull { displaySamples[it].downRate }
+        if (peakIndex != null) {
+            val peakPoint = downPoints[peakIndex]
+            if (peakPoint.x <= size.width * sweep) {
+                drawLine(
+                    color = downColor.copy(alpha = 0.35f),
+                    start = peakPoint,
+                    end = Offset(peakPoint.x, size.height),
+                    strokeWidth = 1.dp.toPx(),
+                    pathEffect = PathEffect.dashPathEffect(floatArrayOf(6f, 6f)),
+                )
+                drawCircle(
+                    color = Color.White,
+                    radius = 3.5.dp.toPx(),
+                    center = peakPoint,
+                )
+                drawCircle(
+                    color = downColor,
+                    radius = 2.5.dp.toPx(),
+                    center = peakPoint,
+                )
+            }
+        }
+    }
+}
+
+/** Interpolate two sample windows at [t], aligned from the end. */
+private fun interpolateTrafficSamples(
+    from: List<TrafficSample>,
+    to: List<TrafficSample>,
+    t: Float,
+): List<TrafficSample> = to.mapIndexed { index, sample ->
+    val fromSample = from.getOrNull(from.size - (to.size - index))
+    if (fromSample == null) {
+        sample
+    } else {
+        TrafficSample(
+            upRate = fromSample.upRate +
+                ((sample.upRate - fromSample.upRate) * t).roundToLong(),
+            downRate = fromSample.downRate +
+                ((sample.downRate - fromSample.downRate) * t).roundToLong(),
+        )
     }
 }
 
@@ -2286,13 +2685,17 @@ private fun NavBrick(
     @StringRes title: Int,
     modifier: Modifier = Modifier,
 ) {
-    TuxunCard(modifier = modifier) {
+    // Taller than before (1.3.0 proportions): the brick now matches
+    // the info tiles' minimum height, with its content centred, so
+    // mixed rows and the bottom dock read as one rhythm.
+    TuxunCard(modifier = modifier.heightIn(min = 96.dp)) {
         Column(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(vertical = 10.dp, horizontal = 4.dp),
+                .fillMaxHeight()
+                .padding(vertical = 14.dp, horizontal = 4.dp),
             horizontalAlignment = Alignment.CenterHorizontally,
-            verticalArrangement = Arrangement.spacedBy(6.dp),
+            verticalArrangement = Arrangement.spacedBy(6.dp, Alignment.CenterVertically),
         ) {
             Icon(
                 painter = painterResource(icon),
