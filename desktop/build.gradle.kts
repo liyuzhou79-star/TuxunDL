@@ -11,17 +11,27 @@ plugins {
     id("org.jetbrains.compose") version "1.7.3"
 }
 
-// One source tree, two desktop editions. The build follows the OS
+// One source tree, three desktop editions. The build follows the OS
 // of the machine running it: Windows CI builds the Windows edition,
-// Linux CI builds the Linux edition. Versions are independent from
-// here on — the Windows edition is at 1.6.8, the Linux edition
-// starts at 1.0.0 — and each edition's update checker only follows
-// its own release tags (win-v* / linux-v*).
+// Linux CI builds the Linux edition, Mac CI builds the Mac edition.
+// Versions are independent from here on — the Windows edition is at
+// 1.6.10, the Linux and Mac editions start at 1.0.0 — and each
+// edition's update checker only follows its own release tags
+// (win-v* / linux-v* / mac-v*).
 val hostOsName = System.getProperty("os.name").lowercase()
 val linuxBuild = hostOsName.contains("linux")
-val editionVersion = if (linuxBuild) "1.0.0" else "1.6.10"
+val macBuild = hostOsName.contains("mac")
+val editionVersion = when {
+    linuxBuild -> "1.0.0"
+    macBuild -> "1.0.0"
+    else -> "1.6.10"
+}
 
-group = if (linuxBuild) "com.tuxundl.linux" else "com.tuxundl.windows"
+group = when {
+    linuxBuild -> "com.tuxundl.linux"
+    macBuild -> "com.tuxundl.mac"
+    else -> "com.tuxundl.windows"
+}
 version = editionVersion
 
 dependencies {
@@ -42,14 +52,22 @@ compose.desktop {
         nativeDistributions {
             packageName = "TuxunDL"
             packageVersion = editionVersion
-            description = if (linuxBuild) {
-                "TuxunDL for Linux"
-            } else {
-                "TuxunDL for Windows"
+            description = when {
+                linuxBuild -> "TuxunDL for Linux"
+                macBuild -> "TuxunDL for Mac"
+                else -> "TuxunDL for Windows"
             }
             vendor = "TuxunDL"
 
-            if (linuxBuild) {
+            if (macBuild) {
+                targetFormats(TargetFormat.Dmg)
+
+                macOS {
+                    // Reverse-DNS bundle id for the Mac edition,
+                    // mirroring com.tuxundl.windows / com.tuxundl.linux.
+                    bundleID = "com.tuxundl.mac"
+                }
+            } else if (linuxBuild) {
                 targetFormats(TargetFormat.Deb, TargetFormat.AppImage)
 
                 linux {
@@ -82,7 +100,7 @@ tasks.register("fetchCore") {
     val exeFile = coreResDir.file("mihomo.exe").asFile
     val dllFile = coreResDir.file("wintun.dll").asFile
     val binFile = coreResDir.file("mihomo").asFile
-    if (linuxBuild) {
+    if (linuxBuild || macBuild) {
         outputs.file(binFile)
         onlyIf { !binFile.exists() }
     } else {
@@ -91,6 +109,29 @@ tasks.register("fetchCore") {
     }
     doLast {
         coreResDir.asFile.mkdirs()
+        if (macBuild) {
+            // Mac ships the same single binary as Linux, but the
+            // darwin build. GitHub's macos-latest runner is Apple
+            // Silicon, so this is the arm64 core; Intel Macs are
+            // not covered by Mac 1.0.0 (see the release notes).
+            if (!binFile.exists()) {
+                val gz = File(temporaryDir, "mihomo.gz")
+                URI(
+                    "https://github.com/MetaCubeX/mihomo/releases/download/" +
+                        "$mihomoVersion/mihomo-darwin-arm64-$mihomoVersion.gz",
+                ).toURL().openStream().use { input ->
+                    gz.outputStream().use { output -> input.copyTo(output) }
+                }
+                GZIPInputStream(gz.inputStream()).use { input ->
+                    binFile.outputStream().use { output -> input.copyTo(output) }
+                }
+                binFile.setExecutable(true)
+                check(binFile.exists() && binFile.length() > 0) {
+                    "mihomo missing after fetchCore"
+                }
+            }
+            return@doLast
+        }
         if (linuxBuild) {
             // Linux ships a single gzipped binary; there is no
             // wintun — the kernel provides /dev/net/tun natively.

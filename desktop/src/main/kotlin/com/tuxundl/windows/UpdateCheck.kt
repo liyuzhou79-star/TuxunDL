@@ -16,12 +16,13 @@ import java.time.Duration
  * Update check for the desktop editions. Reads this repository's
  * release list and only considers tags shaped `<prefix><version>`
  * for the edition that is running — `win-v<version>` on Windows,
- * `linux-v<version>` on Linux. Android releases (`v<version>`) and
- * the other desktop edition's releases are different products and
- * never count here, mirroring the platform filter the Android
- * checker gained in 1.2.2. The two desktop editions version
- * independently (Windows 1.6.6, Linux 1.0.0 at the time of writing),
- * so the current version is picked per OS as well.
+ * `linux-v<version>` on Linux, `mac-v<version>` on macOS. Android
+ * releases (`v<version>`) and the other desktop editions' releases
+ * are different products and never count here, mirroring the
+ * platform filter the Android checker gained in 1.2.2. The three
+ * desktop editions version independently (Windows 1.6.10, Linux
+ * 1.0.0, Mac 1.0.0 at the time of writing), so the current version
+ * is picked per OS as well.
  *
  * Two data sources, tried in order:
  * 1. The GitHub REST API (api.github.com). Unauthenticated requests
@@ -41,15 +42,23 @@ import java.time.Duration
  */
 object DesktopUpdateCheck {
 
-    /** Release tag prefix of the running edition: "win-v" / "linux-v". */
-    val TAG_PREFIX: String = if (Platform.isLinux) "linux-v" else "win-v"
+    /** Release tag prefix of the running edition: "win-v" / "linux-v" / "mac-v". */
+    val TAG_PREFIX: String = when {
+        Platform.isLinux -> "linux-v"
+        Platform.isMac -> "mac-v"
+        else -> "win-v"
+    }
 
     private const val WINDOWS_VERSION = "1.6.10"
     private const val LINUX_VERSION = "1.0.0"
+    private const val MAC_VERSION = "1.0.0"
 
     /** Version of the running edition (kept in sync with build.gradle.kts). */
-    val CURRENT_VERSION: String =
-        if (Platform.isLinux) LINUX_VERSION else WINDOWS_VERSION
+    val CURRENT_VERSION: String = when {
+        Platform.isLinux -> LINUX_VERSION
+        Platform.isMac -> MAC_VERSION
+        else -> WINDOWS_VERSION
+    }
 
     private const val RELEASES_URL =
         "https://api.github.com/repos/liyuzhou79-star/TuxunDL/releases?per_page=30"

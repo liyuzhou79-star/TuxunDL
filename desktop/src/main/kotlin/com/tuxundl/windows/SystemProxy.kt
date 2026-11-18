@@ -12,6 +12,13 @@ package com.tuxundl.windows
  * GNOME follow. Desktops where that schema does not answer are
  * reported as unsupported by [isSupported], so callers can say so
  * honestly instead of pretending the proxy was set.
+ *
+ * macOS: the per-service proxy of the current network service
+ * (usually Wi-Fi), driven through `networksetup`. No sudo is
+ * needed for an admin account — networksetup writes the user's own
+ * SystemConfiguration preferences — but a non-admin account cannot
+ * change it, and then [enable] fails honestly instead of pretending.
+ * [isSupported] is false when no usable network service is found.
  */
 object SystemProxy {
 
@@ -20,23 +27,38 @@ object SystemProxy {
 
     private val isWindows: Boolean = Platform.isWindows
     private val isLinux: Boolean = Platform.isLinux
+    private val isMac: Boolean = Platform.isMac
 
     /** Set by a successful Linux [enable] in this process. */
     @Volatile
     private var linuxEnabledByUs = false
 
+    /** Set by a successful macOS [enable] in this process. */
+    @Volatile
+    private var macEnabledByUs = false
+
     /** Cached GNOME probe result; null until first checked. */
     @Volatile
     private var gnomeAvailable: Boolean? = null
 
+    /** Cached macOS network service name; null until first checked. */
+    @Volatile
+    private var macService: String? = null
+
+    /** True once the macOS service lookup has run (hit or miss). */
+    @Volatile
+    private var macServiceLookedUp = false
+
     /**
      * Whether this machine's system proxy can be switched from here
      * at all: always true on Windows; on Linux only when the GNOME
-     * proxy schema answers through gsettings.
+     * proxy schema answers through gsettings; on macOS only when
+     * networksetup finds a usable network service.
      */
     fun isSupported(): Boolean = when {
         isWindows -> true
         isLinux -> gnomeProxyAvailable()
+        isMac -> macNetworkService() != null
         else -> false
     }
 
@@ -53,6 +75,7 @@ object SystemProxy {
             return server && on
         }
         if (isLinux) return enableGnome(port)
+        if (isMac) return enableMac(port)
         return false
     }
 
@@ -64,6 +87,7 @@ object SystemProxy {
             )
         }
         if (isLinux) return disableGnome()
+        if (isMac) return disableMac()
         return false
     }
 
@@ -95,6 +119,11 @@ object SystemProxy {
             val proxyPort = gsettingsGet("org.gnome.system.proxy.http", "port")
                 ?.toIntOrNull() ?: return false
             return host == "127.0.0.1" && proxyPort == port
+        }
+        if (isMac) {
+            val service = macNetworkService() ?: return false
+            val web = networksetupGetProxy(service, "-getwebproxy") ?: return false
+            return web.enabled && web.server == "127.0.0.1" && web.port == port
         }
         return false
     }
@@ -192,4 +221,101 @@ object SystemProxy {
         val output = process.inputStream.bufferedReader().readText().trim()
         if (process.waitFor() == 0) output else null
     }.getOrNull()
+
+    // ---- macOS (networksetup) ----
+
+    /** One proxy entry as `networksetup -get<kind>proxy` reports it. */
+    private data class MacProxy(val enabled: Boolean, val server: String, val port: Int)
+
+    /**
+     * The network service whose proxy this app manages: "Wi-Fi"
+     * when present, otherwise the first enabled service from
+     * `networksetup -listallnetworkservices` (disabled services are
+     * marked with a leading asterisk and skipped). Cached after the
+     * first lookup; null when networksetup answers nothing usable.
+     */
+    private fun macNetworkService(): String? {
+        if (macServiceLookedUp) return macService
+        macServiceLookedUp = true
+        macService = runCatching {
+            val process = ProcessBuilder("networksetup", "-listallnetworkservices")
+                .redirectErrorStream(true)
+                .start()
+            val output = process.inputStream.bufferedReader().readText()
+            if (process.waitFor() != 0) return@runCatching null
+            val services = output.lineSequence()
+                .map { it.trim() }
+                .filter { it.isNotEmpty() && !it.startsWith("An asterisk") }
+                .filter { !it.startsWith("*") }
+                .toList()
+            services.firstOrNull { it == "Wi-Fi" } ?: services.firstOrNull()
+        }.getOrNull()
+        return macService
+    }
+
+    private fun enableMac(port: Int): Boolean {
+        val service = macNetworkService() ?: return false
+        var ok = true
+        // Hosts and ports first; the on-switches flip last, so
+        // nothing ever sees a half-written proxy configuration.
+        ok = networksetup("-setwebproxy", service, "127.0.0.1", port.toString()) && ok
+        ok = networksetup("-setsecurewebproxy", service, "127.0.0.1", port.toString()) && ok
+        ok = networksetup("-setsocksfirewallproxy", service, "127.0.0.1", port.toString()) && ok
+        ok = networksetup("-setwebproxystate", service, "on") && ok
+        ok = networksetup("-setsecurewebproxystate", service, "on") && ok
+        ok = networksetup("-setsocksfirewallproxystate", service, "on") && ok
+        if (ok) macEnabledByUs = true
+        return ok
+    }
+
+    private fun disableMac(): Boolean {
+        val service = macNetworkService() ?: return false
+        // Only switch off what is ours: enabled by this process, or
+        // a web proxy still pointing at this app's port (the
+        // leftover of a crashed run). A proxy the user configured
+        // for something else is never touched; when nothing is ours
+        // the off state already holds, which counts as success.
+        val ours = macEnabledByUs || pointsAtAppPort(SettingsStore.mixedPort())
+        if (!ours) return true
+        var ok = true
+        ok = networksetup("-setwebproxystate", service, "off") && ok
+        ok = networksetup("-setsecurewebproxystate", service, "off") && ok
+        ok = networksetup("-setsocksfirewallproxystate", service, "off") && ok
+        if (ok) macEnabledByUs = false
+        return ok
+    }
+
+    /**
+     * Parse one `networksetup -get<kind>proxy` answer, whose lines
+     * look like "Enabled: Yes", "Server: 127.0.0.1", "Port: 7890".
+     * Null when the query itself fails.
+     */
+    private fun networksetupGetProxy(service: String, command: String): MacProxy? =
+        runCatching {
+            val process = ProcessBuilder("networksetup", command, service)
+                .redirectErrorStream(true)
+                .start()
+            val output = process.inputStream.bufferedReader().readText()
+            if (process.waitFor() != 0) return@runCatching null
+            var enabled = false
+            var server = ""
+            var port = -1
+            for (line in output.lineSequence()) {
+                val parts = line.split(":", limit = 2)
+                if (parts.size != 2) continue
+                when (parts[0].trim()) {
+                    "Enabled" -> enabled = parts[1].trim() == "Yes"
+                    "Server" -> server = parts[1].trim()
+                    "Port" -> port = parts[1].trim().toIntOrNull() ?: -1
+                }
+            }
+            MacProxy(enabled, server, port)
+        }.getOrNull()
+
+    private fun networksetup(vararg args: String): Boolean = runCatching {
+        ProcessBuilder(listOf("networksetup") + args)
+            .redirectErrorStream(true)
+            .start()
+            .waitFor() == 0
+    }.getOrDefault(false)
 }

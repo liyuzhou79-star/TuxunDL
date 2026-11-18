@@ -5,8 +5,8 @@
 <h1 align="center">TuxunDL</h1>
 
 <p align="center">
-  高自訂、強個性化的開源代理工具，Android 與 Windows 雙平台，基於 mihomo 核心。<br>
-  An open-source, highly customizable proxy client for Android and Windows, powered by the mihomo core.
+  高自訂、強個性化的開源代理工具，Android、Windows、Linux、Mac 四平台，基於 mihomo 核心。<br>
+  An open-source, highly customizable proxy client for Android, Windows, Linux and Mac, powered by the mihomo core.
 </p>
 
 <p align="center">
@@ -42,7 +42,7 @@ Android 版介面以 Kotlin + Jetpack Compose + Material 3 打造，吉祥物是
 
 ## 下載 / Download
 
-到 [Releases](https://github.com/liyuzhou79-star/TuxunDL/releases/latest) 打開最新發布頁下載。**每個發布頁都會同時放齊 Android 和 Windows 兩個平台的最新安裝包**——就算這次只更新了其中一個平台，另一個平台的現行版本也會一併附上，不用翻舊頁面找。
+到 [Releases](https://github.com/liyuzhou79-star/TuxunDL/releases/latest) 打開最新發布頁下載。**每個發布頁都會同時放齊 Android、Windows、Linux、Mac 四個平台的最新安裝包**——就算這次只更新了其中一個平台，其他平台的現行版本也會一併附上，不用翻舊頁面找。
 
 ### Android
 
@@ -72,6 +72,14 @@ App 內建檢查更新（設定頁手動檢查，或有新版時開啟 App 全�
 | `TuxunDL-<版本>.AppImage` | 各主流發行版，64 位元（免安裝，下載後加可執行權限直接運行） |
 
 與 Windows 版同一套桌面程式碼（版本號獨立，從 1.0.0 起），程序內置 mihomo 核心。系統代理自動設置支援 GNOME 桌面（其他桌面請手動填 127.0.0.1:7890）；TUN 模式透過 pkexec 只把核心以 root 啟動，程序本身不提權。Linux 版內建檢查更新，只認 `linux-v` 開頭的 Linux 發布。
+
+### Mac
+
+| 檔案 | 適合 |
+| --- | --- |
+| `TuxunDL-<版本>.dmg` | macOS，Apple Silicon（M 系列晶片），64 位元（DMG 磁碟映像） |
+
+與 Windows／Linux 版同一套桌面程式碼（版本號獨立，從 1.0.0 起），程序內置 mihomo 核心。系統代理自動設置走 `networksetup`（當前網絡服務，一般是 Wi-Fi；需要管理員賬號）；TUN 模式本版暫不支持。Mac 版內建檢查更新，只認 `mac-v` 開頭的 Mac 發布。未簽名、未公證，首次打開需右鍵→打開繞過 Gatekeeper；Intel Mac 本版暫不支援。
 
 ## 功能總覽 / Features
 
@@ -118,7 +126,9 @@ App 內建檢查更新（設定頁手動檢查，或有新版時開啟 App 全�
 
 - **Android 標準版與老機型版**：功能相同，差別只在處理器架構與包名。每個 Android 版本都同時發布，不會有哪一版被漏掉。
 - **Windows 版**：版本號獨立，從 1.0.0 重新開始，發布標籤用 `win-v<版本>`（Android 用 `v<版本>`）。
-- **雙平台同頁**：每個 GitHub 發布頁都會同時附上兩個平台的最新安裝包。假如這次只更新了手機端，發布頁裡照樣有電腦端的現行版本；反過來也一樣。發布說明會寫清這次更新的是哪個平台。
+- **Linux 版**：版本號獨立，從 1.0.0 開始，發布標籤用 `linux-v<版本>`。
+- **Mac 版**：版本號獨立，從 1.0.0 開始，發布標籤用 `mac-v<版本>`，目前只有 Apple Silicon 版。
+- **四平台同頁**：每個 GitHub 發布頁都會同時附上四個平台的最新安裝包。假如這次只更新了手機端，發布頁裡照樣有電腦端的現行版本；反過來也一樣。發布說明會寫清這次更新的是哪個平台。
 
 ## 更新紀錄 / Changelog
 

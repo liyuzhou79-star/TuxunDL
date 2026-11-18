@@ -14,6 +14,12 @@ import kotlin.system.exitProcess
  * Linux reaches the same end differently: the app itself never
  * elevates — TUN mode starts only the core as root through pkexec
  * (see CoreBridge), and the helpers for that live here too.
+ *
+ * macOS has no TUN support in 1.0.0: starting the core as root
+ * through osascript was not verified on a real Mac, so TUN is
+ * honestly unavailable there instead of half-working. The settings
+ * page says so and [CoreBridge.start] refuses TUN mode on Mac
+ * with a plain message; system-proxy mode is the way to connect.
  */
 object Elevation {
 
@@ -21,6 +27,11 @@ object Elevation {
         System.getProperty("os.name").contains("Windows", true)
 
     fun isLinux(): Boolean = Platform.isLinux
+
+    fun isMac(): Boolean = Platform.isMac
+
+    /** True when this platform can run the core with TUN at all. */
+    fun tunSupported(): Boolean = isWindows() || isLinux()
 
     /** True when this process already runs as root (Linux). */
     fun isRoot(): Boolean {

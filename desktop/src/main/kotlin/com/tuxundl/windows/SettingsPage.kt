@@ -105,10 +105,10 @@ internal fun SettingsPage() {
         Text(text = "连接模式", color = Color.White, fontSize = 16.sp)
         Spacer(Modifier.height(4.dp))
         Text(
-            text = if (Platform.isLinux) {
-                "系统代理不用管理员权限；TUN 接管全部流量，点连接时会通过 pkexec 弹密码框、只把核心以管理员权限启动（程序本身不提权，需要系统装有 pkexec）。"
-            } else {
-                "系统代理不用管理员权限；TUN 接管全部流量，点连接时会自动请求管理员权限并重启本程序（系统会弹确认框）。"
+            text = when {
+                Platform.isMac -> "系统代理不用管理员权限（需要管理员账号），点连接就自动设置好；Mac 版 1.0.0 暂不支持 TUN 模式。"
+                Platform.isLinux -> "系统代理不用管理员权限；TUN 接管全部流量，点连接时会通过 pkexec 弹密码框、只把核心以管理员权限启动（程序本身不提权，需要系统装有 pkexec）。"
+                else -> "系统代理不用管理员权限；TUN 接管全部流量，点连接时会自动请求管理员权限并重启本程序（系统会弹确认框）。"
             },
             color = TextDim,
             fontSize = 13.sp,
@@ -121,9 +121,15 @@ internal fun SettingsPage() {
                 note = "已切换为系统代理，下次连接生效"
             }
             ModeChip("TUN", tun) {
-                tun = true
-                SettingsStore.setTunMode(true)
-                note = "已切换为 TUN，下次连接生效"
+                if (Platform.isMac) {
+                    // Mac 1.0.0 has no TUN support; say so instead
+                    // of switching to a mode that cannot connect.
+                    note = "Mac 版 1.0.0 暂不支持 TUN 模式，请用系统代理模式"
+                } else {
+                    tun = true
+                    SettingsStore.setTunMode(true)
+                    note = "已切换为 TUN，下次连接生效"
+                }
             }
         }
 
@@ -169,10 +175,10 @@ internal fun SettingsPage() {
         Text(text = "开机自启", color = Color.White, fontSize = 16.sp)
         Spacer(Modifier.height(4.dp))
         Text(
-            text = if (Platform.isLinux) {
-                "登录桌面时自动打开 TuxunDL（写入 ~/.config/autostart，只对当前用户生效，不需要管理员权限）。"
-            } else {
-                "登录 Windows 时自动打开 TuxunDL（只对当前用户生效，不需要管理员权限）。"
+            text = when {
+                Platform.isMac -> "登录 macOS 时自动打开 TuxunDL（写入 ~/Library/LaunchAgents，只对当前用户生效，不需要管理员权限）。"
+                Platform.isLinux -> "登录桌面时自动打开 TuxunDL（写入 ~/.config/autostart，只对当前用户生效，不需要管理员权限）。"
+                else -> "登录 Windows 时自动打开 TuxunDL（只对当前用户生效，不需要管理员权限）。"
             },
             color = TextDim,
             fontSize = 13.sp,
@@ -189,10 +195,10 @@ internal fun SettingsPage() {
         Text(text = "启动时自动连接", color = Color.White, fontSize = 16.sp)
         Spacer(Modifier.height(4.dp))
         Text(
-            text = if (Platform.isLinux) {
-                "打开 TuxunDL 时，如果已有订阅配置就自动连上。TUN 模式会先通过 pkexec 请求管理员密码来启动核心。"
-            } else {
-                "打开 TuxunDL 时，如果已有订阅配置就自动连上。TUN 模式仍会先弹管理员权限确认并重启本程序。"
+            text = when {
+                Platform.isMac -> "打开 TuxunDL 时，如果已有订阅配置就自动连上（系统代理模式；Mac 版暂不支持 TUN）。"
+                Platform.isLinux -> "打开 TuxunDL 时，如果已有订阅配置就自动连上。TUN 模式会先通过 pkexec 请求管理员密码来启动核心。"
+                else -> "打开 TuxunDL 时，如果已有订阅配置就自动连上。TUN 模式仍会先弹管理员权限确认并重启本程序。"
             },
             color = TextDim,
             fontSize = 13.sp,
@@ -543,10 +549,10 @@ internal fun SettingsPage() {
         Spacer(Modifier.height(4.dp))
         Text(
             text = "如果程序异常退出（崩溃、被强制结束），系统代理可能还开着并指向本程序，浏览器会因此上不了网。首页检测到这种情况会提醒你一键清理；这里也可以随时手动重置一次，走的是和断开连接时同一条清理路径，只关系统代理开关。" +
-                if (Platform.isLinux) {
-                    "Linux 下自动管理的是 GNOME 系统代理；非 GNOME 桌面请在系统设置里手动填写 127.0.0.1 与上面的混合端口。"
-                } else {
-                    ""
+                when {
+                    Platform.isLinux -> "Linux 下自动管理的是 GNOME 系统代理；非 GNOME 桌面请在系统设置里手动填写 127.0.0.1 与上面的混合端口。"
+                    Platform.isMac -> "Mac 下自动管理的是当前网络服务（一般是 Wi-Fi）的代理；非管理员账号请在系统设置里手动填写 127.0.0.1 与上面的混合端口。"
+                    else -> ""
                 },
             color = TextDim,
             fontSize = 13.sp,

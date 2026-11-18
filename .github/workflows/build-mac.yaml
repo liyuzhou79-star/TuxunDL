@@ -1,0 +1,58 @@
+name: Build Mac
+
+# Builds the Mac desktop edition from the same desktop/ sources as
+# the Windows and Linux editions. desktop/build.gradle.kts follows
+# the build machine's OS, so this workflow produces the .dmg package
+# while Build Windows and Build Linux keep producing their own
+# installers from the same code. The macos-latest runner is Apple
+# Silicon, so Mac 1.0.0 ships arm64 only; Intel Macs are not covered.
+on:
+  workflow_dispatch:
+  push:
+    paths:
+      - "desktop/**"
+      - ".github/workflows/build-mac.yaml"
+
+jobs:
+  BuildMac:
+    runs-on: macos-latest
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v6
+
+      - name: Setup Java
+        uses: actions/setup-java@v5
+        with:
+          distribution: "temurin"
+          java-version: 17
+
+      - name: Setup Gradle
+        uses: gradle/actions/setup-gradle@v5
+
+      - name: Compile desktop app
+        run: ./gradlew -p desktop compileKotlin --no-daemon --stacktrace
+
+      - name: Create app image
+        if: success()
+        run: ./gradlew -p desktop createDistributable --no-daemon --stacktrace
+
+      - name: Upload app image
+        uses: actions/upload-artifact@v7
+        if: ${{ success() }}
+        with:
+          name: TuxunDL Mac app image
+          path: desktop/build/compose/binaries/main/app/**
+
+      - name: Package installers
+        if: success()
+        run: ./gradlew -p desktop packageDmg --no-daemon --stacktrace
+
+      - name: Upload installers
+        uses: actions/upload-artifact@v7
+        if: ${{ success() }}
+        with:
+          name: TuxunDL Mac installers
+          # A missing package must fail loudly instead of warning
+          # into the void.
+          if-no-files-found: error
+          path: desktop/build/compose/binaries/main/dmg/*.dmg

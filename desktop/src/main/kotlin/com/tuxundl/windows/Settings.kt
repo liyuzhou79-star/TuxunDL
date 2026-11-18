@@ -57,7 +57,8 @@ object SettingsStore {
 
     /**
      * Launch at sign-in, per-user, no admin: the HKCU Run key on
-     * Windows, an XDG autostart entry on Linux.
+     * Windows, an XDG autostart entry on Linux, a LaunchAgent plist
+     * in ~/Library/LaunchAgents on macOS.
      */
     fun autoStart(): Boolean =
         read()["autoStart"]?.jsonPrimitive?.booleanOrNull ?: false
@@ -267,6 +268,10 @@ object SettingsStore {
             applyAutoStartLinux(value)
             return
         }
+        if (Platform.isMac) {
+            applyAutoStartMac(value)
+            return
+        }
         if (!Elevation.isWindows()) return
         val key = "HKCU\\Software\\Microsoft\\Windows\\CurrentVersion\\Run"
         runCatching {
@@ -307,6 +312,48 @@ object SettingsStore {
                         "Name=TuxunDL\n" +
                         "Exec=\"$exe\"\n" +
                         "X-GNOME-Autostart-enabled=true\n",
+                )
+            } else {
+                entry.delete()
+            }
+        }
+    }
+
+    /**
+     * macOS autostart is a LaunchAgent plist in
+     * ~/Library/LaunchAgents, loaded automatically at the next
+     * login. The entry points at the running executable itself, so
+     * a packaged install (…/TuxunDL.app/Contents/MacOS/TuxunDL)
+     * and a development run both relaunch the same binary. The
+     * label doubles as the file name; deleting the file turns it
+     * off. No launchctl call is needed — the folder is scanned at
+     * login, and the app is already running when the user flips
+     * the switch.
+     */
+    private fun applyAutoStartMac(value: Boolean) {
+        val dir = File(System.getProperty("user.home"), "Library/LaunchAgents")
+        val entry = File(dir, "com.tuxundl.mac.plist")
+        runCatching {
+            if (value) {
+                val exe = ProcessHandle.current().info().command().orElse("")
+                if (exe.isBlank()) return
+                dir.mkdirs()
+                entry.writeText(
+                    "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n" +
+                        "<!DOCTYPE plist PUBLIC \"-//Apple//DTD PLIST 1.0//EN\" " +
+                        "\"http://www.apple.com/DTDs/PropertyList-1.0.dtd\">\n" +
+                        "<plist version=\"1.0\">\n" +
+                        "<dict>\n" +
+                        "\t<key>Label</key>\n" +
+                        "\t<string>com.tuxundl.mac</string>\n" +
+                        "\t<key>ProgramArguments</key>\n" +
+                        "\t<array>\n" +
+                        "\t\t<string>$exe</string>\n" +
+                        "\t</array>\n" +
+                        "\t<key>RunAtLoad</key>\n" +
+                        "\t<true/>\n" +
+                        "</dict>\n" +
+                        "</plist>\n",
                 )
             } else {
                 entry.delete()

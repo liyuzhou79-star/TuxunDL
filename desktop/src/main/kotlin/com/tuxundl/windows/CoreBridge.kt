@@ -30,14 +30,21 @@ object CoreBridge {
      * App data root: config, profiles and the core log live here.
      * Windows keeps its historical ~/.tuxundl-windows folder; Linux
      * follows the XDG base directory convention
-     * (~/.local/share/tuxundl, honouring $XDG_DATA_HOME).
+     * (~/.local/share/tuxundl, honouring $XDG_DATA_HOME); macOS
+     * follows the platform convention
+     * (~/Library/Application Support/tuxundl).
      */
-    val workDir: File = if (Platform.isLinux) {
-        val xdgBase = System.getenv("XDG_DATA_HOME")?.takeIf { it.isNotBlank() }
-            ?: File(System.getProperty("user.home"), ".local/share").path
-        File(xdgBase, "tuxundl")
-    } else {
-        File(System.getProperty("user.home"), ".tuxundl-windows")
+    val workDir: File = when {
+        Platform.isLinux -> {
+            val xdgBase = System.getenv("XDG_DATA_HOME")?.takeIf { it.isNotBlank() }
+                ?: File(System.getProperty("user.home"), ".local/share").path
+            File(xdgBase, "tuxundl")
+        }
+        Platform.isMac -> File(
+            System.getProperty("user.home"),
+            "Library/Application Support/tuxundl",
+        )
+        else -> File(System.getProperty("user.home"), ".tuxundl-windows")
     }
 
     // Compose state (not a plain flag) so the tray menu and the home
@@ -145,6 +152,16 @@ object CoreBridge {
             return@withContext false
         }
 
+        // Mac 1.0.0 has no TUN support: the root launch was never
+        // verified on a real Mac, so refuse plainly instead of
+        // starting a core that cannot create its tunnel.
+        if (tunMode && Platform.isMac) {
+            val message = "Mac 版 1.0.0 暂不支持 TUN 模式，请用系统代理模式连接"
+            log(message)
+            lastStartError = message
+            return@withContext false
+        }
+
         workDir.mkdirs()
         val configFile = File(workDir, "config.yaml")
         configFile.writeText(
@@ -216,13 +233,21 @@ object CoreBridge {
         // the proxy by hand (the log line says so).
         if (!tunMode && !SystemProxy.enable(mixedPort)) {
             log(
-                if (Platform.isLinux) {
-                    "the system proxy was NOT set automatically: on " +
-                        "Linux that needs a GNOME desktop. Set your " +
-                        "system proxy to 127.0.0.1:$mixedPort manually " +
-                        "to use this connection."
-                } else {
-                    "the system proxy could not be set (registry write failed)"
+                when {
+                    Platform.isLinux -> {
+                        "the system proxy was NOT set automatically: on " +
+                            "Linux that needs a GNOME desktop. Set your " +
+                            "system proxy to 127.0.0.1:$mixedPort manually " +
+                            "to use this connection."
+                    }
+                    Platform.isMac -> {
+                        "the system proxy was NOT set automatically: on " +
+                            "macOS that needs an admin account and a " +
+                            "network service networksetup can see. Set " +
+                            "your system proxy to 127.0.0.1:$mixedPort " +
+                            "manually to use this connection."
+                    }
+                    else -> "the system proxy could not be set (registry write failed)"
                 },
             )
         }
