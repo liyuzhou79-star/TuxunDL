@@ -74,6 +74,9 @@ fun main() {
 
     // The tray menu names the current exit node while connected.
     var trayNode by remember { mutableStateOf<String?>(null) }
+    // The tray menu also switches the routing mode; like every other
+    // mode control it writes the setting and applies on next connect.
+    var trayMode by remember { mutableStateOf(SettingsStore.coreMode()) }
     LaunchedEffect(CoreBridge.running) {
         trayNode = null
         while (CoreBridge.running) {
@@ -113,6 +116,32 @@ fun main() {
                     onClick = { windowVisible = true },
                 )
             }
+            Separator()
+            Item(
+                text = "模式（下次连接生效）",
+                onClick = {},
+            )
+            Item(
+                text = (if (trayMode == "rule") "✓ " else "") + "规则模式",
+                onClick = {
+                    trayMode = "rule"
+                    SettingsStore.setCoreMode("rule")
+                },
+            )
+            Item(
+                text = (if (trayMode == "global") "✓ " else "") + "全局模式",
+                onClick = {
+                    trayMode = "global"
+                    SettingsStore.setCoreMode("global")
+                },
+            )
+            Item(
+                text = (if (trayMode == "direct") "✓ " else "") + "直连模式",
+                onClick = {
+                    trayMode = "direct"
+                    SettingsStore.setCoreMode("direct")
+                },
+            )
             Separator()
             Item(
                 text = "退出",
