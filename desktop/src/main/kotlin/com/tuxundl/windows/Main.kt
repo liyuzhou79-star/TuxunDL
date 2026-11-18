@@ -228,6 +228,14 @@ fun main() {
         }
     }
 
+    // First-run onboarding gate: until it is finished once (the
+    // flag lives in the settings file), the window shows the
+    // onboarding instead of the main UI. Declining the disclaimer
+    // exits, like the Android edition's first-run gate.
+    var onboardingDone by remember {
+        mutableStateOf(SettingsStore.onboardingDone())
+    }
+
     if (windowVisible) {
         Window(
             onCloseRequest = {
@@ -242,7 +250,17 @@ fun main() {
             icon = trayIcon,
         ) {
             MaterialTheme {
-                App()
+                if (onboardingDone) {
+                    App()
+                } else {
+                    OnboardingScreen(
+                        onFinish = { onboardingDone = true },
+                        onExit = {
+                            CoreBridge.stop()
+                            exitApplication()
+                        },
+                    )
+                }
             }
         }
     }
@@ -996,7 +1014,7 @@ private fun InfoCard(
  * skeleton; the final art replaces this placeholder.
  */
 @Composable
-private fun WindowMascot(size: Int) {
+internal fun WindowMascot(size: Int) {
     Column(horizontalAlignment = Alignment.CenterHorizontally) {
         // Antenna with the glowing node dot, shared with the Android mascot.
         Box(
