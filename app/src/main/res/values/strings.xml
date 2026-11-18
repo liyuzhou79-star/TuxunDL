@@ -281,7 +281,7 @@
     <string name="app_lock_wrong">That is not right — try again</string>
     <string name="app_lock_unlock">Unlock</string>
     <string name="settings_group_privacy">Privacy</string>
-    <string name="privacy_allow_lan_summary">Other devices on your network can reach this device's proxy ports; off is safer. Shares the override config — applies on next connect.</string>
+    <string name="privacy_allow_lan_summary">Other devices on your network can reach the proxy ports of this device; off is safer. Shares the override config — applies on next connect.</string>
     <string name="privacy_ipv6_summary">Off forces IPv4 and reduces IPv6 leak risk. Shares the override config — applies on next connect.</string>
     <string name="privacy_sniffer">Traffic sniffing</string>
     <string name="privacy_sniffer_summary">Identifies the real domain behind connections so routing rules match better. Shares the override config — applies on next connect.</string>
