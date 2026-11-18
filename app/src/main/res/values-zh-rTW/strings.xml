@@ -106,6 +106,8 @@
     <string name="traffic_week_total">合計 ↑ %1$s ↓ %2$s</string>
     <string name="traffic_week_note">僅保留最近 14 天。</string>
     <string name="traffic_week_empty">本週還沒有流量記錄。</string>
+    <string name="traffic_recent_days">最近 7 天</string>
+    <string name="traffic_recent_empty">最近 7 天還沒有流量記錄。</string>
     <string name="traffic_not_running">未啟動，啟動代理後開始統計。</string>
     <string name="version_official">（正式版）</string>
     <string name="sort_delay_asc">延遲由低到高</string>

@@ -121,6 +121,8 @@
     <string name="traffic_week_total">Total ↑ %1$s ↓ %2$s</string>
     <string name="traffic_week_note">Only the last 14 days are kept.</string>
     <string name="traffic_week_empty">No traffic recorded this week yet.</string>
+    <string name="traffic_recent_days">Last 7 Days</string>
+    <string name="traffic_recent_empty">No traffic recorded in the last 7 days yet.</string>
     <string name="traffic_not_running">Not running — traffic stats start after you start the proxy.</string>
     <string name="version_official"> (Official)</string>
     <string name="sort_delay_asc">Delay (low to high)</string>

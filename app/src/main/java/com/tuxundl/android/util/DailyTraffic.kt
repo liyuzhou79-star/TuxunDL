@@ -216,6 +216,27 @@ class DailyTrafficStore(private val file: File) {
         return daysBetween(start, end)
     }
 
+    /**
+     * The rolling window of the last [count] days ending today
+     * (inclusive), oldest first. Only days present in the file are
+     * returned, same as [weekDays] — the file keeps 14 days, so any
+     * window up to that fits.
+     */
+    fun recentDays(todayKey: String, count: Int): List<DailyTrafficDay> {
+        val parsed = try {
+            dateFormat.parse(todayKey)
+        } catch (e: Exception) {
+            null
+        } ?: return emptyList()
+
+        val cal = Calendar.getInstance()
+        cal.time = parsed
+        val end = dateFormat.format(cal.time)
+        cal.add(Calendar.DAY_OF_YEAR, -(count - 1))
+        val start = dateFormat.format(cal.time)
+        return daysBetween(start, end)
+    }
+
     fun save() {
         try {
             val stored = JSONObject()

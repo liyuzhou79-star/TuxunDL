@@ -442,6 +442,7 @@ class MainActivity : BaseActivity<MainDesign>() {
         uiState.todayDown = today.down
         uiState.currentWeekDays = dailyTraffic.weekDays(todayKey, 0)
         uiState.lastWeekDays = dailyTraffic.weekDays(todayKey, 1)
+        uiState.recentDays = dailyTraffic.recentDays(todayKey, 7)
 
         // Easter-egg lifetime stats and the advanced panel's 24h window.
         uiState.lifetimeUp = dailyTraffic.lifetimeUp()

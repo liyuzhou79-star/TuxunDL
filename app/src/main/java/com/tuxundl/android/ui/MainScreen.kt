@@ -218,6 +218,9 @@ class MainUiState {
     /** Last week's days with data (Monday..Sunday), oldest first. */
     var lastWeekDays by mutableStateOf<List<DailyTrafficDay>>(emptyList())
 
+    /** Rolling last 7 days ending today with data, oldest first. */
+    var recentDays by mutableStateOf<List<DailyTrafficDay>>(emptyList())
+
     /**
      * Home brick order. Defaults to the five core bricks; MainActivity
      * replaces this with the parsed stored order on every fetch. The
@@ -2201,16 +2204,18 @@ private fun TrafficMonitorCard(
             // (The "app-open time only" note lives in the advanced
             // panel now; the home card stays clean.)
 
-            // Weekly view: this week (Monday..today) or last week
-            // (Monday..Sunday), with a small bar per day. Only days
-            // with stored data are shown; the file keeps 14 days, so
-            // last week may be partial. Switching weeks cross-fades
-            // the content and each bar grows with its own spring.
+            // Per-day view: this week (Monday..today), last week
+            // (Monday..Sunday) or the rolling last 7 days ending
+            // today, with a small bar per day. Only days with stored
+            // data are shown; the file keeps 14 days, so last week
+            // may be partial. Switching tabs cross-fades the content
+            // and each bar grows with its own spring.
             Spacer(modifier = Modifier.height(2.dp))
             TuxunSegmentedRow(
                 options = listOf(
                     stringResource(R.string.traffic_this_week),
                     stringResource(R.string.traffic_last_week),
+                    stringResource(R.string.traffic_recent_days),
                 ),
                 selectedIndex = weekTab,
                 onSelect = { weekTab = it },
@@ -2223,8 +2228,11 @@ private fun TrafficMonitorCard(
                 },
                 label = "weekTab",
             ) { tab ->
-                val weekDays =
-                    if (tab == 0) state.currentWeekDays else state.lastWeekDays
+                val weekDays = when (tab) {
+                    0 -> state.currentWeekDays
+                    1 -> state.lastWeekDays
+                    else -> state.recentDays
+                }
                 val weekMax = weekDays.maxOfOrNull { it.up + it.down } ?: 0L
 
                 Column(
@@ -2253,7 +2261,13 @@ private fun TrafficMonitorCard(
                         }
                     } else {
                         Text(
-                            text = stringResource(R.string.traffic_week_empty),
+                            text = stringResource(
+                                if (tab == 2) {
+                                    R.string.traffic_recent_empty
+                                } else {
+                                    R.string.traffic_week_empty
+                                },
+                            ),
                             style = MaterialTheme.typography.bodySmall,
                             color = MaterialTheme.colorScheme.onSurfaceVariant,
                         )
