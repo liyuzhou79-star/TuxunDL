@@ -96,6 +96,8 @@ import androidx.compose.ui.composed
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.scale
 import androidx.compose.ui.draw.shadow
+import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Rect
 import androidx.compose.ui.geometry.Size
@@ -119,6 +121,7 @@ import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.zIndex
+import com.tuxundl.android.BuildConfig
 import com.tuxundl.android.R
 import com.tuxundl.android.core.model.TunnelState
 import com.tuxundl.android.design.model.AnimationStyle
@@ -703,6 +706,15 @@ private fun PowerCircle(
     val powerContext = LocalContext.current
     val powerUiStore = remember { UiStore(powerContext) }
 
+    // TV Beta: give the remote a starting point — when the home
+    // screen appears, the D-pad focus lands on the power button.
+    val powerFocusRequester = remember { FocusRequester() }
+    LaunchedEffect(Unit) {
+        if (BuildConfig.IS_TV) {
+            runCatching { powerFocusRequester.requestFocus() }
+        }
+    }
+
     // Follow the real running flag: it confirms or ends the transitional
     // phases the tap handler below starts.
     LaunchedEffect(running) {
@@ -1067,6 +1079,13 @@ private fun PowerCircle(
                         else -> Modifier.border(2.dp, primary, CircleShape)
                     },
                 )
+                // Remote focus: requester target for the TV
+                // auto-focus above, plus a visible ring while the
+                // D-pad focus sits here (the combinedClickable
+                // below uses indication = null, so without this a
+                // remote user sees nothing).
+                .focusRequester(powerFocusRequester)
+                .tvFocusBorder(CircleShape, width = 3.dp)
                 .tuxunPressScale(
                     powerInteraction,
                     pressedScale = 0.95f,
@@ -1955,6 +1974,11 @@ private fun DraggableHomeItem(
                     Modifier
                 },
             )
+            // Visible outline while a remote / D-pad focus sits on
+            // this brick (TV Beta); the combinedClickable below
+            // uses indication = null, and focus never happens
+            // under touch input, so phones see no change.
+            .tvFocusBorder(RoundedCornerShape(TuxunCardCorner))
             .then(
                 if (!editMode) {
                     Modifier.combinedClickable(

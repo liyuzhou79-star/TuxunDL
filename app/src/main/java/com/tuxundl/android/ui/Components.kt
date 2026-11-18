@@ -851,6 +851,10 @@ fun TuxunSegmentedRow(
                         .weight(1f)
                         .fillMaxHeight()
                         .clip(RoundedCornerShape(20.dp))
+                        // Visible outline while a remote / D-pad
+                        // focus sits on this segment (TV Beta);
+                        // never appears under touch input.
+                        .tvFocusBorder(RoundedCornerShape(20.dp))
                         .clickable {
                             if (index != selectedIndex) {
                                 Haptics.buzz(context, uiStore, Haptics.Kind.Tap)
