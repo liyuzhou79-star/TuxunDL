@@ -49,6 +49,7 @@
     <string name="windows_section_title">Windows edition</string>
     <string name="windows_entry_summary">See the newest desktop release, open its page or copy the link</string>
     <string name="windows_latest">The newest Windows edition is v%1$s.</string>
+    <string name="windows_release_date">Released on %1$s.</string>
     <string name="windows_open_page">Open download page</string>
     <string name="windows_copy_link">Copy link</string>
     <string name="windows_copied">Link copied. Send it to your computer to download the Windows edition.</string>

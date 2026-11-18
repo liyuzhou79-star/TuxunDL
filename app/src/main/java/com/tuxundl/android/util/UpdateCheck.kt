@@ -33,6 +33,8 @@ data class WindowsInfo(
     val version: String,
     /** The Windows release page URL. */
     val pageUrl: String?,
+    /** ISO-8601 publish timestamp from GitHub; "" when absent. */
+    val publishedAt: String = "",
 )
 
 /** Why an update check failed, in user-presentable terms. */
@@ -194,6 +196,7 @@ object UpdateChecker {
                         version = match.groupValues[1],
                         pageUrl = json.optString("html_url")
                             .takeIf { it.isNotEmpty() },
+                        publishedAt = json.optString("published_at"),
                     )
                 }
             }

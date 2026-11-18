@@ -322,7 +322,14 @@ fun SettingsScreen(
                     text = stringResource(
                         R.string.windows_latest,
                         windowsInfo.version,
-                    ) + "\n" + stringResource(R.string.windows_entry_summary),
+                    ) + (if (windowsInfo.publishedAt.isNotBlank()) {
+                        "\n" + stringResource(
+                            R.string.windows_release_date,
+                            windowsInfo.publishedAt.take(10),
+                        )
+                    } else {
+                        ""
+                    }) + "\n" + stringResource(R.string.windows_entry_summary),
                 )
             },
             confirmButton = {

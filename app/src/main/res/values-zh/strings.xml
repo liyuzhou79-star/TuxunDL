@@ -49,6 +49,7 @@
     <string name="windows_section_title">Windows 电脑版</string>
     <string name="windows_entry_summary">查看电脑版最新版本，打开下载页或复制链接</string>
     <string name="windows_latest">Windows 电脑版最新是 v%1$s。</string>
+    <string name="windows_release_date">发布于 %1$s。</string>
     <string name="windows_open_page">打开下载页</string>
     <string name="windows_copy_link">复制链接</string>
     <string name="windows_copied">链接已复制，发到电脑上就能下载电脑版。</string>

@@ -26,6 +26,7 @@
     <string name="windows_section_title">Windows 電腦版</string>
     <string name="windows_entry_summary">查看電腦版最新版本，打開下載頁或複製連結</string>
     <string name="windows_latest">Windows 電腦版最新是 v%1$s。</string>
+    <string name="windows_release_date">發布於 %1$s。</string>
     <string name="windows_open_page">打開下載頁</string>
     <string name="windows_copy_link">複製連結</string>
     <string name="windows_copied">連結已複製，傳到電腦上就能下載電腦版。</string>
