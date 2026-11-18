@@ -1,5 +1,6 @@
 import org.jetbrains.compose.desktop.application.dsl.TargetFormat
 import java.net.URI
+import java.util.zip.GZIPInputStream
 
 // Kotlin 2.1.0 matches the Android side of this repo; Compose
 // Multiplatform 1.7.3 is the release paired with it.
@@ -101,7 +102,7 @@ tasks.register("fetchCore") {
                 ).toURL().openStream().use { input ->
                     gz.outputStream().use { output -> input.copyTo(output) }
                 }
-                java.util.zip.GZIPInputStream(gz.inputStream()).use { input ->
+                GZIPInputStream(gz.inputStream()).use { input ->
                     binFile.outputStream().use { output -> input.copyTo(output) }
                 }
                 binFile.setExecutable(true)
