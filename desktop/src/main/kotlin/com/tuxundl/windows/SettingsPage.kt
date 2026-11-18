@@ -48,6 +48,7 @@ internal fun SettingsPage() {
     var intervalHours by remember {
         mutableStateOf(SettingsStore.autoUpdateIntervalHours())
     }
+    var logLevel by remember { mutableStateOf(SettingsStore.logLevel()) }
     var portText by remember { mutableStateOf(SettingsStore.mixedPort().toString()) }
     var note by remember { mutableStateOf<String?>(null) }
     var updateText by remember { mutableStateOf<String?>(null) }
@@ -196,6 +197,26 @@ internal fun SettingsPage() {
 
         Spacer(Modifier.height(28.dp))
 
+        Text(text = "日志级别", color = Color.White, fontSize = 16.sp)
+        Spacer(Modifier.height(4.dp))
+        Text(
+            text = "核心写日志的详细程度。info 是日常默认档；warning、error 只记问题，日志更干净；silent 基本不记。改完不用重启，下次连接时生效（正在连接的话，断开重连一次）。",
+            color = TextDim,
+            fontSize = 13.sp,
+        )
+        Spacer(Modifier.height(10.dp))
+        Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+            listOf("info", "warning", "error", "silent").forEach { level ->
+                ModeChip(level, logLevel == level) {
+                    logLevel = level
+                    SettingsStore.setLogLevel(level)
+                    note = "日志级别已设为 $level，下次连接生效"
+                }
+            }
+        }
+
+        Spacer(Modifier.height(28.dp))
+
         Text(text = "数据备份", color = Color.White, fontSize = 16.sp)
         Spacer(Modifier.height(4.dp))
         Text(
@@ -245,6 +266,7 @@ internal fun SettingsPage() {
                                     closeToTray = SettingsStore.closeToTray()
                                     intervalHours =
                                         SettingsStore.autoUpdateIntervalHours()
+                                    logLevel = SettingsStore.logLevel()
                                     portText =
                                         SettingsStore.mixedPort().toString()
                                     note = "已恢复 $count 个订阅和全部设置；" +

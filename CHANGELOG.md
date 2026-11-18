@@ -2,6 +2,9 @@
 
 每個版本的詳細說明與下載見 [Releases](https://github.com/liyuzhou79-star/TuxunDL/releases)。所有版本都同時發布標準版（arm64）與老機型版（armeabi-v7a），同版本號、同一發布頁。自 Windows 版起，每個發布頁都同時附上 Android 與 Windows 兩個平台的最新安裝包。
 
+## Windows 1.3.3 — 日誌級別可選
+- 設置加「日誌級別」：info／warning／error／silent 四檔，生成配置時寫入 log-level，下次連接生效
+
 ## Windows 1.3.2 — 節點組一鍵選最快
 - 每個節點組標題加「選最快」：整組測速後自動切到延遲最低的可用節點，測速結果回填到各節點顯示
 

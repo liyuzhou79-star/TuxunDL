@@ -3,6 +3,7 @@ package com.tuxundl.windows
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.booleanOrNull
 import kotlinx.serialization.json.buildJsonObject
+import kotlinx.serialization.json.contentOrNull
 import kotlinx.serialization.json.intOrNull
 import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.jsonPrimitive
@@ -92,6 +93,14 @@ object SettingsStore {
                     kotlinx.serialization.json.JsonPrimitive(value),
             ),
         )
+    }
+
+    /** Core log verbosity, written into the generated config. */
+    fun logLevel(): String =
+        read()["logLevel"]?.jsonPrimitive?.contentOrNull ?: "info"
+
+    fun setLogLevel(value: String) {
+        write(mapOf("logLevel" to kotlinx.serialization.json.JsonPrimitive(value)))
     }
 
     /** All settings as one JSON object, for backup export. */

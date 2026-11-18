@@ -87,7 +87,10 @@ object CoreBridge {
         workDir.mkdirs()
         val configFile = File(workDir, "config.yaml")
         configFile.writeText(
-            ConfigFactory.build(profileYaml, mixedPort, controllerPort, tunMode),
+            ConfigFactory.build(
+                profileYaml, mixedPort, controllerPort, tunMode,
+                SettingsStore.logLevel(),
+            ),
         )
 
         val started = runCatching {
