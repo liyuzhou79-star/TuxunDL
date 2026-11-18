@@ -5,6 +5,7 @@ import kotlinx.serialization.json.booleanOrNull
 import kotlinx.serialization.json.buildJsonObject
 import kotlinx.serialization.json.contentOrNull
 import kotlinx.serialization.json.intOrNull
+import kotlinx.serialization.json.jsonArray
 import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.jsonPrimitive
 import kotlinx.serialization.json.put
@@ -101,6 +102,22 @@ object SettingsStore {
 
     fun setLogLevel(value: String) {
         write(mapOf("logLevel" to kotlinx.serialization.json.JsonPrimitive(value)))
+    }
+
+    /** Favorite node names, starred on the nodes page. Stored by name. */
+    fun favoriteNodes(): Set<String> =
+        read()["favoriteNodes"]?.jsonArray
+            ?.mapNotNull { it.jsonPrimitive.contentOrNull }
+            ?.toSet() ?: emptySet()
+
+    fun setFavoriteNodes(value: Set<String>) {
+        write(
+            mapOf(
+                "favoriteNodes" to kotlinx.serialization.json.JsonArray(
+                    value.map { kotlinx.serialization.json.JsonPrimitive(it) },
+                ),
+            ),
+        )
     }
 
     /** All settings as one JSON object, for backup export. */

@@ -39,6 +39,7 @@ import kotlinx.serialization.json.jsonPrimitive
 private val Indigo = Color(0xFF5B5BD6)
 private val PanelDark = Color(0xFF1E1E2A)
 private val TextDim = Color(0xFF9A9AB0)
+private val StarGold = Color(0xFFFFB84D)
 
 private data class ProxyGroup(
     val name: String,
@@ -63,6 +64,16 @@ internal fun NodesPage() {
     var sortByDelay by remember { mutableStateOf(false) }
     var testingAll by remember { mutableStateOf(false) }
     var pickingFastest by remember { mutableStateOf<String?>(null) }
+    var favorites by remember { mutableStateOf(SettingsStore.favoriteNodes()) }
+
+    fun toggleFavorite(node: String) {
+        favorites = if (node in favorites) {
+            favorites - node
+        } else {
+            favorites + node
+        }
+        SettingsStore.setFavoriteNodes(favorites)
+    }
 
     fun refresh() {
         val api = CoreBridge.api ?: return
@@ -181,6 +192,68 @@ internal fun NodesPage() {
         }
 
         LazyColumn(verticalArrangement = Arrangement.spacedBy(18.dp)) {
+            // Starred nodes gathered into one group on top. A node is
+            // selected through the first group that contains it; the
+            // search filter and delay sort apply here just like in
+            // the regular groups below.
+            val favoriteHome = groups
+                .flatMap { group -> group.members.map { it to group } }
+                .groupBy({ it.first }, { it.second })
+                .mapValues { it.value.first() }
+            val displayFavorites = favorites
+                .filter { it in favoriteHome }
+                .filter {
+                    query.isBlank() ||
+                        it.contains(query, ignoreCase = true)
+                }
+                .let { list ->
+                    if (sortByDelay) {
+                        list.sortedBy { delays[it] ?: Long.MAX_VALUE }
+                    } else {
+                        list.sorted()
+                    }
+                }
+            if (displayFavorites.isNotEmpty()) {
+                item {
+                    Column {
+                        Text(
+                            text = "★ 收藏",
+                            color = Color.White,
+                            fontSize = 16.sp,
+                            fontWeight = FontWeight.Medium,
+                        )
+                        Spacer(Modifier.height(8.dp))
+                        displayFavorites.forEach { node ->
+                            val home = favoriteHome.getValue(node)
+                            NodeRow(
+                                name = node,
+                                selected = node == home.now,
+                                delayMs = delays[node],
+                                tested = delays.containsKey(node),
+                                favorite = true,
+                                onToggleFavorite = { toggleFavorite(node) },
+                                onSelect = {
+                                    val api = CoreBridge.api
+                                        ?: return@NodeRow
+                                    scope.launch {
+                                        if (api.selectProxy(home.name, node)) {
+                                            refresh()
+                                        }
+                                    }
+                                },
+                                onTest = {
+                                    val api = CoreBridge.api
+                                        ?: return@NodeRow
+                                    scope.launch {
+                                        delays = delays + (node to api.delay(node))
+                                    }
+                                },
+                            )
+                            Spacer(Modifier.height(6.dp))
+                        }
+                    }
+                }
+            }
             items(groups) { group ->
                 // Search filters members (a group-name match keeps the
                 // whole group); delay sort floats the fastest tested
@@ -259,6 +332,8 @@ internal fun NodesPage() {
                             selected = node == group.now,
                             delayMs = delays[node],
                             tested = delays.containsKey(node),
+                            favorite = node in favorites,
+                            onToggleFavorite = { toggleFavorite(node) },
                             onSelect = {
                                 val api = CoreBridge.api ?: return@NodeRow
                                 scope.launch {
@@ -286,6 +361,8 @@ private fun NodeRow(
     selected: Boolean,
     delayMs: Long?,
     tested: Boolean,
+    favorite: Boolean,
+    onToggleFavorite: () -> Unit,
     onSelect: () -> Unit,
     onTest: () -> Unit,
 ) {
@@ -303,6 +380,15 @@ private fun NodeRow(
             color = Color.White,
             fontSize = 14.sp,
             modifier = Modifier.weight(1f),
+        )
+        Text(
+            text = if (favorite) "★" else "☆",
+            color = if (favorite) StarGold else TextDim,
+            fontSize = 15.sp,
+            modifier = Modifier
+                .clip(RoundedCornerShape(6.dp))
+                .clickable { onToggleFavorite() }
+                .padding(horizontal = 6.dp, vertical = 4.dp),
         )
         Text(
             text = when {
