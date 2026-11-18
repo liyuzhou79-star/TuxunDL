@@ -32,8 +32,10 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import java.awt.Desktop
 import java.net.URI
 
@@ -78,6 +80,10 @@ internal fun SettingsPage() {
     // Two-step confirm for "恢复默认设置", same pattern as the log
     // page's clear button: first click arms, second click executes.
     var confirmReset by remember { mutableStateOf(false) }
+    // The data dir as this page displays it; refreshed after a
+    // successful change (CoreBridge.workDir itself is the truth).
+    var dataDir by remember { mutableStateOf(CoreBridge.workDir) }
+    var dataDirBusy by remember { mutableStateOf(false) }
     val scope = rememberCoroutineScope()
 
     LaunchedEffect(Unit) {
@@ -520,28 +526,98 @@ internal fun SettingsPage() {
         Spacer(Modifier.height(4.dp))
         Text(
             text = "订阅、设置、日志和核心文件都存在这个文件夹里。要手动备份、找日志排查问题或者卸载前清理时，先到这里。当前位置：" +
-                CoreBridge.workDir.absolutePath,
+                dataDir.absolutePath +
+                if (dataDir.absolutePath !=
+                    CoreBridge.defaultWorkDir.absolutePath
+                ) {
+                    "（自定义）"
+                } else {
+                    "（默认位置）"
+                },
             color = TextDim,
             fontSize = 13.sp,
         )
         Spacer(Modifier.height(10.dp))
-        Text(
-            text = "打开数据文件夹",
-            color = Color.White,
-            fontSize = 15.sp,
-            modifier = Modifier
-                .clip(RoundedCornerShape(8.dp))
-                .background(PanelDark)
-                .clickable {
-                    CoreBridge.workDir.mkdirs()
-                    note = if (Platform.openInFileManager(CoreBridge.workDir)) {
-                        "已打开数据文件夹"
-                    } else {
-                        "没能自动打开，文件夹位置就是上面的路径，可以手动打开"
+        Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+            Text(
+                text = "打开数据文件夹",
+                color = Color.White,
+                fontSize = 15.sp,
+                modifier = Modifier
+                    .clip(RoundedCornerShape(8.dp))
+                    .background(PanelDark)
+                    .clickable {
+                        CoreBridge.workDir.mkdirs()
+                        note = if (Platform.openInFileManager(CoreBridge.workDir)) {
+                            "已打开数据文件夹"
+                        } else {
+                            "没能自动打开，文件夹位置就是上面的路径，可以手动打开"
+                        }
                     }
-                }
-                .padding(horizontal = 16.dp, vertical = 10.dp),
-        )
+                    .padding(horizontal = 16.dp, vertical = 10.dp),
+            )
+            Text(
+                text = if (dataDirBusy) "正在迁移…" else "更改数据目录",
+                color = Color.White,
+                fontSize = 15.sp,
+                modifier = Modifier
+                    .clip(RoundedCornerShape(8.dp))
+                    .background(PanelDark)
+                    .clickable {
+                        if (dataDirBusy) return@clickable
+                        val picked = Platform.pickDirectory("选择数据目录")
+                            ?: return@clickable
+                        dataDirBusy = true
+                        scope.launch {
+                            val ok = withContext(Dispatchers.IO) {
+                                CoreBridge.changeDataDir(picked)
+                            }
+                            dataDirBusy = false
+                            if (ok) {
+                                dataDir = CoreBridge.workDir
+                                note = "数据目录已切换到 ${dataDir.absolutePath}，" +
+                                    "现有数据已经一并迁移过去；当前正在运行的连接不受影响，" +
+                                    "重启程序后核心也改用新目录"
+                            } else {
+                                note = "切换没有成功，数据目录没有变，可以换一个文件夹再试"
+                            }
+                        }
+                    }
+                    .padding(horizontal = 16.dp, vertical = 10.dp),
+            )
+            if (dataDir.absolutePath !=
+                CoreBridge.defaultWorkDir.absolutePath
+            ) {
+                Text(
+                    text = "恢复默认目录",
+                    color = Color.White,
+                    fontSize = 15.sp,
+                    modifier = Modifier
+                        .clip(RoundedCornerShape(8.dp))
+                        .background(PanelDark)
+                        .clickable {
+                            if (dataDirBusy) return@clickable
+                            dataDirBusy = true
+                            scope.launch {
+                                val ok = withContext(Dispatchers.IO) {
+                                    CoreBridge.changeDataDir(
+                                        CoreBridge.defaultWorkDir,
+                                    )
+                                }
+                                dataDirBusy = false
+                                if (ok) {
+                                    dataDir = CoreBridge.workDir
+                                    note = "数据目录已恢复默认位置，数据已经一并迁移回去；" +
+                                        "重启程序后核心也改用默认目录"
+                                } else {
+                                    note = "恢复没有成功，数据目录没有变"
+                                }
+                            }
+                        }
+                        .padding(horizontal = 16.dp, vertical = 10.dp),
+                )
+            }
+        }
 
         Spacer(Modifier.height(28.dp))
 
