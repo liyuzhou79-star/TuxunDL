@@ -2178,7 +2178,7 @@ private fun TrafficMonitorCard(
                         modifier = Modifier.size(32.dp),
                     ) {
                         Icon(
-                            painter = painterResource(DesignR.drawable.ic_baseline_schedule),
+                            painter = painterResource(R.drawable.ic_baseline_schedule),
                             contentDescription = stringResource(R.string.traffic_switch_window),
                             tint = MaterialTheme.colorScheme.onSurfaceVariant,
                             modifier = Modifier.size(17.dp),
@@ -2246,7 +2246,7 @@ private fun TrafficMonitorCard(
                     modifier = Modifier.size(32.dp),
                 ) {
                     Icon(
-                        painter = painterResource(DesignR.drawable.ic_baseline_fullscreen),
+                        painter = painterResource(R.drawable.ic_baseline_fullscreen),
                         contentDescription = stringResource(R.string.traffic_fullscreen),
                         tint = MaterialTheme.colorScheme.onSurfaceVariant,
                         modifier = Modifier.size(17.dp),
