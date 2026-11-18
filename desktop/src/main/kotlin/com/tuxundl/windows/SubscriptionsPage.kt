@@ -48,6 +48,26 @@ private fun fmtBytes(bytes: Long): String = when {
 }
 
 /**
+ * One-line reason for a failed subscription update, in plain words:
+ * an HTTP status from the server, a network problem, or content
+ * that is not a subscription config at all. Shown on the card of
+ * the subscription that failed, not just in the page status line.
+ */
+private fun updateFailureReason(error: Throwable): String {
+    val message = error.message?.trim().orEmpty()
+    return when {
+        message.startsWith("HTTP ") -> "服务器返回 $message"
+        message.contains("不像订阅配置") -> "返回的内容不像订阅配置，链接可能已失效"
+        error is java.net.http.HttpTimeoutException ||
+            message.contains("timed out", ignoreCase = true) ->
+            "网络超时，请检查网络后重试"
+        error is java.io.IOException -> "网络连接失败，请检查网络后重试"
+        message.isNotBlank() -> message.take(60)
+        else -> "未知错误，请重试"
+    }
+}
+
+/**
  * The subscriptions page: add a subscription by URL, fetch its config,
  * and choose which one the home page connects with. Mirrors the
  * Android edition's profile flow at skeleton depth.
@@ -64,6 +84,9 @@ fun SubscriptionsPage() {
     var status by remember { mutableStateOf<String?>(null) }
     var busy by remember { mutableStateOf(false) }
     var updateAllProgress by remember { mutableStateOf<Pair<Int, Int>?>(null) }
+    // Why the last update of a subscription failed, by subscription
+    // id; shown on its card until an update succeeds again.
+    var updateErrors by remember { mutableStateOf<Map<String, String>>(emptyMap()) }
     val scope = rememberCoroutineScope()
 
     fun persist() = SubscriptionStore.save(subscriptions.toList())
@@ -124,11 +147,16 @@ fun SubscriptionsPage() {
                                         it.id == sub.id
                                     }
                                     if (i >= 0) subscriptions[i] = fetched
+                                    updateErrors = updateErrors - sub.id
                                     if (wasActive) {
                                         SubscriptionStore.activate(fetched)
                                     }
                                 }
-                                .onFailure { failures++ }
+                                .onFailure {
+                                    failures++
+                                    updateErrors = updateErrors +
+                                        (sub.id to updateFailureReason(it))
+                                }
                             updateAllProgress = (index + 1) to targets.size
                         }
                         persist()
@@ -214,8 +242,10 @@ fun SubscriptionsPage() {
                 SubscriptionCard(
                     sub = sub,
                     busy = busy,
+                    updateError = updateErrors[sub.id],
                     onUpdate = {
                         busy = true
+                        updateErrors = updateErrors - sub.id
                         status = "正在更新 ${sub.name}…"
                         scope.launch {
                             SubscriptionStore.fetch(sub)
@@ -226,7 +256,10 @@ fun SubscriptionsPage() {
                                     status = "已更新 ${sub.name}"
                                 }
                                 .onFailure {
-                                    status = "更新失败：${it.message}"
+                                    val reason = updateFailureReason(it)
+                                    updateErrors = updateErrors +
+                                        (sub.id to reason)
+                                    status = "更新失败：$reason"
                                 }
                             busy = false
                         }
@@ -252,6 +285,7 @@ fun SubscriptionsPage() {
 private fun SubscriptionCard(
     sub: Subscription,
     busy: Boolean,
+    updateError: String?,
     onUpdate: () -> Unit,
     onActivate: () -> Unit,
     onDelete: () -> Unit,
@@ -314,6 +348,16 @@ private fun SubscriptionCard(
                     color = if (warning.expired) WarnRed else WarnAmber,
                     fontSize = 13.sp,
                     fontWeight = FontWeight.Medium,
+                )
+            }
+
+            if (updateError != null) {
+                Spacer(Modifier.height(2.dp))
+
+                Text(
+                    text = "更新失败：$updateError",
+                    color = WarnRed,
+                    fontSize = 13.sp,
                 )
             }
 
