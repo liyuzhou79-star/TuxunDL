@@ -21,6 +21,14 @@ golang {
             tags.set(listOf("foss","with_gvisor","cmfa"))
             srcDir.set(file("src/foss/golang"))
         }
+        // Same foss Go sources for the TV flavor; without a
+        // source set named after the flavor, the plugin creates
+        // no externalGolangBuildTv* tasks and the CMake wiring
+        // below fails for every TV variant.
+        create("tv") {
+            tags.set(listOf("foss","with_gvisor","cmfa"))
+            srcDir.set(file("src/foss/golang"))
+        }
         all {
             fileName.set("libclash.so")
             packageName.set("cfa/native")
