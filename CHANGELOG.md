@@ -2,6 +2,10 @@
 
 每個版本的詳細說明與下載見 [Releases](https://github.com/liyuzhou79-star/TuxunDL/releases)。所有版本都同時發布標準版（arm64）與老機型版（armeabi-v7a），同版本號、同一發布頁。自 Windows 版起，每個發布頁都同時附上 Android 與 Windows 兩個平台的最新安裝包。
 
+## 1.3.1 — 小修小補：大按鈕長按選單＋訂閱更新進度（待發布）
+- 首頁大按鈕長按快捷選單：長按彈出選單可直接切換模式（規則／全局／直連，目前模式帶勾）、測速目前群組、跳到節點頁；長按只彈選單（帶一下輕震）、不會誤觸連接／斷開，點按連接／斷開與原有震動回饋不變；選單動作與首頁模式列、節點磚共用同一套請求，行為一致
+- 訂閱更新進度：訂閱頁手動更新單個訂閱時，該卡片顯示「更新中…」並轉圈，完成或失敗後自動恢復，結果提示照舊（成功報訂閱名、失敗帶原因）；「更新全部」時每張更新中的卡片也會一起轉圈
+
 ## Linux 1.0.0 — 首版：與 Windows 版同源
 - Linux 首版：與 Windows 版共用同一套 desktop/ 桌面程式碼同源移植，六個頁面齊全（首頁／節點／連接／訂閱／規則／日誌／設置），功能與 Windows 1.6.1 對齊；版本號獨立，從 1.0.0 起，發布標籤用 linux-v<版本>，識別名 com.tuxundl.linux
 - 打包兩種：.deb（包名 com.tuxundl.linux，裝到 /opt/com.tuxundl.linux）＋ AppImage 單文件（由 CI 用 appimagetool 從應用目錄組裝）；內置 mihomo v1.19.16（linux-amd64），構建時下載、不入庫；Linux 不需要 wintun，系統自帶 /dev/net/tun
