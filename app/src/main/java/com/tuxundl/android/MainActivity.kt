@@ -21,6 +21,7 @@ import androidx.core.content.ContextCompat
 import androidx.core.content.pm.ShortcutInfoCompat
 import androidx.core.content.pm.ShortcutManagerCompat
 import androidx.core.graphics.drawable.IconCompat
+import androidx.lifecycle.lifecycleScope
 import com.tuxundl.android.common.compat.getColorCompat
 import com.tuxundl.android.common.compat.pendingIntentFlags
 import com.tuxundl.android.common.constants.Intents
@@ -56,6 +57,12 @@ import com.tuxundl.android.util.stopClashService
 import com.tuxundl.android.util.withClash
 import com.tuxundl.android.util.withProfile
 import com.tuxundl.android.core.bridge.*
+import io.github.g00fy2.quickie.QRResult
+import io.github.g00fy2.quickie.QRResult.QRError
+import io.github.g00fy2.quickie.QRResult.QRMissingPermission
+import io.github.g00fy2.quickie.QRResult.QRSuccess
+import io.github.g00fy2.quickie.QRResult.QRUserCanceled
+import io.github.g00fy2.quickie.ScanQRCode
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.isActive
@@ -69,6 +76,54 @@ import com.tuxundl.android.design.R as DesignR
 class MainActivity : BaseActivity<MainDesign>() {
     private val uiState = MainUiState()
     private val uiRequests = Channel<MainDesign.Request>(Channel.UNLIMITED)
+
+    // Onboarding step 3 import launchers (1.4.0): the same three ways
+    // in as the profiles page — camera scan (quickie), album QR
+    // decode (ML Kit), and a plain file pick. Outcomes are reported
+    // back to the step through uiState's import signal.
+    private val onboardingScanLauncher =
+        registerForActivityResult(ScanQRCode()) { result ->
+            handleOnboardingScan(result)
+        }
+
+    private val onboardingAlbumLauncher =
+        registerForActivityResult(ActivityResultContracts.GetContent()) { uri ->
+            if (uri == null) {
+                reportOnboardingImport(IMPORT_CANCELLED)
+            } else {
+                lifecycleScope.launch {
+                    val text = com.tuxundl.android.util.decodeQrFromImage(
+                        this@MainActivity,
+                        uri,
+                    )
+                    val ok = !text.isNullOrBlank() &&
+                        addSubscriptionFromOnboarding(
+                            text.trim(),
+                            getString(DesignR.string.new_profile),
+                        )
+                    reportOnboardingImport(
+                        if (ok) IMPORT_OK else IMPORT_FAILED,
+                    )
+                }
+            }
+        }
+
+    private val onboardingFileLauncher =
+        registerForActivityResult(ActivityResultContracts.GetContent()) { uri ->
+            if (uri == null) {
+                reportOnboardingImport(IMPORT_CANCELLED)
+            } else {
+                lifecycleScope.launch {
+                    val ok = addFileProfileFromOnboarding(
+                        uri.toString(),
+                        getString(DesignR.string.new_profile),
+                    )
+                    reportOnboardingImport(
+                        if (ok) IMPORT_OK else IMPORT_FAILED,
+                    )
+                }
+            }
+        }
 
     // Previous packed-total sample, for deriving per-second rates.
     private var prevTrafficUp = 0L
@@ -889,6 +944,71 @@ class MainActivity : BaseActivity<MainDesign>() {
         true
     }.getOrDefault(false)
 
+    /**
+     * Onboarding step 3, file import: create a File profile from the
+     * picked content URI and commit it right away, mirroring what
+     * the properties screen does when a file is chosen there.
+     */
+    private suspend fun addFileProfileFromOnboarding(
+        uri: String,
+        name: String,
+    ): Boolean = runCatching {
+        withProfile {
+            val uuid = create(Profile.Type.File, name, uri)
+            try {
+                commit(uuid)
+            } catch (e: Exception) {
+                runCatching { release(uuid) }
+                throw e
+            }
+            if (queryActive() == null) {
+                queryByUUID(uuid)?.let { setActive(it) }
+            }
+        }
+        true
+    }.getOrDefault(false)
+
+    /** Camera-scan outcome for the onboarding import buttons. */
+    private fun handleOnboardingScan(result: QRResult) {
+        when (result) {
+            is QRSuccess -> {
+                val url = result.content.rawValue
+                    ?: result.content.rawBytes?.let { String(it) }.orEmpty()
+
+                lifecycleScope.launch {
+                    val ok = url.isNotBlank() &&
+                        addSubscriptionFromOnboarding(
+                            url.trim(),
+                            getString(DesignR.string.new_profile),
+                        )
+                    reportOnboardingImport(if (ok) IMPORT_OK else IMPORT_FAILED)
+                }
+            }
+            QRUserCanceled -> reportOnboardingImport(IMPORT_CANCELLED)
+            QRMissingPermission -> reportOnboardingImport(IMPORT_FAILED)
+            is QRError -> reportOnboardingImport(IMPORT_FAILED)
+        }
+    }
+
+    /** Publish an import outcome to the onboarding step, with feedback. */
+    private fun reportOnboardingImport(outcome: Int) {
+        uiState.onboardingImportOutcome = outcome
+        uiState.onboardingImportNonce++
+
+        when (outcome) {
+            IMPORT_OK -> com.tuxundl.android.util.Haptics.buzz(
+                this,
+                uiStore,
+                com.tuxundl.android.util.Haptics.Kind.Success,
+            )
+            IMPORT_FAILED -> com.tuxundl.android.util.Haptics.buzz(
+                this,
+                uiStore,
+                com.tuxundl.android.util.Haptics.Kind.Disconnect,
+            )
+        }
+    }
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
 
@@ -930,6 +1050,11 @@ class MainActivity : BaseActivity<MainDesign>() {
                             onAddSubscription = { url, name ->
                                 addSubscriptionFromOnboarding(url, name)
                             },
+                            onImportScan = { onboardingScanLauncher.launch(null) },
+                            onImportAlbum = { onboardingAlbumLauncher.launch("image/*") },
+                            onImportFile = { onboardingFileLauncher.launch("*/*") },
+                            importOutcome = uiState.onboardingImportOutcome,
+                            importNonce = uiState.onboardingImportNonce,
                             onFinish = {
                                 uiStore.onboardingCompleted = true
                                 uiStore.disclaimerAccepted = true
@@ -1028,6 +1153,11 @@ class MainActivity : BaseActivity<MainDesign>() {
          * data: the 2-hour history records nothing for the span.
          */
         private const val HISTORY_GAP_LIMIT_MS = 3_000L
+
+        /** Onboarding import outcomes (see MainUiState.onboardingImportOutcome). */
+        private const val IMPORT_OK = 1
+        private const val IMPORT_FAILED = 2
+        private const val IMPORT_CANCELLED = 3
 
         /** All orderable home cards, in their default display order. */
         private val HOME_CARD_KEYS =

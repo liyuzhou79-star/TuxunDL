@@ -222,6 +222,11 @@
     <string name="traffic_summary_traffic">Total</string>
     <string name="traffic_legend_poor">Struggling</string>
     <string name="traffic_legend_outage">Down</string>
+    <string name="profile_add_import">Import</string>
+    <string name="import_action_scan">Scan</string>
+    <string name="import_action_album">Album</string>
+    <string name="import_action_file">File</string>
+    <string name="onboarding_import_or">Or import another way</string>
     <string name="traffic_peak">Peak ↓ %1$s ↑ %2$s</string>
     <string name="traffic_advanced">Advanced</string>
     <string name="traffic_advanced_title">Advanced traffic</string>

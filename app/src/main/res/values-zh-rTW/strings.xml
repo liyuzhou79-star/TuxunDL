@@ -207,6 +207,11 @@
     <string name="traffic_summary_traffic">總流量</string>
     <string name="traffic_legend_poor">連接不佳</string>
     <string name="traffic_legend_outage">斷線</string>
+    <string name="profile_add_import">導入</string>
+    <string name="import_action_scan">掃碼</string>
+    <string name="import_action_album">相冊</string>
+    <string name="import_action_file">文件</string>
+    <string name="onboarding_import_or">或用其他方式導入</string>
     <string name="traffic_peak">峰值 ↓ %1$s ↑ %2$s</string>
     <string name="traffic_advanced">進階統計</string>
     <string name="traffic_advanced_title">流量進階模式</string>

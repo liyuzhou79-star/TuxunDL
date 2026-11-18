@@ -46,7 +46,6 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.luminance
-import androidx.compose.ui.platform.LocalClipboardManager
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
@@ -82,6 +81,11 @@ fun OnboardingScreen(
     store: UiStore,
     onPaletteSelected: (ThemePalette) -> Unit,
     onAddSubscription: suspend (url: String, name: String) -> Boolean,
+    onImportScan: () -> Unit,
+    onImportAlbum: () -> Unit,
+    onImportFile: () -> Unit,
+    importOutcome: Int,
+    importNonce: Int,
     onFinish: () -> Unit,
 ) {
     val style = animStyle()
@@ -149,6 +153,11 @@ fun OnboardingScreen(
                     )
                     2 -> SubscriptionStep(
                         onAddSubscription = onAddSubscription,
+                        onImportScan = onImportScan,
+                        onImportAlbum = onImportAlbum,
+                        onImportFile = onImportFile,
+                        importOutcome = importOutcome,
+                        importNonce = importNonce,
                         onAdded = { page = 3 },
                     )
                     3 -> ThemeStep(
@@ -325,14 +334,33 @@ private enum class AddState { Idle, Adding, Added, Failed }
 @Composable
 private fun SubscriptionStep(
     onAddSubscription: suspend (url: String, name: String) -> Boolean,
+    onImportScan: () -> Unit,
+    onImportAlbum: () -> Unit,
+    onImportFile: () -> Unit,
+    importOutcome: Int,
+    importNonce: Int,
     onAdded: () -> Unit,
 ) {
-    val clipboard = LocalClipboardManager.current
     val scope = rememberCoroutineScope()
     var url by remember { mutableStateOf("") }
     var name by remember { mutableStateOf("") }
     var addState by remember { mutableStateOf(AddState.Idle) }
     val defaultName = stringResource(DesignR.string.new_profile)
+
+    // Import launchers (scan / album / file) live in MainActivity;
+    // their outcome lands here as (nonce, outcome): 1 added,
+    // 2 failed, 3 cancelled back to idle.
+    LaunchedEffect(importNonce) {
+        if (importNonce <= 0) return@LaunchedEffect
+        when (importOutcome) {
+            1 -> {
+                addState = AddState.Added
+                onAdded()
+            }
+            2 -> addState = AddState.Failed
+            else -> if (addState == AddState.Adding) addState = AddState.Idle
+        }
+    }
 
     Column(
         modifier = Modifier
@@ -347,26 +375,14 @@ private fun SubscriptionStep(
         Spacer(modifier = Modifier.height(20.dp))
 
         Column(modifier = Modifier.tuxunStagger(1)) {
-            OutlinedTextField(
+            PasteUrlField(
                 value = url,
                 onValueChange = {
                     url = it
                     if (addState == AddState.Failed) addState = AddState.Idle
                 },
-                label = { Text(text = stringResource(R.string.onboarding_sub_url)) },
-                singleLine = true,
+                label = stringResource(R.string.onboarding_sub_url),
                 modifier = Modifier.fillMaxWidth(),
-                trailingIcon = {
-                    TextButton(
-                        onClick = {
-                            clipboard.getText()?.text
-                                ?.takeIf { it.isNotBlank() }
-                                ?.let { url = it.trim() }
-                        },
-                    ) {
-                        Text(text = stringResource(R.string.onboarding_paste))
-                    }
-                },
             )
             Spacer(modifier = Modifier.height(12.dp))
             OutlinedTextField(
@@ -426,6 +442,34 @@ private fun SubscriptionStep(
                 }
                 else -> Unit
             }
+
+            // The same three import ways the profiles page offers
+            // (1.4.0): scan a QR code, pick an album image, pick a
+            // file. The launchers live in MainActivity; the outcome
+            // comes back through the import signal above.
+            Spacer(modifier = Modifier.height(20.dp))
+            Text(
+                text = stringResource(R.string.onboarding_import_or),
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+            Spacer(modifier = Modifier.height(8.dp))
+            ImportActionsRow(
+                onScan = {
+                    addState = AddState.Adding
+                    onImportScan()
+                },
+                onAlbum = {
+                    addState = AddState.Adding
+                    onImportAlbum()
+                },
+                onFile = {
+                    addState = AddState.Adding
+                    onImportFile()
+                },
+                enabled = addState != AddState.Adding && addState != AddState.Added,
+                modifier = Modifier.fillMaxWidth(),
+            )
         }
     }
 }

@@ -9,7 +9,13 @@ import com.tuxundl.android.design.util.*
 
 class NewProfileDesign(context: Context) : Design<NewProfileDesign.Request>(context) {
     sealed class Request {
-        data class Create(val provider: ProfileProvider) : Request()
+        data class Create(
+            val provider: ProfileProvider,
+            /** Prefilled source (subscription URL) for the URL box; "" keeps the old empty-create flow. */
+            val source: String = "",
+            /** Prefilled display name; "" falls back to the default name. */
+            val name: String = "",
+        ) : Request()
         data class OpenDetail(val provider: ProfileProvider.External) : Request()
         data class LaunchScanner(val provider: ProfileProvider.QR) : Request()
         object ScanFromAlbum : Request()

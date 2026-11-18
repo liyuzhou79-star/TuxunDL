@@ -276,6 +276,12 @@ class MainUiState {
     /** Instants this session where the core's counters reset (a drop / reconnect). */
     var disconnectTimes by mutableStateOf<List<Long>>(emptyList())
 
+    /** Onboarding import outcome: 0 none, 1 added, 2 failed, 3 cancelled (1.4.0). */
+    var onboardingImportOutcome by mutableStateOf(0)
+
+    /** Bumped whenever an onboarding import finishes, so the step reacts once. */
+    var onboardingImportNonce by mutableStateOf(0)
+
     /** Zero-rate stalls (5+ seconds) seen this session. */
     var stallCount by mutableStateOf(0)
 

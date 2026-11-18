@@ -4,12 +4,8 @@ import android.app.Activity
 import android.content.ComponentName
 import android.content.Intent
 import android.content.res.Configuration
-import android.graphics.Bitmap
-import android.graphics.ImageDecoder
 import android.net.Uri
-import android.os.Build
 import android.os.Bundle
-import android.provider.MediaStore
 import android.provider.Settings
 import androidx.activity.compose.setContent
 import androidx.activity.result.contract.ActivityResultContracts
@@ -17,10 +13,6 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.SnackbarDuration
 import androidx.compose.material3.Surface
 import androidx.lifecycle.lifecycleScope
-import com.google.mlkit.vision.barcode.BarcodeScannerOptions
-import com.google.mlkit.vision.barcode.BarcodeScanning
-import com.google.mlkit.vision.barcode.common.Barcode
-import com.google.mlkit.vision.common.InputImage
 import com.tuxundl.android.common.constants.Intents
 import com.tuxundl.android.common.util.intent
 import com.tuxundl.android.common.util.setUUID
@@ -77,14 +69,16 @@ class NewProfileActivity : BaseActivity<NewProfileDesign>() {
                     when (it) {
                         is NewProfileDesign.Request.Create -> {
                             withProfile {
-                                val name = getString(R.string.new_profile)
+                                val name = it.name.ifBlank {
+                                    getString(R.string.new_profile)
+                                }
 
                                 val uuid: UUID? = when (val p = it.provider) {
                                     is ProfileProvider.File ->
                                         create(Profile.Type.File, name)
 
                                     is ProfileProvider.Url ->
-                                        create(Profile.Type.Url, name)
+                                        create(Profile.Type.Url, name, it.source)
 
                                     is ProfileProvider.QR -> {
                                         null
@@ -234,75 +228,25 @@ class NewProfileActivity : BaseActivity<NewProfileDesign>() {
     }
 
     /**
-     * Decode a QR code from an album image with the same ML Kit barcode
-     * scanner the camera flow (quickie) uses, then follow the exact same
-     * success path as a camera scan.
+     * Decode a QR code from an album image (shared util since 1.4.0),
+     * then follow the exact same success path as a camera scan.
      */
     private fun decodeQrFromImage(uri: Uri) {
         lifecycleScope.launch {
-            val bitmap = withContext(Dispatchers.IO) {
-                runCatching { loadDownscaledBitmap(uri) }.getOrNull()
-            }
+            val value = com.tuxundl.android.util.decodeQrFromImage(
+                this@NewProfileActivity,
+                uri,
+            )
 
-            if (bitmap == null) {
+            if (value != null) {
+                createProfileByQrCode(value)
+            } else {
                 uiState.snackbarHostState.showSnackbar(
                     message = getString(com.tuxundl.android.R.string.import_from_album_failed),
                     duration = SnackbarDuration.Long,
                 )
-                return@launch
             }
-
-            val options = BarcodeScannerOptions.Builder()
-                .setBarcodeFormats(Barcode.FORMAT_QR_CODE)
-                .build()
-
-            BarcodeScanning.getClient(options)
-                .process(InputImage.fromBitmap(bitmap, 0))
-                .addOnSuccessListener { barcodes ->
-                    val value = barcodes.firstOrNull()?.rawValue
-
-                    lifecycleScope.launch {
-                        if (value != null) {
-                            createProfileByQrCode(value)
-                        } else {
-                            uiState.snackbarHostState.showSnackbar(
-                                message = getString(com.tuxundl.android.R.string.import_from_album_failed),
-                                duration = SnackbarDuration.Long,
-                            )
-                        }
-                    }
-                }
-                .addOnFailureListener {
-                    lifecycleScope.launch {
-                        uiState.snackbarHostState.showSnackbar(
-                            message = getString(com.tuxundl.android.R.string.import_from_album_failed),
-                            duration = SnackbarDuration.Long,
-                        )
-                    }
-                }
         }
-    }
-
-    /** Load the picked image, downscaled so ML Kit stays fast on huge photos. */
-    private fun loadDownscaledBitmap(uri: Uri): Bitmap {
-        val bitmap = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
-            ImageDecoder.decodeBitmap(ImageDecoder.createSource(contentResolver, uri))
-        } else {
-            @Suppress("DEPRECATION")
-            MediaStore.Images.Media.getBitmap(contentResolver, uri)
-        }
-
-        val maxSide = maxOf(bitmap.width, bitmap.height)
-        if (maxSide <= 2048) return bitmap
-
-        val scale = 2048f / maxSide
-
-        return Bitmap.createScaledBitmap(
-            bitmap,
-            (bitmap.width * scale).toInt().coerceAtLeast(1),
-            (bitmap.height * scale).toInt().coerceAtLeast(1),
-            true,
-        )
     }
 
     override fun onCreate(savedInstanceState: Bundle?) {
