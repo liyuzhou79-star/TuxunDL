@@ -4,6 +4,8 @@ import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -246,6 +248,9 @@ private fun HomePage() {
     // (down, up) bytes-per-second samples for the home traffic chart,
     // one every two seconds, the last two minutes kept.
     var samples by remember { mutableStateOf<List<Pair<Long, Long>>>(emptyList()) }
+    // Hourly totals for the 24-hour chart, persisted by
+    // TrafficHistory so they survive restarts.
+    var dayHistory by remember { mutableStateOf(TrafficHistory.last24Hours()) }
     val scope = rememberCoroutineScope()
 
     // While connected, poll the core every two seconds so the home
@@ -270,13 +275,19 @@ private fun HomePage() {
                     prevUp = up
                     first = false
                 }
-                val downRate = (down - prevDown).coerceAtLeast(0) / 2
-                val upRate = (up - prevUp).coerceAtLeast(0) / 2
+                val downDelta = (down - prevDown).coerceAtLeast(0)
+                val upDelta = (up - prevUp).coerceAtLeast(0)
+                val downRate = downDelta / 2
+                val upRate = upDelta / 2
                 prevDown = down
                 prevUp = up
                 rateText = "↓ ${fmtBytes(downRate)}/s   ↑ ${fmtBytes(upRate)}/s"
                 sessionText = "本次会话 ${fmtBytes(down + up)}"
                 samples = (samples + (downRate to upRate)).takeLast(60)
+                if (downDelta > 0 || upDelta > 0) {
+                    TrafficHistory.add(downDelta, upDelta)
+                    dayHistory = TrafficHistory.last24Hours()
+                }
             }
             api.currentNode()?.let { currentNode = it }
             val elapsed = (System.currentTimeMillis() - startedAt) / 1000
@@ -324,6 +335,7 @@ private fun HomePage() {
     Column(
         modifier = Modifier
             .fillMaxSize()
+            .verticalScroll(rememberScrollState())
             .padding(28.dp),
         horizontalAlignment = Alignment.CenterHorizontally,
     ) {
@@ -458,6 +470,9 @@ private fun HomePage() {
             Spacer(Modifier.height(16.dp))
             TrafficChart(samples = samples, modifier = Modifier.fillMaxWidth())
         }
+
+        Spacer(Modifier.height(16.dp))
+        TrafficDayCard(buckets = dayHistory, modifier = Modifier.fillMaxWidth())
     }
 }
 
@@ -588,6 +603,100 @@ private fun TrafficChart(
             }
             line(samples.map { it.first }, IndigoSoft)
             line(samples.map { it.second }, Color(0xFF6E6E8C))
+        }
+    }
+}
+
+/**
+ * The last 24 hours of traffic as stacked hourly bars: download in
+ * soft indigo below, upload in grey on top. The data comes from
+ * TrafficHistory (persisted), so it survives restarts; hours when
+ * the app was not running simply stay empty.
+ */
+@Composable
+private fun TrafficDayCard(
+    buckets: List<HourTraffic>,
+    modifier: Modifier = Modifier,
+) {
+    val totalDown = buckets.sumOf { it.down }
+    val totalUp = buckets.sumOf { it.up }
+    fun hourLabel(epochSec: Long): String =
+        java.time.Instant.ofEpochSecond(epochSec)
+            .atZone(java.time.ZoneId.systemDefault())
+            .format(java.time.format.DateTimeFormatter.ofPattern("HH:00"))
+    Column(
+        modifier = modifier
+            .clip(RoundedCornerShape(14.dp))
+            .background(PanelDark)
+            .padding(16.dp),
+    ) {
+        Row {
+            Text(
+                text = "24 小时流量",
+                color = TextDim,
+                fontSize = 13.sp,
+                modifier = Modifier.weight(1f),
+            )
+            Text(
+                text = "↓ ${fmtBytes(totalDown)} · ↑ ${fmtBytes(totalUp)}",
+                color = IndigoSoft,
+                fontSize = 13.sp,
+            )
+        }
+        Spacer(Modifier.height(12.dp))
+        if (totalDown + totalUp == 0L) {
+            Text(
+                text = "还没有记录到流量，连接后会按小时累积起来",
+                color = TextDim,
+                fontSize = 13.sp,
+            )
+        } else {
+            androidx.compose.foundation.Canvas(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(90.dp),
+            ) {
+                val maxTotal = buckets.maxOf { it.down + it.up }
+                    .coerceAtLeast(1L)
+                    .toFloat()
+                val gap = 3.dp.toPx()
+                val barWidth = (size.width - gap * (buckets.size - 1)) / buckets.size
+                buckets.forEachIndexed { index, bucket ->
+                    val x = index * (barWidth + gap)
+                    val downH = size.height * (bucket.down.toFloat() / maxTotal)
+                    val upH = size.height * (bucket.up.toFloat() / maxTotal)
+                    drawRect(
+                        color = IndigoSoft,
+                        topLeft = Offset(x, size.height - downH),
+                        size = Size(barWidth, downH),
+                    )
+                    drawRect(
+                        color = Color(0xFF6E6E8C),
+                        topLeft = Offset(x, size.height - downH - upH),
+                        size = Size(barWidth, upH),
+                    )
+                }
+            }
+            Spacer(Modifier.height(6.dp))
+            Row(modifier = Modifier.fillMaxWidth()) {
+                Text(
+                    text = hourLabel(buckets.first().hour),
+                    color = TextDim,
+                    fontSize = 11.sp,
+                )
+                Spacer(Modifier.weight(1f))
+                Text(
+                    text = hourLabel(buckets[buckets.size / 2].hour),
+                    color = TextDim,
+                    fontSize = 11.sp,
+                )
+                Spacer(Modifier.weight(1f))
+                Text(
+                    text = "现在",
+                    color = TextDim,
+                    fontSize = 11.sp,
+                )
+            }
         }
     }
 }
