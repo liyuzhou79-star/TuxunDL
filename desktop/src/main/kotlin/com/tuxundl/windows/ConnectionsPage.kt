@@ -2,6 +2,7 @@ package com.tuxundl.windows
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -44,6 +45,20 @@ private fun fmtBytes(bytes: Long): String = when {
     else -> "%.2f GB".format(bytes / 1073741824.0)
 }
 
+@Composable
+private fun SortChip(label: String, active: Boolean, onClick: () -> Unit) {
+    Text(
+        text = label,
+        color = if (active) Color.White else TextDim,
+        fontSize = 13.sp,
+        modifier = Modifier
+            .clip(RoundedCornerShape(8.dp))
+            .background(if (active) Indigo else PanelDark)
+            .clickable { onClick() }
+            .padding(horizontal = 12.dp, vertical = 6.dp),
+    )
+}
+
 /**
  * The connections page: every connection the core is holding open,
  * refreshed every three seconds, with per-connection and close-all
@@ -56,10 +71,13 @@ fun ConnectionsPage() {
     }
     var loaded by remember { mutableStateOf(false) }
     var query by remember { mutableStateOf("") }
+    // List order: "default" keeps the core's newest-first order;
+    // the other two sort the filtered list by traffic volume.
+    var sortMode by remember { mutableStateOf("default") }
     val scope = rememberCoroutineScope()
     val api = CoreBridge.api
 
-    val shown = if (query.isBlank()) {
+    val filtered = if (query.isBlank()) {
         connections
     } else {
         connections.filter { conn ->
@@ -68,6 +86,11 @@ fun ConnectionsPage() {
                 conn.rule.contains(query, ignoreCase = true) ||
                 conn.node.contains(query, ignoreCase = true)
         }
+    }
+    val shown = when (sortMode) {
+        "download" -> filtered.sortedByDescending { it.download }
+        "upload" -> filtered.sortedByDescending { it.upload }
+        else -> filtered
     }
 
     suspend fun refresh() {
@@ -122,9 +145,17 @@ fun ConnectionsPage() {
         Text(
             text = when {
                 !CoreBridge.running -> "尚未连接"
-                loaded && query.isNotBlank() ->
-                    "当前 ${connections.size} 条连接，筛出 ${shown.size} 条，每 3 秒自动刷新"
-                loaded -> "当前 ${connections.size} 条连接，每 3 秒自动刷新"
+                loaded && connections.isNotEmpty() -> {
+                    val totals = "共 ${connections.size} 条连接 · 累计 " +
+                        "↓ ${fmtBytes(connections.sumOf { it.download })} " +
+                        "↑ ${fmtBytes(connections.sumOf { it.upload })}"
+                    if (query.isNotBlank()) {
+                        "$totals · 筛出 ${shown.size} 条"
+                    } else {
+                        totals
+                    }
+                }
+                loaded -> "当前 0 条连接，每 3 秒自动刷新"
                 else -> "正在读取…"
             },
             color = TextDim,
@@ -139,7 +170,17 @@ fun ConnectionsPage() {
             singleLine = true,
             modifier = Modifier.fillMaxWidth(),
         )
-        Spacer(Modifier.height(16.dp))
+        Spacer(Modifier.height(12.dp))
+
+        if (loaded && connections.isNotEmpty()) {
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                SortChip("默认排序", sortMode == "default") { sortMode = "default" }
+                SortChip("按下载量", sortMode == "download") { sortMode = "download" }
+                SortChip("按上传量", sortMode == "upload") { sortMode = "upload" }
+            }
+            Spacer(Modifier.height(4.dp))
+        }
+        Spacer(Modifier.height(12.dp))
 
         if (loaded && connections.isEmpty()) {
             Text(
