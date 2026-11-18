@@ -15,10 +15,12 @@ data class HourTraffic(
 )
 
 /**
- * Rolling 24-hour traffic history, persisted as JSON in the app data
- * dir so it survives restarts. The home page's poll loop adds each
- * interval's byte deltas here; only the last 24 hour buckets are
- * kept. Hours when the app was not running simply have no data.
+ * Rolling traffic history, persisted as JSON in the app data dir so
+ * it survives restarts. The home page's poll loop adds each
+ * interval's byte deltas here; hour buckets are kept for the last
+ * 7 days so the home page can draw both a 24-hour view (hourly) and
+ * a 7-day view (the same buckets summed per day). Hours when the app
+ * was not running simply have no data.
  */
 object TrafficHistory {
 
@@ -59,8 +61,11 @@ object TrafficHistory {
             down = existing.down + downDelta.coerceAtLeast(0),
             up = existing.up + upDelta.coerceAtLeast(0),
         )
-        // Keep only the last 24 hours, the current one included.
-        val cutoff = hour - 23 * 3600
+        // Keep the last 7 days of hour buckets, the current hour
+        // included — the 7-day chart sums these per day, so dropping
+        // everything past 24 hours (the old behaviour) would leave
+        // it nothing to draw.
+        val cutoff = hour - (7 * 24 - 1) * 3600
         map.keys.removeIf { it < cutoff }
         runCatching {
             CoreBridge.workDir.mkdirs()
@@ -94,6 +99,34 @@ object TrafficHistory {
         return (0 until 24).map { index ->
             val hour = now - (23 - index) * 3600L
             map[hour] ?: HourTraffic(hour)
+        }
+    }
+
+    /**
+     * The last 7 days (today included), oldest first, as one bucket
+     * per day: the day's hour buckets summed. Each entry's `hour`
+     * holds the epoch second of that day's local midnight, which is
+     * all the chart needs for its date labels.
+     */
+    @Synchronized
+    fun last7Days(): List<HourTraffic> {
+        val zone = java.time.ZoneId.systemDefault()
+        val today = java.time.LocalDate.now()
+        val byDay = load().values.groupBy { bucket ->
+            java.time.Instant.ofEpochSecond(bucket.hour)
+                .atZone(zone)
+                .toLocalDate()
+        }
+        // 6 days ago first, today last: oldest first, like the
+        // hourly view.
+        return (6 downTo 0).map { daysAgo ->
+            val day = today.minusDays(daysAgo.toLong())
+            val buckets = byDay[day].orEmpty()
+            HourTraffic(
+                hour = day.atStartOfDay(zone).toEpochSecond(),
+                down = buckets.sumOf { it.down },
+                up = buckets.sumOf { it.up },
+            )
         }
     }
 }

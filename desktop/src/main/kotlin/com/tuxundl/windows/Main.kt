@@ -297,6 +297,9 @@ private fun HomePage() {
     // Hourly totals for the 24-hour chart, persisted by
     // TrafficHistory so they survive restarts.
     var dayHistory by remember { mutableStateOf(TrafficHistory.last24Hours()) }
+    // The same persisted history summed per day, for the chart's
+    // 7-day view.
+    var weekHistory by remember { mutableStateOf(TrafficHistory.last7Days()) }
     val scope = rememberCoroutineScope()
 
     // While connected, poll the core every two seconds so the home
@@ -333,6 +336,7 @@ private fun HomePage() {
                 if (downDelta > 0 || upDelta > 0) {
                     TrafficHistory.add(downDelta, upDelta)
                     dayHistory = TrafficHistory.last24Hours()
+                    weekHistory = TrafficHistory.last7Days()
                 }
             }
             api.currentNode()?.let { currentNode = it }
@@ -536,7 +540,11 @@ private fun HomePage() {
         }
 
         Spacer(Modifier.height(16.dp))
-        TrafficDayCard(buckets = dayHistory, modifier = Modifier.fillMaxWidth())
+        TrafficDayCard(
+            buckets = dayHistory,
+            weekBuckets = weekHistory,
+            modifier = Modifier.fillMaxWidth(),
+        )
     }
 }
 
@@ -672,22 +680,33 @@ private fun TrafficChart(
 }
 
 /**
- * The last 24 hours of traffic as stacked hourly bars: download in
- * soft indigo below, upload in grey on top. The data comes from
- * TrafficHistory (persisted), so it survives restarts; hours when
- * the app was not running simply stay empty.
+ * Recent traffic as stacked bars: download in soft indigo below,
+ * upload in grey on top. Two views over the same persisted
+ * TrafficHistory data — the last 24 hours by hour, or the last
+ * 7 days with each day's hours summed into one bar. The data
+ * survives restarts; hours when the app was not running simply
+ * stay empty. Day-level history only reaches back as far as the
+ * hour buckets are kept (7 days since 1.6.4), so right after
+ * upgrading the 7-day view may show fewer days with data.
  */
 @Composable
 private fun TrafficDayCard(
     buckets: List<HourTraffic>,
+    weekBuckets: List<HourTraffic>,
     modifier: Modifier = Modifier,
 ) {
-    val totalDown = buckets.sumOf { it.down }
-    val totalUp = buckets.sumOf { it.up }
-    fun hourLabel(epochSec: Long): String =
+    var showWeek by remember { mutableStateOf(false) }
+    val shown = if (showWeek) weekBuckets else buckets
+    val totalDown = shown.sumOf { it.down }
+    val totalUp = shown.sumOf { it.up }
+    fun bucketLabel(epochSec: Long): String =
         java.time.Instant.ofEpochSecond(epochSec)
             .atZone(java.time.ZoneId.systemDefault())
-            .format(java.time.format.DateTimeFormatter.ofPattern("HH:00"))
+            .format(
+                java.time.format.DateTimeFormatter.ofPattern(
+                    if (showWeek) "M月d日" else "HH:00",
+                ),
+            )
     Column(
         modifier = modifier
             .clip(RoundedCornerShape(14.dp))
@@ -696,7 +715,7 @@ private fun TrafficDayCard(
     ) {
         Row {
             Text(
-                text = "24 小时流量",
+                text = if (showWeek) "7 天流量" else "24 小时流量",
                 color = TextDim,
                 fontSize = 13.sp,
                 modifier = Modifier.weight(1f),
@@ -707,10 +726,19 @@ private fun TrafficDayCard(
                 fontSize = 13.sp,
             )
         }
+        Spacer(Modifier.height(10.dp))
+        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            TrafficRangeChip("24 小时", !showWeek) { showWeek = false }
+            TrafficRangeChip("7 天", showWeek) { showWeek = true }
+        }
         Spacer(Modifier.height(12.dp))
         if (totalDown + totalUp == 0L) {
             Text(
-                text = "还没有记录到流量，连接后会按小时累积起来",
+                text = if (showWeek) {
+                    "还没有记录到流量，连接后会按天累积起来"
+                } else {
+                    "还没有记录到流量，连接后会按小时累积起来"
+                },
                 color = TextDim,
                 fontSize = 13.sp,
             )
@@ -720,12 +748,12 @@ private fun TrafficDayCard(
                     .fillMaxWidth()
                     .height(90.dp),
             ) {
-                val maxTotal = buckets.maxOf { it.down + it.up }
+                val maxTotal = shown.maxOf { it.down + it.up }
                     .coerceAtLeast(1L)
                     .toFloat()
                 val gap = 3.dp.toPx()
-                val barWidth = (size.width - gap * (buckets.size - 1)) / buckets.size
-                buckets.forEachIndexed { index, bucket ->
+                val barWidth = (size.width - gap * (shown.size - 1)) / shown.size
+                shown.forEachIndexed { index, bucket ->
                     val x = index * (barWidth + gap)
                     val downH = size.height * (bucket.down.toFloat() / maxTotal)
                     val upH = size.height * (bucket.up.toFloat() / maxTotal)
@@ -744,25 +772,40 @@ private fun TrafficDayCard(
             Spacer(Modifier.height(6.dp))
             Row(modifier = Modifier.fillMaxWidth()) {
                 Text(
-                    text = hourLabel(buckets.first().hour),
+                    text = bucketLabel(shown.first().hour),
                     color = TextDim,
                     fontSize = 11.sp,
                 )
                 Spacer(Modifier.weight(1f))
                 Text(
-                    text = hourLabel(buckets[buckets.size / 2].hour),
+                    text = bucketLabel(shown[shown.size / 2].hour),
                     color = TextDim,
                     fontSize = 11.sp,
                 )
                 Spacer(Modifier.weight(1f))
                 Text(
-                    text = "现在",
+                    text = if (showWeek) "今天" else "现在",
                     color = TextDim,
                     fontSize = 11.sp,
                 )
             }
         }
     }
+}
+
+/** One range toggle chip inside the traffic history card. */
+@Composable
+private fun TrafficRangeChip(label: String, active: Boolean, onClick: () -> Unit) {
+    Text(
+        text = label,
+        color = if (active) Color.White else TextDim,
+        fontSize = 12.sp,
+        modifier = Modifier
+            .clip(RoundedCornerShape(8.dp))
+            .background(if (active) Indigo else Color(0xFF2A2A3A))
+            .clickable { onClick() }
+            .padding(horizontal = 12.dp, vertical = 5.dp),
+    )
 }
 
 @Composable

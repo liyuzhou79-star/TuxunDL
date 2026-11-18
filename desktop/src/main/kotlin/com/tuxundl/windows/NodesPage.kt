@@ -49,6 +49,9 @@ private data class ProxyGroup(
 
 private val GROUP_TYPES = setOf("Selector", "Fallback", "URLTest", "LoadBalance")
 
+/** Collapse-state key for the starred-nodes section (not a real group). */
+private const val FAVORITES_SECTION = "\u0000favorites"
+
 /**
  * Node page: proxy groups and their nodes from the running core.
  * Tap a node to select it in its group; the delay label on the right
@@ -65,6 +68,18 @@ internal fun NodesPage() {
     var testingAll by remember { mutableStateOf(false) }
     var pickingFastest by remember { mutableStateOf<String?>(null) }
     var favorites by remember { mutableStateOf(SettingsStore.favoriteNodes()) }
+    // Sections folded away on this page, by group name (plus
+    // FAVORITES_SECTION for the starred list). Everything starts
+    // expanded, exactly how the page behaved before folding existed.
+    var collapsedSections by remember { mutableStateOf<Set<String>>(emptySet()) }
+
+    fun toggleSection(key: String) {
+        collapsedSections = if (key in collapsedSections) {
+            collapsedSections - key
+        } else {
+            collapsedSections + key
+        }
+    }
     // When the most recent speed test finished (any kind: single
     // node, test-all, pick-fastest); shown under the toolbar.
     var lastTestAt by remember { mutableStateOf<Long?>(null) }
@@ -132,6 +147,28 @@ internal fun NodesPage() {
                 fontWeight = FontWeight.Bold,
             )
             Row(verticalAlignment = Alignment.CenterVertically) {
+                Text(
+                    text = "全部展开",
+                    color = Indigo,
+                    fontSize = 15.sp,
+                    modifier = Modifier
+                        .clip(RoundedCornerShape(8.dp))
+                        .clickable { collapsedSections = emptySet() }
+                        .padding(horizontal = 10.dp, vertical = 6.dp),
+                )
+                Text(
+                    text = "全部折叠",
+                    color = Indigo,
+                    fontSize = 15.sp,
+                    modifier = Modifier
+                        .clip(RoundedCornerShape(8.dp))
+                        .clickable {
+                            collapsedSections =
+                                groups.map { it.name }.toSet() +
+                                    FAVORITES_SECTION
+                        }
+                        .padding(horizontal = 10.dp, vertical = 6.dp),
+                )
                 Text(
                     text = if (testingAll) "测速中…" else "全部测速",
                     color = if (testingAll) TextDim else Indigo,
@@ -241,14 +278,43 @@ internal fun NodesPage() {
             if (displayFavorites.isNotEmpty()) {
                 item {
                     Column {
-                        Text(
-                            text = "★ 收藏",
-                            color = Color.White,
-                            fontSize = 16.sp,
-                            fontWeight = FontWeight.Medium,
-                        )
-                        Spacer(Modifier.height(8.dp))
-                        displayFavorites.forEach { node ->
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .clip(RoundedCornerShape(8.dp))
+                                .clickable { toggleSection(FAVORITES_SECTION) }
+                                .padding(vertical = 4.dp),
+                        ) {
+                            Text(
+                                text = "★ 收藏",
+                                color = Color.White,
+                                fontSize = 16.sp,
+                                fontWeight = FontWeight.Medium,
+                                modifier = Modifier.weight(1f),
+                            )
+                            Text(
+                                text = if (FAVORITES_SECTION in collapsedSections) {
+                                    "▸"
+                                } else {
+                                    "▾"
+                                },
+                                color = TextDim,
+                                fontSize = 14.sp,
+                            )
+                        }
+                        // Folded away: render no rows (the header
+                        // above stays, with its ▸ marker).
+                        val visibleFavorites =
+                            if (FAVORITES_SECTION in collapsedSections) {
+                                emptyList()
+                            } else {
+                                displayFavorites
+                            }
+                        if (visibleFavorites.isNotEmpty()) {
+                            Spacer(Modifier.height(8.dp))
+                        }
+                        visibleFavorites.forEach { node ->
                             val home = favoriteHome.getValue(node)
                             NodeRow(
                                 name = node,
@@ -305,7 +371,11 @@ internal fun NodesPage() {
                             color = Color.White,
                             fontSize = 16.sp,
                             fontWeight = FontWeight.Medium,
-                            modifier = Modifier.weight(1f),
+                            modifier = Modifier
+                                .weight(1f)
+                                .clip(RoundedCornerShape(8.dp))
+                                .clickable { toggleSection(group.name) }
+                                .padding(vertical = 4.dp),
                         )
                         Text(
                             text = if (pickingFastest == group.name) {
@@ -351,9 +421,32 @@ internal fun NodesPage() {
                                 }
                                 .padding(horizontal = 10.dp, vertical = 6.dp),
                         )
+                        Text(
+                            text = if (group.name in collapsedSections) {
+                                "▸"
+                            } else {
+                                "▾"
+                            },
+                            color = TextDim,
+                            fontSize = 14.sp,
+                            modifier = Modifier
+                                .clip(RoundedCornerShape(8.dp))
+                                .clickable { toggleSection(group.name) }
+                                .padding(horizontal = 8.dp, vertical = 6.dp),
+                        )
                     }
-                    Spacer(Modifier.height(8.dp))
-                    displayMembers.forEach { node ->
+                    // Folded away: render no member rows (the header
+                    // above stays, with its ▸ marker).
+                    val visibleMembers =
+                        if (group.name in collapsedSections) {
+                            emptyList()
+                        } else {
+                            displayMembers
+                        }
+                    if (visibleMembers.isNotEmpty()) {
+                        Spacer(Modifier.height(8.dp))
+                    }
+                    visibleMembers.forEach { node ->
                         NodeRow(
                             name = node,
                             selected = node == group.now,
