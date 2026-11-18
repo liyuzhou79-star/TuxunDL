@@ -44,6 +44,7 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
+import com.tuxundl.android.R
 import com.tuxundl.android.design.ProfilesDesign
 import com.tuxundl.android.design.util.toBytesString
 import com.tuxundl.android.design.util.toDateStr
@@ -287,6 +288,32 @@ private fun ProfileCard(
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
+                // Expiry reminder, mirroring the home subscription
+                // card: red once expired, highlighted within the
+                // last 3 days. Shown whenever the profile carries
+                // an expiry date, even without traffic data.
+                // Display only.
+                if (profile.expire > 0L) {
+                    val daysLeft = daysUntilProfileExpiry(profile.expire, now)
+                    if (daysLeft < 0L) {
+                        Spacer(modifier = Modifier.height(4.dp))
+                        Text(
+                            text = stringResource(R.string.subscription_expired),
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = MaterialTheme.colorScheme.error,
+                        )
+                    } else if (daysLeft <= 3L) {
+                        Spacer(modifier = Modifier.height(4.dp))
+                        Text(
+                            text = stringResource(
+                                R.string.subscription_expires_soon,
+                                daysLeft.toInt(),
+                            ),
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = MaterialTheme.colorScheme.tertiary,
+                        )
+                    }
+                }
             }
             if (updating) {
                 // Same footprint as the overflow button it replaces,
@@ -365,6 +392,13 @@ private fun MenuItem(
             Text(text = text, style = MaterialTheme.typography.bodyLarge)
         }
     }
+}
+
+/** Days until [expireMillis] from [nowMillis], rounded up; -1 means already expired. */
+private fun daysUntilProfileExpiry(expireMillis: Long, nowMillis: Long): Long {
+    val diff = expireMillis - nowMillis
+    if (diff <= 0L) return -1L
+    return (diff + 86_400_000L - 1L) / 86_400_000L
 }
 
 /** Epoch millis to "MM-dd HH:mm" for the profile last-updated line. */
