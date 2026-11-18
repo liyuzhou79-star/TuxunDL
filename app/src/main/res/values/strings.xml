@@ -321,4 +321,24 @@
     <string name="app_lock_current">Current: %1$s</string>
     <string name="update_check_failed_rate_limited">Update check failed: checked too often and GitHub is rate limiting. Try again in a while.</string>
     <string name="update_check_failed_server_code">Update check failed: the server returned an error (code %1$d). Please try again later.</string>
+    <string name="schedule_panel_title">Schedule &amp; night</string>
+    <string name="schedule_summary_timer">Timer %1$s–%2$s</string>
+    <string name="schedule_summary_night">Night %1$s–%2$s %3$s</string>
+    <string name="schedule_summary_off">Off</string>
+    <string name="schedule_timer_title">Timed on/off</string>
+    <string name="schedule_on_time">Turn on at</string>
+    <string name="schedule_off_time">Turn off at</string>
+    <string name="schedule_night_title">Night auto-switch</string>
+    <string name="schedule_night_start">Night starts</string>
+    <string name="schedule_night_end">Night ends</string>
+    <string name="schedule_night_action_global">Switch to Global</string>
+    <string name="schedule_night_action_stop">Turn proxy off</string>
+    <string name="schedule_night_end_note">When the night window ends, Global is switched back to the mode used before the night — unless you changed the mode by hand during the night.</string>
+    <string name="schedule_exact_alarm_hint">Exact alarms are not allowed yet, so timers may fire late. Tap to allow.</string>
+    <string name="schedule_pick_time">Pick a time</string>
+    <string name="schedule_channel_name">Proxy schedule</string>
+    <string name="schedule_start_failed_title">Scheduled start did not run</string>
+    <string name="schedule_start_failed_text">The system blocked the background start. Tap to start now.</string>
+    <string name="schedule_start_consent_text">VPN permission is still needed. Open the app and tap start once.</string>
+    <string name="schedule_start_now">Start now</string>
 </resources>

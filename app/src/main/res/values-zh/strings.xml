@@ -321,4 +321,24 @@
     <string name="app_lock_current">当前方式：%1$s</string>
     <string name="update_check_failed_rate_limited">检查更新失败：查太频繁了，GitHub 暂时限流，过一会儿再试。</string>
     <string name="update_check_failed_server_code">检查更新失败：服务器回了错误（代码 %1$d），请稍后再试。</string>
+    <string name="schedule_panel_title">定时与夜间</string>
+    <string name="schedule_summary_timer">定时 %1$s–%2$s</string>
+    <string name="schedule_summary_night">夜间 %1$s–%2$s %3$s</string>
+    <string name="schedule_summary_off">未开启</string>
+    <string name="schedule_timer_title">定时开关代理</string>
+    <string name="schedule_on_time">开启时间</string>
+    <string name="schedule_off_time">关闭时间</string>
+    <string name="schedule_night_title">夜间自动切换</string>
+    <string name="schedule_night_start">夜间开始</string>
+    <string name="schedule_night_end">夜间结束</string>
+    <string name="schedule_night_action_global">切到全局代理</string>
+    <string name="schedule_night_action_stop">关闭代理</string>
+    <string name="schedule_night_end_note">夜间结束时，如果模式还是全局，会恢复成夜间开始前的模式；半夜手动改过模式的话，按你改的来。</string>
+    <string name="schedule_exact_alarm_hint">精确闹钟还没授权，定时可能会晚点，点此去授权</string>
+    <string name="schedule_pick_time">选择时间</string>
+    <string name="schedule_channel_name">定时任务</string>
+    <string name="schedule_start_failed_title">定时开启代理没成功</string>
+    <string name="schedule_start_failed_text">系统拦住了后台启动，点此立即开启</string>
+    <string name="schedule_start_consent_text">还差一步 VPN 授权，打开应用点一次开启就行</string>
+    <string name="schedule_start_now">立即开启</string>
 </resources>

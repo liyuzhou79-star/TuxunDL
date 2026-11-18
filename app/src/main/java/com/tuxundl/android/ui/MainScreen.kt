@@ -2,7 +2,11 @@ package com.tuxundl.android.ui
 
 import android.content.Intent
 import android.net.Uri
+import android.os.Build
 import android.os.SystemClock
+import android.provider.Settings
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.annotation.DrawableRes
 import androidx.annotation.StringRes
 import androidx.compose.animation.AnimatedContent
@@ -70,6 +74,9 @@ import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.RadioButton
+import androidx.compose.material3.Switch
+import androidx.compose.material3.TimePicker
+import androidx.compose.material3.rememberTimePickerState
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
@@ -81,6 +88,7 @@ import androidx.compose.runtime.mutableStateMapOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -122,10 +130,12 @@ import com.tuxundl.android.design.util.toDateStr
 import com.tuxundl.android.design.store.UiStore
 import com.tuxundl.android.util.DailyTrafficDay
 import com.tuxundl.android.util.DelaySample
+import com.tuxundl.android.util.ProxyScheduler
 import com.tuxundl.android.util.Haptics
 import com.tuxundl.android.util.HourTrafficBucket
 import com.tuxundl.android.util.SavedConnection
 import com.tuxundl.android.util.UpdateInfo
+import java.util.Locale
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlin.math.PI
@@ -357,6 +367,10 @@ fun MainScreen(
 
             Box(modifier = Modifier.homeEntrance(1, state.entranceTick)) {
                 ModeSelector(state = state, onRequest = onRequest)
+            }
+
+            Box(modifier = Modifier.homeEntrance(2, state.entranceTick)) {
+                SchedulePanel()
             }
 
             HomeCards(
@@ -1380,6 +1394,339 @@ private fun ModeSelector(
         selectedIndex = modes.indexOf(state.mode),
         onSelect = { onRequest(MainDesign.Request.SetMode(modes[it])) },
         modifier = Modifier.fillMaxWidth(),
+    )
+}
+
+/** Which time field the schedule panel's shared time picker edits. */
+private enum class ScheduleTimeField {
+    TimerOn, TimerOff, NightStart, NightEnd,
+}
+
+private fun formatMinutesOfDay(minutes: Int): String =
+    String.format(Locale.US, "%02d:%02d", minutes / 60, minutes % 60)
+
+/**
+ * Expandable schedule panel right under the mode selector (1.5.4):
+ * a slim chevron bar that springs open into the timed on/off rule
+ * and the night auto-switch rule. All values live in [UiStore];
+ * every change is written through immediately and re-arms
+ * [ProxyScheduler], so what the panel shows is what will fire.
+ */
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun SchedulePanel() {
+    val context = LocalContext.current
+    val store = remember { UiStore(context) }
+
+    var expanded by rememberSaveable { mutableStateOf(false) }
+    var timerEnabled by remember { mutableStateOf(store.scheduleEnabled) }
+    var onMinutes by remember { mutableStateOf(store.scheduleOnMinutes) }
+    var offMinutes by remember { mutableStateOf(store.scheduleOffMinutes) }
+    var nightEnabled by remember { mutableStateOf(store.nightEnabled) }
+    var nightStart by remember { mutableStateOf(store.nightStartMinutes) }
+    var nightEnd by remember { mutableStateOf(store.nightEndMinutes) }
+    var nightAction by remember { mutableStateOf(store.nightAction) }
+    var exactAllowed by remember {
+        mutableStateOf(ProxyScheduler.canScheduleExact(context))
+    }
+    var pickerField by remember { mutableStateOf<ScheduleTimeField?>(null) }
+
+    val exactAlarmLauncher = rememberLauncherForActivityResult(
+        ActivityResultContracts.StartActivityForResult(),
+    ) { exactAllowed = ProxyScheduler.canScheduleExact(context) }
+
+    val chevronAngle by animateFloatAsState(
+        targetValue = if (expanded) 180f else 0f,
+        animationSpec = tween(durationMillis = 250),
+        label = "scheduleChevron",
+    )
+
+    val nightActionText = stringResource(
+        if (nightAction == ProxyScheduler.NIGHT_ACTION_STOP) {
+            R.string.schedule_night_action_stop
+        } else {
+            R.string.schedule_night_action_global
+        },
+    )
+    val timerSummary = stringResource(
+        R.string.schedule_summary_timer,
+        formatMinutesOfDay(onMinutes),
+        formatMinutesOfDay(offMinutes),
+    )
+    val nightSummary = stringResource(
+        R.string.schedule_summary_night,
+        formatMinutesOfDay(nightStart),
+        formatMinutesOfDay(nightEnd),
+        nightActionText,
+    )
+    val summary = listOfNotNull(
+        if (timerEnabled) timerSummary else null,
+        if (nightEnabled) nightSummary else null,
+    ).joinToString(" · ")
+        .ifEmpty { stringResource(R.string.schedule_summary_off) }
+
+    TuxunCard(modifier = Modifier.fillMaxWidth()) {
+        // The slim bar: schedule icon, title, one-line summary of
+        // what is armed, and the chevron that opens the panel.
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .clip(RoundedCornerShape(TuxunCardCorner))
+                .clickable { expanded = !expanded }
+                .padding(horizontal = 16.dp, vertical = 10.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Icon(
+                painter = painterResource(R.drawable.ic_baseline_schedule),
+                contentDescription = null,
+                modifier = Modifier.size(18.dp),
+                tint = MaterialTheme.colorScheme.primary,
+            )
+            Text(
+                text = stringResource(R.string.schedule_panel_title),
+                style = MaterialTheme.typography.titleSmall,
+                modifier = Modifier.padding(start = 8.dp),
+            )
+            Text(
+                text = summary,
+                style = MaterialTheme.typography.labelMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+                modifier = Modifier
+                    .weight(1f)
+                    .padding(start = 10.dp),
+            )
+            Icon(
+                painter = painterResource(DesignR.drawable.ic_baseline_expand_more),
+                contentDescription = null,
+                modifier = Modifier.graphicsLayer { rotationZ = chevronAngle },
+            )
+        }
+
+        AnimatedVisibility(
+            visible = expanded,
+            enter = expandVertically(
+                animationSpec = spring(dampingRatio = 0.85f, stiffness = 380f),
+            ) + fadeIn(tween(durationMillis = 180)),
+            exit = shrinkVertically(
+                animationSpec = spring(dampingRatio = 0.85f, stiffness = 380f),
+            ) + fadeOut(tween(durationMillis = 140)),
+        ) {
+            Column(
+                modifier = Modifier
+                    .animateContentSize()
+                    .padding(start = 16.dp, end = 16.dp, bottom = 16.dp),
+            ) {
+                ScheduleSwitchRow(
+                    title = stringResource(R.string.schedule_timer_title),
+                    checked = timerEnabled,
+                ) { checked ->
+                    timerEnabled = checked
+                    store.scheduleEnabled = checked
+                    ProxyScheduler.settingsChanged(context)
+                }
+                if (timerEnabled) {
+                    ScheduleTimeRow(
+                        label = stringResource(R.string.schedule_on_time),
+                        minutes = onMinutes,
+                    ) { pickerField = ScheduleTimeField.TimerOn }
+                    ScheduleTimeRow(
+                        label = stringResource(R.string.schedule_off_time),
+                        minutes = offMinutes,
+                    ) { pickerField = ScheduleTimeField.TimerOff }
+                }
+
+                HorizontalDivider(modifier = Modifier.padding(vertical = 10.dp))
+
+                ScheduleSwitchRow(
+                    title = stringResource(R.string.schedule_night_title),
+                    checked = nightEnabled,
+                ) { checked ->
+                    nightEnabled = checked
+                    store.nightEnabled = checked
+                    ProxyScheduler.settingsChanged(context)
+                }
+                if (nightEnabled) {
+                    ScheduleTimeRow(
+                        label = stringResource(R.string.schedule_night_start),
+                        minutes = nightStart,
+                    ) { pickerField = ScheduleTimeField.NightStart }
+                    ScheduleTimeRow(
+                        label = stringResource(R.string.schedule_night_end),
+                        minutes = nightEnd,
+                    ) { pickerField = ScheduleTimeField.NightEnd }
+                    TuxunSegmentedRow(
+                        options = listOf(
+                            stringResource(R.string.schedule_night_action_global),
+                            stringResource(R.string.schedule_night_action_stop),
+                        ),
+                        selectedIndex = nightAction,
+                        onSelect = { index ->
+                            nightAction = index
+                            store.nightAction = index
+                            ProxyScheduler.settingsChanged(context)
+                        },
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(top = 6.dp),
+                    )
+                    Text(
+                        text = stringResource(R.string.schedule_night_end_note),
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        modifier = Modifier.padding(top = 10.dp),
+                    )
+                }
+
+                if (!exactAllowed) {
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(top = 12.dp)
+                            .clip(RoundedCornerShape(12.dp))
+                            .clickable {
+                                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+                                    exactAlarmLauncher.launch(
+                                        Intent(
+                                            Settings.ACTION_REQUEST_SCHEDULE_EXACT_ALARM,
+                                            Uri.parse("package:" + context.packageName),
+                                        ),
+                                    )
+                                }
+                            }
+                            .padding(horizontal = 10.dp, vertical = 8.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        Icon(
+                            painter = painterResource(DesignR.drawable.ic_baseline_info),
+                            contentDescription = null,
+                            modifier = Modifier.size(16.dp),
+                            tint = MaterialTheme.colorScheme.error,
+                        )
+                        Text(
+                            text = stringResource(R.string.schedule_exact_alarm_hint),
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.error,
+                            modifier = Modifier.padding(start = 6.dp),
+                        )
+                    }
+                }
+            }
+        }
+    }
+
+    val field = pickerField
+    if (field != null) {
+        val initial = when (field) {
+            ScheduleTimeField.TimerOn -> onMinutes
+            ScheduleTimeField.TimerOff -> offMinutes
+            ScheduleTimeField.NightStart -> nightStart
+            ScheduleTimeField.NightEnd -> nightEnd
+        }
+
+        ScheduleTimePickerDialog(
+            initialMinutes = initial,
+            onDismiss = { pickerField = null },
+        ) { picked ->
+            when (field) {
+                ScheduleTimeField.TimerOn -> {
+                    onMinutes = picked
+                    store.scheduleOnMinutes = picked
+                }
+                ScheduleTimeField.TimerOff -> {
+                    offMinutes = picked
+                    store.scheduleOffMinutes = picked
+                }
+                ScheduleTimeField.NightStart -> {
+                    nightStart = picked
+                    store.nightStartMinutes = picked
+                }
+                ScheduleTimeField.NightEnd -> {
+                    nightEnd = picked
+                    store.nightEndMinutes = picked
+                }
+            }
+
+            pickerField = null
+            ProxyScheduler.settingsChanged(context)
+        }
+    }
+}
+
+@Composable
+private fun ScheduleSwitchRow(
+    title: String,
+    checked: Boolean,
+    onCheckedChange: (Boolean) -> Unit,
+) {
+    Row(
+        modifier = Modifier.fillMaxWidth(),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Text(
+            text = title,
+            style = MaterialTheme.typography.titleSmall,
+            modifier = Modifier.weight(1f),
+        )
+        Switch(checked = checked, onCheckedChange = onCheckedChange)
+    }
+}
+
+@Composable
+private fun ScheduleTimeRow(
+    label: String,
+    minutes: Int,
+    onClick: () -> Unit,
+) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(12.dp))
+            .clickable(onClick = onClick)
+            .padding(vertical = 8.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Text(
+            text = label,
+            style = MaterialTheme.typography.bodyMedium,
+            modifier = Modifier.weight(1f),
+        )
+        Text(
+            text = formatMinutesOfDay(minutes),
+            style = MaterialTheme.typography.titleMedium,
+            color = MaterialTheme.colorScheme.primary,
+        )
+    }
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun ScheduleTimePickerDialog(
+    initialMinutes: Int,
+    onDismiss: () -> Unit,
+    onConfirm: (Int) -> Unit,
+) {
+    val state = rememberTimePickerState(
+        initialHour = initialMinutes / 60,
+        initialMinute = initialMinutes % 60,
+        is24Hour = true,
+    )
+
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text(text = stringResource(R.string.schedule_pick_time)) },
+        text = { TimePicker(state = state) },
+        confirmButton = {
+            TextButton(onClick = { onConfirm(state.hour * 60 + state.minute) }) {
+                Text(text = stringResource(android.R.string.ok))
+            }
+        },
+        dismissButton = {
+            TextButton(onClick = onDismiss) {
+                Text(text = stringResource(android.R.string.cancel))
+            }
+        },
     )
 }
 
