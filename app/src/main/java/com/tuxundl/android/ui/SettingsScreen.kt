@@ -93,6 +93,30 @@ class SettingsUiState {
 
     /** Custom haptic amplitude 1..255, used when strength is 3 (1.4.0). */
     var hapticsCustomAmplitude by mutableStateOf(140)
+
+    /** Hide the launcher icon (mirrors UiStore, privacy section 1.5.0). */
+    var hideAppIcon by mutableStateOf(false)
+
+    /** Hide the app from the recents list (mirrors UiStore, 1.5.0). */
+    var hideFromRecents by mutableStateOf(false)
+
+    /** True once the persistent override has been read (1.5.0). */
+    var privacyOverrideLoaded by mutableStateOf(false)
+
+    /** Persistent-override allow-lan as shown in the privacy section. */
+    var allowLan by mutableStateOf(false)
+
+    /** Persistent-override ipv6 as shown in the privacy section. */
+    var ipv6Enabled by mutableStateOf(true)
+
+    /** Persistent-override sniffer switch (privacy section). */
+    var snifferEnabled by mutableStateOf(false)
+
+    /** Whether the app lock is configured (privacy section, 1.5.0). */
+    var appLockEnabled by mutableStateOf(false)
+
+    /** App-lock kind: 0 pattern / 1 PIN / 2 password (mirrors UiStore). */
+    var appLockType by mutableStateOf(1)
 }
 
 /**
@@ -122,11 +146,18 @@ fun SettingsScreen(
     onHapticsStrengthChange: (Int) -> Unit,
     onHapticsCustomChange: (Int) -> Unit,
     onLanguageChange: (String) -> Unit,
+    onHideAppIconChange: (Boolean) -> Unit,
+    onHideFromRecentsChange: (Boolean) -> Unit,
+    onAllowLanChange: (Boolean) -> Unit,
+    onIpv6Change: (Boolean) -> Unit,
+    onSnifferChange: (Boolean) -> Unit,
+    onAppLockChanged: () -> Unit,
     onBack: () -> Unit,
 ) {
     var showLanguageDialog by remember { mutableStateOf(false) }
     var showThresholdDialog by remember { mutableStateOf(false) }
     var showHapticsDialog by remember { mutableStateOf(false) }
+    var showAppLockSetup by remember { mutableStateOf(false) }
     val screenContext = LocalContext.current
     val screenScope = rememberCoroutineScope()
 
@@ -196,6 +227,70 @@ fun SettingsScreen(
                     )
                 },
                 onClick = { showLanguageDialog = true },
+            )
+
+            SettingsSectionTitle(
+                text = stringResource(R.string.settings_group_privacy),
+            )
+            SettingsSwitchCard(
+                icon = DesignR.drawable.ic_baseline_hide,
+                title = stringResource(DesignR.string.hide_app_icon_title),
+                summary = stringResource(DesignR.string.hide_app_icon_desc),
+                checked = state.hideAppIcon,
+                onCheckedChange = onHideAppIconChange,
+            )
+            SettingsSwitchCard(
+                icon = DesignR.drawable.ic_baseline_stack,
+                title = stringResource(DesignR.string.hide_from_recents_title),
+                summary = stringResource(DesignR.string.hide_from_recents_desc),
+                checked = state.hideFromRecents,
+                onCheckedChange = onHideFromRecentsChange,
+            )
+            SettingsSwitchCard(
+                icon = DesignR.drawable.ic_baseline_dns,
+                title = stringResource(DesignR.string.allow_lan),
+                summary = stringResource(R.string.privacy_allow_lan_summary),
+                checked = state.allowLan,
+                onCheckedChange = onAllowLanChange,
+                enabled = state.privacyOverrideLoaded,
+            )
+            SettingsSwitchCard(
+                icon = DesignR.drawable.ic_baseline_vpn_lock,
+                title = stringResource(DesignR.string.ipv6),
+                summary = stringResource(R.string.privacy_ipv6_summary),
+                checked = state.ipv6Enabled,
+                onCheckedChange = onIpv6Change,
+                enabled = state.privacyOverrideLoaded,
+            )
+            SettingsSwitchCard(
+                icon = DesignR.drawable.ic_baseline_search,
+                title = stringResource(R.string.privacy_sniffer),
+                summary = stringResource(R.string.privacy_sniffer_summary),
+                checked = state.snifferEnabled,
+                onCheckedChange = onSnifferChange,
+                enabled = state.privacyOverrideLoaded,
+            )
+            SettingsEntryCard(
+                icon = DesignR.drawable.ic_baseline_key,
+                title = stringResource(R.string.app_lock),
+                trailing = {
+                    Text(
+                        text = stringResource(
+                            if (state.appLockEnabled) {
+                                when (state.appLockType) {
+                                    0 -> R.string.app_lock_type_pattern
+                                    2 -> R.string.app_lock_type_password
+                                    else -> R.string.app_lock_type_pin
+                                }
+                            } else {
+                                R.string.app_lock_off
+                            },
+                        ),
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                },
+                onClick = { showAppLockSetup = true },
             )
 
             SettingsSectionTitle(
@@ -397,6 +492,13 @@ fun SettingsScreen(
                 onTrafficAlertThresholdChange(gb)
             },
             onDismiss = { showThresholdDialog = false },
+        )
+    }
+
+    if (showAppLockSetup) {
+        AppLockSetupDialog(
+            onDismiss = { showAppLockSetup = false },
+            onChanged = onAppLockChanged,
         )
     }
 
@@ -738,6 +840,7 @@ private fun SettingsSwitchCard(
     summary: String,
     checked: Boolean,
     onCheckedChange: (Boolean) -> Unit,
+    enabled: Boolean = true,
 ) {
     TuxunCard(modifier = Modifier.fillMaxWidth()) {
         Row(
@@ -764,7 +867,11 @@ private fun SettingsSwitchCard(
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
             }
-            TuxunSwitch(checked = checked, onCheckedChange = onCheckedChange)
+            TuxunSwitch(
+                checked = checked,
+                onCheckedChange = onCheckedChange,
+                enabled = enabled,
+            )
         }
     }
 }

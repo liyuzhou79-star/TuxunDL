@@ -1,6 +1,5 @@
 package com.tuxundl.android
 
-import android.content.ComponentName
 import android.content.pm.PackageManager
 import android.content.res.Configuration
 import android.os.Bundle
@@ -11,7 +10,6 @@ import com.tuxundl.android.common.util.componentName
 import com.tuxundl.android.design.AppSettingsDesign
 import com.tuxundl.android.design.model.Behavior
 import com.tuxundl.android.design.model.DarkMode
-import com.tuxundl.android.design.store.UiStore.Companion.mainActivityAlias
 import com.tuxundl.android.service.store.ServiceStore
 import com.tuxundl.android.ui.AppSettingsScreen
 import com.tuxundl.android.ui.theme.TuxunDLTheme
@@ -64,19 +62,6 @@ class AppSettingsActivity : BaseActivity<AppSettingsDesign>(), Behavior {
             )
         }
 
-    private fun onHideIconChange(hide: Boolean) {
-        val newState = if (hide) {
-            PackageManager.COMPONENT_ENABLED_STATE_DISABLED
-        } else {
-            PackageManager.COMPONENT_ENABLED_STATE_ENABLED
-        }
-        packageManager.setComponentEnabledSetting(
-            mainActivityAlias,
-            newState,
-            PackageManager.DONT_KILL_APP
-        )
-    }
-
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
 
@@ -100,7 +85,6 @@ class AppSettingsActivity : BaseActivity<AppSettingsDesign>(), Behavior {
                         onRecreateAll = {
                             uiRequests.trySend(AppSettingsDesign.Request.ReCreateAllActivities)
                         },
-                        onHideIconChange = ::onHideIconChange,
                         onBack = { finish() },
                     )
                 }

@@ -10,16 +10,21 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.core.content.ContextCompat
 import com.tuxundl.android.common.util.intent
+import com.tuxundl.android.core.Clash
+import com.tuxundl.android.core.model.ConfigurationOverride
 import com.tuxundl.android.design.SettingsDesign
 import com.tuxundl.android.design.model.DarkMode
+import com.tuxundl.android.design.store.UiStore.Companion.mainActivityAlias
 import com.tuxundl.android.ui.SettingsScreen
 import com.tuxundl.android.ui.SettingsUiState
 import com.tuxundl.android.ui.theme.TuxunDLTheme
 import com.tuxundl.android.ui.theme.customSeedColor
+import com.tuxundl.android.util.AppLock
 import com.tuxundl.android.util.ApplicationObserver
 import com.tuxundl.android.util.UpdateChecker
 import com.tuxundl.android.util.UpdateCheckResult
 import com.tuxundl.android.util.UpdateFailure
+import com.tuxundl.android.util.withClash
 import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
@@ -35,7 +40,23 @@ class SettingsActivity : BaseActivity<SettingsDesign>() {
     private val notificationPermissionLauncher =
         registerForActivityResult(RequestPermission()) { }
 
+    /**
+     * The persistent override behind the privacy section's connection
+     * switches (1.5.0): the same object the override settings page
+     * edits, loaded once here and patched back on every toggle.
+     */
+    private var persistOverride: ConfigurationOverride? = null
+
     override suspend fun main() {
+        runCatching {
+            val config = withClash { queryOverride(Clash.OverrideSlot.Persist) }
+            persistOverride = config
+            uiState.allowLan = config.allowLan == true
+            uiState.ipv6Enabled = config.ipv6 != false
+            uiState.snifferEnabled = config.sniffer.enable == true
+            uiState.privacyOverrideLoaded = true
+        }
+
         while (isActive) {
             select<Unit> {
                 events.onReceive {
@@ -140,6 +161,20 @@ class SettingsActivity : BaseActivity<SettingsDesign>() {
         }
     }
 
+    /** Mutate the persistent override and write it back at once. */
+    private fun patchPersistOverride(
+        transform: (ConfigurationOverride) -> Unit,
+    ) {
+        val config = persistOverride ?: return
+        transform(config)
+
+        launch {
+            runCatching {
+                withClash { patchOverride(Clash.OverrideSlot.Persist, config) }
+            }
+        }
+    }
+
     private fun requestNotificationPermissionIfNeeded() {
         if (Build.VERSION.SDK_INT < Build.VERSION_CODES.TIRAMISU) return
 
@@ -163,6 +198,10 @@ class SettingsActivity : BaseActivity<SettingsDesign>() {
         uiState.hapticsStrength = uiStore.hapticsStrength
         uiState.hapticsCustomAmplitude = uiStore.hapticsCustomAmplitude
         uiState.appLanguage = uiStore.appLanguage
+        uiState.hideAppIcon = uiStore.hideAppIcon
+        uiState.hideFromRecents = uiStore.hideFromRecents
+        uiState.appLockEnabled = AppLock.isConfigured(uiStore)
+        uiState.appLockType = uiStore.appLockType
 
         val darkTheme = when (uiStore.darkMode) {
             DarkMode.Auto -> resources.configuration.uiMode and
@@ -235,6 +274,51 @@ class SettingsActivity : BaseActivity<SettingsDesign>() {
                             ApplicationObserver.createdActivities.forEach {
                                 it.recreate()
                             }
+                        },
+                        onHideAppIconChange = { hide ->
+                            uiStore.hideAppIcon = hide
+                            uiState.hideAppIcon = hide
+
+                            // Same component toggle the app settings
+                            // page used before the switch moved here.
+                            val newState = if (hide) {
+                                PackageManager.COMPONENT_ENABLED_STATE_DISABLED
+                            } else {
+                                PackageManager.COMPONENT_ENABLED_STATE_ENABLED
+                            }
+                            packageManager.setComponentEnabledSetting(
+                                mainActivityAlias,
+                                newState,
+                                PackageManager.DONT_KILL_APP,
+                            )
+                        },
+                        onHideFromRecentsChange = { hide ->
+                            uiStore.hideFromRecents = hide
+                            uiState.hideFromRecents = hide
+
+                            // BaseActivity applies the flag at create
+                            // time, so sweep a recreate like the app
+                            // settings page did.
+                            ApplicationObserver.createdActivities.forEach {
+                                it.recreate()
+                            }
+                        },
+                        onAllowLanChange = { allow ->
+                            uiState.allowLan = allow
+                            patchPersistOverride { it.allowLan = allow }
+                        },
+                        onIpv6Change = { on ->
+                            uiState.ipv6Enabled = on
+                            patchPersistOverride { it.ipv6 = on }
+                        },
+                        onSnifferChange = { on ->
+                            uiState.snifferEnabled = on
+                            patchPersistOverride { it.sniffer.enable = on }
+                        },
+                        onAppLockChanged = {
+                            uiState.appLockEnabled =
+                                AppLock.isConfigured(uiStore)
+                            uiState.appLockType = uiStore.appLockType
                         },
                         onBack = { finish() },
                     )

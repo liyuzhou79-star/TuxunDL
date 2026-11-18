@@ -35,13 +35,10 @@ fun AppSettingsScreen(
     behavior: Behavior,
     running: Boolean,
     onRecreateAll: () -> Unit,
-    onHideIconChange: (Boolean) -> Unit,
     onBack: () -> Unit,
 ) {
     var autoRestart by remember { mutableStateOf(behavior.autoRestart) }
     var darkMode by remember { mutableStateOf(uiStore.darkMode) }
-    var hideAppIcon by remember { mutableStateOf(uiStore.hideAppIcon) }
-    var hideFromRecents by remember { mutableStateOf(uiStore.hideFromRecents) }
     var dynamicNotification by remember { mutableStateOf(srvStore.dynamicNotification) }
 
     Scaffold(
@@ -89,27 +86,9 @@ fun AppSettingsScreen(
                     },
                 )
 
-                SwitchRow(
-                    title = stringResource(DesignR.string.hide_app_icon_title),
-                    summary = stringResource(DesignR.string.hide_app_icon_desc),
-                    checked = hideAppIcon,
-                    onCheckedChange = {
-                        hideAppIcon = it
-                        uiStore.hideAppIcon = it
-                        onHideIconChange(it)
-                    },
-                )
-
-                SwitchRow(
-                    title = stringResource(DesignR.string.hide_from_recents_title),
-                    summary = stringResource(DesignR.string.hide_from_recents_desc),
-                    checked = hideFromRecents,
-                    onCheckedChange = {
-                        hideFromRecents = it
-                        uiStore.hideFromRecents = it
-                        onRecreateAll()
-                    },
-                )
+                // Hide-app-icon and hide-from-recents moved to the
+                // privacy section of the main settings page (1.5.0);
+                // they write the same UiStore fields from there.
             }
 
             SectionCard(title = stringResource(DesignR.string.service)) {
