@@ -29,11 +29,16 @@ import com.tuxundl.android.common.util.ticker
 import com.tuxundl.android.core.Clash
 import com.tuxundl.android.design.MainDesign
 import com.tuxundl.android.design.model.DarkMode
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.setValue
+import com.tuxundl.android.service.model.Profile
 import com.tuxundl.android.ui.DisclaimerScreen
 import com.tuxundl.android.ui.HOME_BRICK_ALL_IDS
 import com.tuxundl.android.ui.HOME_BRICK_DEFAULT_ORDER
 import com.tuxundl.android.ui.MainScreen
 import com.tuxundl.android.ui.MainUiState
+import com.tuxundl.android.ui.OnboardingScreen
 import com.tuxundl.android.ui.TrafficSample
 import com.tuxundl.android.ui.theme.TuxunDLTheme
 import com.tuxundl.android.ui.theme.customSeedColor
@@ -581,6 +586,14 @@ class MainActivity : BaseActivity<MainDesign>() {
         }
     }
 
+    /**
+     * Bytes between two reads of a cumulative core counter. A drop
+     * means the counter restarted (core restart / reconnect): count
+     * everything the new counter has seen so far.
+     */
+    private fun counterDelta(previous: Long, current: Long): Long =
+        if (current >= previous) current - previous else current
+
     private suspend fun fetchTraffic() {
         val total = withClash { queryTrafficTotal() }
         uiState.traffic = total
@@ -594,10 +607,19 @@ class MainActivity : BaseActivity<MainDesign>() {
         val now = SystemClock.elapsedRealtime()
 
         if (prevTrafficAt != 0L && now > prevTrafficAt) {
+            // Rates use the actually elapsed time between ticks (the
+            // loop is nominally 1s but Binder + scheduling jitter make
+            // it drift), and the byte deltas are counter-reset aware:
+            // when the core restarts or the tunnel reconnects, its
+            // cumulative counters drop back toward zero — the bytes
+            // counted since the restart are the current value itself,
+            // not a negative span to clamp away (1.3.0).
             val seconds = (now - prevTrafficAt) / 1000.0
+            val deltaUp = counterDelta(prevTrafficUp, up)
+            val deltaDown = counterDelta(prevTrafficDown, down)
             val sample = TrafficSample(
-                upRate = ((up - prevTrafficUp).coerceAtLeast(0) / seconds).roundToLong(),
-                downRate = ((down - prevTrafficDown).coerceAtLeast(0) / seconds).roundToLong(),
+                upRate = (deltaUp / seconds).roundToLong(),
+                downRate = (deltaDown / seconds).roundToLong(),
             )
 
             // The monitor chart keeps the last 2 minutes (120 samples).
@@ -607,8 +629,6 @@ class MainActivity : BaseActivity<MainDesign>() {
             // Only traffic while the app is open is counted (see the
             // note on the monitor card); the file is written at most
             // once a minute, plus once when the activity stops.
-            val deltaUp = (up - prevTrafficUp).coerceAtLeast(0)
-            val deltaDown = (down - prevTrafficDown).coerceAtLeast(0)
             val todayKey = dailyTraffic.todayKey()
             dailyTraffic.add(todayKey, deltaUp, deltaDown)
             dailyTraffic.addHourly(
@@ -727,6 +747,14 @@ class MainActivity : BaseActivity<MainDesign>() {
         }
     }
 
+    override fun onResume() {
+        super.onResume()
+
+        // Every return to the home screen replays its entrance
+        // animation (MainScreen watches this counter).
+        uiState.entranceTick++
+    }
+
     override fun onStop() {
         // Flush the daily totals before the process may be killed.
         if (::dailyTraffic.isInitialized) {
@@ -763,6 +791,25 @@ class MainActivity : BaseActivity<MainDesign>() {
         }
     }
 
+    /**
+     * Onboarding step 3: import a subscription URL exactly like the
+     * profiles flow does (create, fetch, activate when nothing is
+     * active yet). False when anything along the way fails.
+     */
+    private suspend fun addSubscriptionFromOnboarding(
+        url: String,
+        name: String,
+    ): Boolean = runCatching {
+        withProfile {
+            val uuid = create(Profile.Type.Url, name, url)
+            update(uuid)
+            if (queryActive() == null) {
+                queryByUUID(uuid)?.let { setActive(it) }
+            }
+        }
+        true
+    }.getOrDefault(false)
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
 
@@ -773,18 +820,51 @@ class MainActivity : BaseActivity<MainDesign>() {
             DarkMode.ForceDark -> true
         }
 
+        // Upgraders who accepted the disclaimer on an older version
+        // count as onboarding-complete: only fresh installs see the
+        // 1.3.0 onboarding flow.
+        if (uiStore.disclaimerAccepted && !uiStore.onboardingCompleted) {
+            uiStore.onboardingCompleted = true
+        }
         uiState.disclaimerAccepted = uiStore.disclaimerAccepted
+        uiState.onboardingCompleted = uiStore.onboardingCompleted
+        val startingLanguage = uiStore.appLanguage
+
+        // The onboarding theme step restyles the app live, so the
+        // palette is held as state here (elsewhere it is read once).
+        var paletteState by mutableStateOf(uiStore.themePalette)
 
         setContent {
-            TuxunDLTheme(darkTheme = darkTheme, palette = uiStore.themePalette, customSeed = customSeedColor(uiStore), animStyle = uiStore.animationStyle) {
+            TuxunDLTheme(darkTheme = darkTheme, palette = paletteState, customSeed = customSeedColor(uiStore), animStyle = uiStore.animationStyle) {
                 Surface(color = MaterialTheme.colorScheme.background) {
-                    if (uiState.disclaimerAccepted) {
-                        MainScreen(
+                    when {
+                        uiState.disclaimerAccepted -> MainScreen(
                             state = uiState,
                             onRequest = { request -> uiRequests.trySend(request) },
                         )
-                    } else {
-                        DisclaimerScreen(
+                        !uiState.onboardingCompleted -> OnboardingScreen(
+                            store = uiStore,
+                            onPaletteSelected = { palette ->
+                                uiStore.themePalette = palette
+                                paletteState = palette
+                            },
+                            onAddSubscription = { url, name ->
+                                addSubscriptionFromOnboarding(url, name)
+                            },
+                            onFinish = {
+                                uiStore.onboardingCompleted = true
+                                uiStore.disclaimerAccepted = true
+                                uiState.onboardingCompleted = true
+                                if (uiStore.appLanguage != startingLanguage) {
+                                    // Land on the main screen in the
+                                    // language picked in step 1.
+                                    recreate()
+                                } else {
+                                    uiState.disclaimerAccepted = true
+                                }
+                            },
+                        )
+                        else -> DisclaimerScreen(
                             onAgree = {
                                 uiStore.disclaimerAccepted = true
                                 uiState.disclaimerAccepted = true

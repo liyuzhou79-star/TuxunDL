@@ -96,7 +96,7 @@ class SettingsUiState {
  * "" (follow system) is handled separately with a localized label.
  * Only languages with shipped resources are listed.
  */
-private val LANGUAGE_OPTIONS: List<Pair<String, String>> = listOf(
+internal val LANGUAGE_OPTIONS: List<Pair<String, String>> = listOf(
     "en" to "English",
     "zh" to "简体中文",
     "zh-TW" to "繁體中文",

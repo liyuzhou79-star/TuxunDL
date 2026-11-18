@@ -186,6 +186,17 @@ class UiStore(context: Context) {
         defaultValue = false
     )
 
+    /**
+     * Whether the 1.3.0 first-run onboarding flow has been completed.
+     * Users who already accepted the disclaimer on an older version
+     * count as completed (MainActivity treats them as such), so only
+     * genuinely fresh installs see the flow.
+     */
+    var onboardingCompleted: Boolean by store.boolean(
+        key = "onboarding_completed",
+        defaultValue = false
+    )
+
     var showTrafficMonitorCard: Boolean by store.boolean(
         key = "show_traffic_monitor_card",
         defaultValue = true
