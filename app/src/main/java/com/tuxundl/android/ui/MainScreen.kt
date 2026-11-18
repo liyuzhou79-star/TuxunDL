@@ -150,6 +150,15 @@ class MainUiState {
     /** Packed traffic value from IClashManager.queryTrafficTotal(). */
     var traffic by mutableStateOf(0L)
 
+    /**
+     * Latest per-second rates (bytes/s) from TrafficSampler — the
+     * same recorded points that feed both charts, mirrored by
+     * MainActivity. The power circle reads these; it never derives
+     * its own rates from the packed totals (1.5.3).
+     */
+    var upRate by mutableStateOf(0L)
+    var downRate by mutableStateOf(0L)
+
     /** Non-null while the About dialog should be shown. */
     var aboutVersion by mutableStateOf<String?>(null)
 
@@ -728,8 +737,13 @@ private fun PowerCircle(
     val recentTotals = remember { mutableListOf<Long>() }
     var lastHeartbeatAt by remember { mutableStateOf(0L) }
 
-    // Sample the packed totals once per second (MainActivity refreshes
-    // them at the same cadence) and turn the delta into a live rate.
+    // Live rates come from TrafficSampler (mirrored into the state
+    // by MainActivity): the same recorded points that feed the
+    // charts. This loop only formats them and drives the heartbeat —
+    // it never derives rates from the packed totals itself, so the
+    // numbers under the circle cannot drift away from the charts
+    // (until 1.5.2 a second, UI-side derivation did exactly that and
+    // sat on 0 B/s whenever the activity ticker stalled).
     LaunchedEffect(running) {
         if (!running) {
             upSpeed = "0 B/s"
@@ -738,57 +752,38 @@ private fun PowerCircle(
             return@LaunchedEffect
         }
 
-        var prevUp = -1L
-        var prevDown = -1L
-        var prevAt = 0L
-
         while (true) {
-            val up = trafficUploadBytes(state.traffic)
-            val down = trafficDownloadBytes(state.traffic)
+            val upRate = state.upRate
+            val downRate = state.downRate
             val now = SystemClock.elapsedRealtime()
+            upSpeed = formatSpeed(upRate)
+            downSpeed = formatSpeed(downRate)
 
-            if (prevAt != 0L && now > prevAt) {
-                // Real elapsed time, and counter-reset aware deltas
-                // (a restarted core's counters drop toward zero; the
-                // current value is what it counted since, 1.3.0).
-                val seconds = (now - prevAt) / 1000.0
-                val deltaUp = if (up >= prevUp) up - prevUp else up
-                val deltaDown = if (down >= prevDown) down - prevDown else down
-                val upRate = (deltaUp / seconds).roundToLong()
-                val downRate = (deltaDown / seconds).roundToLong()
-                upSpeed = formatSpeed(upRate)
-                downSpeed = formatSpeed(downRate)
-
-                // Heartbeat: the total rate suddenly doubling its
-                // recent average swells the halo once (3 s cooldown).
-                val totalRate = upRate + downRate
-                recentTotals.add(totalRate)
-                if (recentTotals.size > 11) recentTotals.removeAt(0)
-                if (!reduced && recentTotals.size >= 6) {
-                    val previousAvg = recentTotals.dropLast(1).average()
-                    if (previousAvg > 10240.0 &&
-                        totalRate > 2.0 * previousAvg &&
-                        now - lastHeartbeatAt > 3000L
-                    ) {
-                        lastHeartbeatAt = now
-                        heartbeatScope.launch {
-                            ringWidth.snapTo(6f)
-                            ringWidth.animateTo(
-                                targetValue = 11f,
-                                animationSpec = tween(durationMillis = 120),
-                            )
-                            ringWidth.animateTo(
-                                targetValue = 6f,
-                                animationSpec = spring(dampingRatio = 0.5f, stiffness = 300f),
-                            )
-                        }
+            // Heartbeat: the total rate suddenly doubling its
+            // recent average swells the halo once (3 s cooldown).
+            val totalRate = upRate + downRate
+            recentTotals.add(totalRate)
+            if (recentTotals.size > 11) recentTotals.removeAt(0)
+            if (!reduced && recentTotals.size >= 6) {
+                val previousAvg = recentTotals.dropLast(1).average()
+                if (previousAvg > 10240.0 &&
+                    totalRate > 2.0 * previousAvg &&
+                    now - lastHeartbeatAt > 3000L
+                ) {
+                    lastHeartbeatAt = now
+                    heartbeatScope.launch {
+                        ringWidth.snapTo(6f)
+                        ringWidth.animateTo(
+                            targetValue = 11f,
+                            animationSpec = tween(durationMillis = 120),
+                        )
+                        ringWidth.animateTo(
+                            targetValue = 6f,
+                            animationSpec = spring(dampingRatio = 0.5f, stiffness = 300f),
+                        )
                     }
                 }
             }
-
-            prevUp = up
-            prevDown = down
-            prevAt = now
 
             delay(1000)
         }

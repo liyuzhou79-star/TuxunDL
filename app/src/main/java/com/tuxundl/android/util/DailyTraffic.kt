@@ -31,13 +31,16 @@ data class HourTrafficBucket(
  *   "lifetime": {"up": 1, "down": 2, "conn": 3},
  *   "hourly": {"492345": {"up": 1, "down": 2}}}`.
  *
- * Only traffic seen while the app process is alive is counted — the
- * ticker in MainActivity feeds the deltas, so traffic forwarded while
- * the app is closed never reaches this file. The UI says so.
- * Writes are throttled by the caller (every 60 seconds plus once when
- * the activity stops); only the last 14 days and the last 48 hourly
- * buckets are kept. Lifetime totals never reset. Files written by older
- * versions (days only, no "conn"/"lifetime"/"hourly") load unchanged.
+ * Only traffic seen while the app process is alive is counted —
+ * TrafficSampler feeds the deltas for as long as the tunnel runs
+ * (since 1.5.3; before that a ticker in MainActivity did, and only
+ * while the home screen was alive), so traffic forwarded while the
+ * app process is dead never reaches this file. The UI says so.
+ * Writes are throttled by the sampler (every 60 seconds, once when
+ * the tunnel stops, and once when the home activity stops); only
+ * the last 14 days and the last 48 hourly buckets are kept.
+ * Lifetime totals never reset. Files written by older versions
+ * (days only, no "conn"/"lifetime"/"hourly") load unchanged.
  */
 class DailyTrafficStore(private val file: File) {
     /** date -> [up, down, connectedSeconds] */

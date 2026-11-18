@@ -15,11 +15,13 @@ package com.tuxundl.android.util
  *
  * Worst case that is ~600 fine points + ~660 buckets ≈ 1,300 small
  * objects (a few tens of KB of heap), bounded no matter how long the
- * session runs. Points are recorded only while the tunnel runs and
- * the app is ticking; a tick that arrives much later than a second
- * (app backgrounded, doze) is treated as a gap — no point is
- * fabricated for the missing span, so charts can honestly break the
- * line there.
+ * session runs. Points are recorded by TrafficSampler while the
+ * tunnel runs. When the sampler's process is frozen for a while
+ * (app backgrounded, doze) the tunnel keeps forwarding and the
+ * counters keep accumulating; on the next tick the sampler spreads
+ * the accumulated bytes evenly over the missed seconds as ordinary
+ * 1-second points, so a frozen span reads as a flat plateau at the
+ * true average rate — not a hole, and not one fabricated spike.
  */
 data class TrafficPoint(
     /** Wall-clock start of this point's window. */

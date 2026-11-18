@@ -8,6 +8,7 @@ import com.tuxundl.android.common.log.Log
 import com.tuxundl.android.remote.Remote
 import com.tuxundl.android.service.util.sendServiceRecreated
 import com.tuxundl.android.util.AppLockManager
+import com.tuxundl.android.util.TrafficSampler
 import com.tuxundl.android.util.clashDir
 import java.io.File
 import java.io.FileOutputStream
@@ -32,6 +33,9 @@ class MainApplication : Application() {
         if (processName == packageName) {
             Remote.launch()
             AppLockManager.attach(this)
+            // Traffic sampling runs at application scope (1.5.3): it
+            // follows the tunnel, not any activity or visibility.
+            TrafficSampler.init(this)
         } else {
             sendServiceRecreated()
         }

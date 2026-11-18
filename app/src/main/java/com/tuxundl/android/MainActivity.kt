@@ -6,7 +6,6 @@ import android.content.pm.PackageManager
 import android.content.res.Configuration
 import android.os.Build
 import android.os.Bundle
-import android.os.SystemClock
 import androidx.activity.compose.setContent
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.activity.result.contract.ActivityResultContracts.RequestPermission
@@ -43,12 +42,11 @@ import com.tuxundl.android.ui.OnboardingScreen
 import com.tuxundl.android.ui.TrafficSample
 import com.tuxundl.android.ui.theme.TuxunDLTheme
 import com.tuxundl.android.ui.theme.customSeedColor
-import com.tuxundl.android.ui.trafficDownloadBytes
-import com.tuxundl.android.ui.trafficUploadBytes
 import com.tuxundl.android.util.DailyTrafficStore
 import com.tuxundl.android.util.DelaySample
 import com.tuxundl.android.util.SavedConnection
 import com.tuxundl.android.util.SavedConnectionStore
+import com.tuxundl.android.util.TrafficSampler
 import com.tuxundl.android.util.UpdateAllTracker
 import com.tuxundl.android.util.UpdateChecker
 import com.tuxundl.android.util.UpdateCheckResult
@@ -72,7 +70,6 @@ import kotlinx.coroutines.selects.select
 import kotlinx.coroutines.withContext
 import java.util.UUID
 import java.util.concurrent.TimeUnit
-import kotlin.math.roundToLong
 import com.tuxundl.android.design.R as DesignR
 
 class MainActivity : BaseActivity<MainDesign>() {
@@ -127,31 +124,20 @@ class MainActivity : BaseActivity<MainDesign>() {
             }
         }
 
-    // Previous packed-total sample, for deriving per-second rates.
-    private var prevTrafficUp = 0L
-    private var prevTrafficDown = 0L
-    private var prevTrafficAt = 0L
+    // Traffic sampling itself (counters, rates, the tiered 2-hour
+    // history, daily totals, widget rates) lives in TrafficSampler
+    // since 1.5.3: it ticks at application scope for as long as the
+    // tunnel runs, independent of this activity and of visibility.
+    // This activity only mirrors its snapshot into the UI state.
 
-    // Tiered 2-hour history behind the fullscreen traffic chart
-    // (1.4.0): 1-second points for 10 minutes, 10-second buckets
-    // beyond that, plus the counter-reset instants that mark a drop.
-    private val trafficHistory = com.tuxundl.android.util.TrafficHistoryRecorder()
-
-    // Throttle widget persistence: write rates at most every 5 ticks.
-    private var widgetTickCount = 0
-
-    // Per-day forwarded traffic (filesDir/traffic-daily.json). Only
-    // traffic seen while this activity is alive is counted; the file is
-    // written at most once a minute plus once when the activity stops.
+    // Per-day forwarded traffic (filesDir/traffic-daily.json). The
+    // store is owned by TrafficSampler, which feeds it; this activity
+    // reads it for the week / lifetime views (refreshDailyState).
     private lateinit var dailyTraffic: DailyTrafficStore
     private var dailyTickCount = 0
 
     // User-saved connection snapshots (filesDir/saved-connections.json).
     private lateinit var savedConnections: SavedConnectionStore
-
-    // Consecutive seconds with zero up/down rate while running; a streak
-    // of 5+ counts as one stall in the advanced traffic panel.
-    private var zeroRateStreak = 0
 
     // Periodic quality probe of the main group (every 15 ticks while
     // running): healthCheck + read back the current node's delay.
@@ -186,7 +172,7 @@ class MainActivity : BaseActivity<MainDesign>() {
     }
 
     override suspend fun main() {
-        dailyTraffic = DailyTrafficStore(filesDir.resolve("traffic-daily.json"))
+        dailyTraffic = TrafficSampler.dailyStore
         savedConnections = SavedConnectionStore(filesDir.resolve("saved-connections.json"))
 
         // First-launch day for the easter egg's "days used" counter.
@@ -195,7 +181,6 @@ class MainActivity : BaseActivity<MainDesign>() {
         }
 
         withContext(Dispatchers.IO) {
-            dailyTraffic.load()
             uiState.savedConnections = savedConnections.load()
         }
         refreshDailyState()
@@ -217,7 +202,6 @@ class MainActivity : BaseActivity<MainDesign>() {
                                 uiStore,
                                 com.tuxundl.android.util.Haptics.Kind.Success,
                             )
-                            resetTrafficSampling()
                             resetSessionStats()
                             fetch()
                             TuxunWidgetProvider.requestUpdate(this@MainActivity)
@@ -229,7 +213,6 @@ class MainActivity : BaseActivity<MainDesign>() {
                                 uiStore,
                                 com.tuxundl.android.util.Haptics.Kind.Disconnect,
                             )
-                            resetTrafficSampling()
                             resetSessionStats()
                             uiState.trafficSamples = emptyList()
                             fetch()
@@ -417,7 +400,7 @@ class MainActivity : BaseActivity<MainDesign>() {
                 }
                 if (clashRunning) {
                     ticker.onReceive {
-                        fetchTraffic()
+                        syncTraffic()
                     }
                 }
             }
@@ -489,16 +472,18 @@ class MainActivity : BaseActivity<MainDesign>() {
         return parsed.ifEmpty { HOME_BRICK_DEFAULT_ORDER }
     }
 
-    /** Per-session counters behind the advanced traffic panel; reset on start/stop. */
+    /**
+     * Per-session UI counters behind the advanced traffic panel;
+     * reset on start/stop. (The sampler clears its own recorded
+     * history on the same transitions; these are the UI mirrors.)
+     */
     private fun resetSessionStats() {
-        zeroRateStreak = 0
         qualityTickCount = 0
         uiState.sessionUpBytes = 0L
         uiState.sessionDownBytes = 0L
         uiState.stallCount = 0
         uiState.delaySamples = emptyList()
         uiState.delayHistory = emptyList()
-        trafficHistory.clear()
         uiState.historyPoints = emptyList()
         uiState.disconnectTimes = emptyList()
     }
@@ -593,31 +578,35 @@ class MainActivity : BaseActivity<MainDesign>() {
 
     /** Push the stored daily totals into the home-screen state. */
     private fun refreshDailyState() {
-        val todayKey = dailyTraffic.todayKey()
-        val today = dailyTraffic.today(todayKey)
+        // The store is fed by TrafficSampler on its own thread;
+        // reads take the same lock as its writes.
+        synchronized(dailyTraffic) {
+            val todayKey = dailyTraffic.todayKey()
+            val today = dailyTraffic.today(todayKey)
 
-        uiState.todayUp = today.up
-        uiState.todayDown = today.down
-        uiState.currentWeekDays = dailyTraffic.weekDays(todayKey, 0)
-        uiState.lastWeekDays = dailyTraffic.weekDays(todayKey, 1)
-        uiState.recentDays = dailyTraffic.recentDays(todayKey, 7)
+            uiState.todayUp = today.up
+            uiState.todayDown = today.down
+            uiState.currentWeekDays = dailyTraffic.weekDays(todayKey, 0)
+            uiState.lastWeekDays = dailyTraffic.weekDays(todayKey, 1)
+            uiState.recentDays = dailyTraffic.recentDays(todayKey, 7)
 
-        // Easter-egg lifetime stats and the advanced panel's 24h window.
-        uiState.lifetimeUp = dailyTraffic.lifetimeUp()
-        uiState.lifetimeDown = dailyTraffic.lifetimeDown()
-        uiState.lifetimeConnectedSeconds = dailyTraffic.lifetimeConnectedSeconds()
-        uiState.todayConnectedSeconds = dailyTraffic.dayConnectedSeconds(todayKey)
+            // Easter-egg lifetime stats and the advanced panel's 24h window.
+            uiState.lifetimeUp = dailyTraffic.lifetimeUp()
+            uiState.lifetimeDown = dailyTraffic.lifetimeDown()
+            uiState.lifetimeConnectedSeconds = dailyTraffic.lifetimeConnectedSeconds()
+            uiState.todayConnectedSeconds = dailyTraffic.dayConnectedSeconds(todayKey)
 
-        val firstDay = uiStore.firstLaunchDay
-        val todayDay = System.currentTimeMillis() / 86_400_000L
-        uiState.daysUsed = if (firstDay > 0L) {
-            (todayDay - firstDay + 1L).toInt().coerceAtLeast(1)
-        } else {
-            1
+            val firstDay = uiStore.firstLaunchDay
+            val todayDay = System.currentTimeMillis() / 86_400_000L
+            uiState.daysUsed = if (firstDay > 0L) {
+                (todayDay - firstDay + 1L).toInt().coerceAtLeast(1)
+            } else {
+                1
+            }
+
+            val currentHour = System.currentTimeMillis() / 3_600_000L
+            uiState.hourlyBuckets = dailyTraffic.hourlyBuckets(currentHour - 23, currentHour)
         }
-
-        val currentHour = System.currentTimeMillis() / 3_600_000L
-        uiState.hourlyBuckets = dailyTraffic.hourlyBuckets(currentHour - 23, currentHour)
     }
 
     /**
@@ -706,12 +695,6 @@ class MainActivity : BaseActivity<MainDesign>() {
         }
     }
 
-    private fun resetTrafficSampling() {
-        prevTrafficUp = 0L
-        prevTrafficDown = 0L
-        prevTrafficAt = 0L
-    }
-
     /**
      * One quality probe: run the existing group health check, then read
      * the current node's fresh delay back through [fetchCurrentNode].
@@ -748,153 +731,67 @@ class MainActivity : BaseActivity<MainDesign>() {
     }
 
     /**
-     * Bytes between two reads of a cumulative core counter. A drop
-     * means the counter restarted (core restart / reconnect): count
-     * everything the new counter has seen so far.
+     * Per-second UI sync while the tunnel runs (1.5.3): mirror the
+     * TrafficSampler's latest snapshot into the UI state — the same
+     * recorded points feed the rates, both charts and the totals, so
+     * the numbers can never disagree — and run the cadences that are
+     * UI concerns (quality probes, the traffic alert, the week view).
+     * The sampling itself no longer happens here: the sampler ticks
+     * at application scope, so the recording continues while this
+     * activity is in the background or destroyed.
      */
-    private fun counterDelta(previous: Long, current: Long): Long =
-        if (current >= previous) current - previous else current
+    private suspend fun syncTraffic() {
+        val snap = TrafficSampler.snapshot
 
-    private suspend fun fetchTraffic() {
-        val total = withClash { queryTrafficTotal() }
-        uiState.traffic = total
-
-        // Per-second rates for the monitor chart. The Binder API exposes
-        // totals only (queryTrafficNow is not part of IClashManager), so
-        // the rate is the delta of the totals between ticks — the same
-        // derivation the power circle uses for its live speed.
-        val up = trafficUploadBytes(total)
-        val down = trafficDownloadBytes(total)
-        val now = SystemClock.elapsedRealtime()
-
-        if (prevTrafficAt != 0L && now > prevTrafficAt) {
-            // Rates use the actually elapsed time between ticks (the
-            // loop is nominally 1s but Binder + scheduling jitter make
-            // it drift), and the byte deltas are counter-reset aware:
-            // when the core restarts or the tunnel reconnects, its
-            // cumulative counters drop back toward zero — the bytes
-            // counted since the restart are the current value itself,
-            // not a negative span to clamp away (1.3.0).
-            val seconds = (now - prevTrafficAt) / 1000.0
-            val deltaUp = counterDelta(prevTrafficUp, up)
-            val deltaDown = counterDelta(prevTrafficDown, down)
-            val sample = TrafficSample(
-                upRate = (deltaUp / seconds).roundToLong(),
-                downRate = (deltaDown / seconds).roundToLong(),
-            )
-
-            // The monitor chart keeps the last 2 minutes (120 samples).
-            uiState.trafficSamples = (uiState.trafficSamples + sample).takeLast(120)
-
-            // Long-window history (1.4.0): the same deltas feed the
-            // tiered recorder behind the fullscreen chart. A tick
-            // that took far longer than a second means the app was
-            // paused (background / doze): the span stays a gap — no
-            // point is recorded — instead of one smeared average, and
-            // a counter reset hidden inside a gap is not stamped as
-            // a disconnect at resume time either.
-            val tickDurationMs = now - prevTrafficAt
-            if (tickDurationMs <= HISTORY_GAP_LIMIT_MS) {
-                val wallNow = System.currentTimeMillis()
-
-                if (up < prevTrafficUp || down < prevTrafficDown) {
-                    // Cumulative counters dropped: the core restarted
-                    // or the tunnel reconnected — a real drop moment.
-                    trafficHistory.recordDisconnect(wallNow)
-                }
-                trafficHistory.record(
-                    startMillis = wallNow - tickDurationMs,
-                    durationMillis = tickDurationMs,
-                    upBytes = deltaUp,
-                    downBytes = deltaDown,
-                )
-                uiState.historyPoints = trafficHistory.points()
-                uiState.disconnectTimes = trafficHistory.disconnects()
-            }
-
-            // Daily totals: accumulate the raw byte deltas for today.
-            // Only traffic while the app is open is counted (see the
-            // note on the monitor card); the file is written at most
-            // once a minute, plus once when the activity stops.
-            val todayKey = dailyTraffic.todayKey()
-            dailyTraffic.add(todayKey, deltaUp, deltaDown)
-            dailyTraffic.addHourly(
-                System.currentTimeMillis() / 3_600_000L,
-                deltaUp,
-                deltaDown,
-            )
-            dailyTraffic.addConnected(todayKey, 1L)
-            val today = dailyTraffic.today(todayKey)
-            uiState.todayUp = today.up
-            uiState.todayDown = today.down
-            uiState.todayConnectedSeconds = dailyTraffic.dayConnectedSeconds(todayKey)
-
-            // This session's totals, for the advanced panel and for
-            // snapshotting a saved connection.
-            uiState.sessionUpBytes += deltaUp
-            uiState.sessionDownBytes += deltaDown
-
-            // Stall detection: 5+ consecutive seconds of zero rate
-            // (after the session has carried something) count once.
-            if (sample.upRate == 0L && sample.downRate == 0L) {
-                zeroRateStreak++
-                if (zeroRateStreak == 5 &&
-                    uiState.sessionUpBytes + uiState.sessionDownBytes > 0L
-                ) {
-                    uiState.stallCount++
-                }
-            } else {
-                zeroRateStreak = 0
-            }
-
-            // Quality probe of the current group every 15 seconds.
-            qualityTickCount++
-            if (qualityTickCount % 15 == 0) {
-                launchQualityProbe()
-            }
-
-            // Traffic alert: refresh the subscription figures every
-            // 30 seconds, then re-evaluate (cheap local Binder reads).
-            alertTickCount++
-            if (alertTickCount % 30 == 0) {
-                val profile = withProfile { queryActive() }
-
-                if (profile != null) {
-                    uiState.profileName = profile.name
-                    uiState.subUpload = profile.upload
-                    uiState.subDownload = profile.download
-                    uiState.subTotal = profile.total
-                    uiState.subExpire = profile.expire
-                }
-
-                evaluateTrafficAlert()
-            }
-
-            dailyTickCount++
-            if (dailyTickCount % 60 == 0) {
-                withContext(Dispatchers.IO) { dailyTraffic.save() }
-                refreshDailyState()
-            }
-
-            // Persist the latest rates for the home-screen widget, throttled
-            // to one write every 5 seconds so the prefs file is not churned.
-            widgetTickCount++
-            if (widgetTickCount % 5 == 0) {
-                uiStore.widgetUpRate = sample.upRate
-                uiStore.widgetDownRate = sample.downRate
-                uiStore.widgetUpdatedAt = System.currentTimeMillis()
-                TuxunWidgetProvider.requestUpdate(this@MainActivity)
-            }
+        uiState.traffic = snap.packedTotal
+        uiState.upRate = snap.upRate
+        uiState.downRate = snap.downRate
+        uiState.trafficSamples = snap.samples.map {
+            TrafficSample(it.upRate, it.downRate)
         }
-
-        prevTrafficUp = up
-        prevTrafficDown = down
-        prevTrafficAt = now
+        uiState.historyPoints = snap.historyPoints
+        uiState.disconnectTimes = snap.disconnectTimes
+        uiState.todayUp = snap.todayUp
+        uiState.todayDown = snap.todayDown
+        uiState.todayConnectedSeconds = snap.todayConnectedSeconds
+        uiState.sessionUpBytes = snap.sessionUpBytes
+        uiState.sessionDownBytes = snap.sessionDownBytes
+        uiState.stallCount = snap.stallCount
 
         val since = uiStore.runningSince
         uiState.runningSince = since
         uiState.connectedMillis =
             if (since > 0L) System.currentTimeMillis() - since else 0L
+
+        // Quality probe of the current group every 15 seconds.
+        qualityTickCount++
+        if (qualityTickCount % 15 == 0) {
+            launchQualityProbe()
+        }
+
+        // Traffic alert: refresh the subscription figures every
+        // 30 seconds, then re-evaluate (cheap local Binder reads).
+        alertTickCount++
+        if (alertTickCount % 30 == 0) {
+            val profile = withProfile { queryActive() }
+
+            if (profile != null) {
+                uiState.profileName = profile.name
+                uiState.subUpload = profile.upload
+                uiState.subDownload = profile.download
+                uiState.subTotal = profile.total
+                uiState.subExpire = profile.expire
+            }
+
+            evaluateTrafficAlert()
+        }
+
+        // Week / lifetime views re-read the sampler's store once a
+        // minute (the sampler itself persists it on the same cadence).
+        dailyTickCount++
+        if (dailyTickCount % 60 == 0) {
+            refreshDailyState()
+        }
     }
 
     private suspend fun startClash() {
@@ -944,9 +841,7 @@ class MainActivity : BaseActivity<MainDesign>() {
 
     override fun onStop() {
         // Flush the daily totals before the process may be killed.
-        if (::dailyTraffic.isInitialized) {
-            runCatching { dailyTraffic.save() }
-        }
+        TrafficSampler.flush()
 
         super.onStop()
     }
@@ -1243,12 +1138,6 @@ class MainActivity : BaseActivity<MainDesign>() {
         private const val TRAFFIC_ALERT_CHANNEL_ID = "subscription_alerts"
         private const val TRAFFIC_ALERT_NOTIFICATION_ID = 0x7A01
         private const val GIB_BYTES = 1024L * 1024L * 1024L
-
-        /**
-         * Ticks longer than this are sampling gaps (app paused), not
-         * data: the 2-hour history records nothing for the span.
-         */
-        private const val HISTORY_GAP_LIMIT_MS = 3_000L
 
         /** Onboarding import outcomes (see MainUiState.onboardingImportOutcome). */
         private const val IMPORT_OK = 1
