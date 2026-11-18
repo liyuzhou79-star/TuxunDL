@@ -62,6 +62,7 @@ internal fun NodesPage() {
     var query by remember { mutableStateOf("") }
     var sortByDelay by remember { mutableStateOf(false) }
     var testingAll by remember { mutableStateOf(false) }
+    var pickingFastest by remember { mutableStateOf<String?>(null) }
 
     fun refresh() {
         val api = CoreBridge.api ?: return
@@ -199,12 +200,58 @@ internal fun NodesPage() {
                     }
                 if (displayMembers.isEmpty()) return@items
                 Column {
-                    Text(
-                        text = group.name,
-                        color = Color.White,
-                        fontSize = 16.sp,
-                        fontWeight = FontWeight.Medium,
-                    )
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Text(
+                            text = group.name,
+                            color = Color.White,
+                            fontSize = 16.sp,
+                            fontWeight = FontWeight.Medium,
+                            modifier = Modifier.weight(1f),
+                        )
+                        Text(
+                            text = if (pickingFastest == group.name) {
+                                "测速中…"
+                            } else {
+                                "选最快"
+                            },
+                            color = if (pickingFastest == null) {
+                                Indigo
+                            } else {
+                                TextDim
+                            },
+                            fontSize = 14.sp,
+                            modifier = Modifier
+                                .clip(RoundedCornerShape(8.dp))
+                                .clickable(enabled = pickingFastest == null) {
+                                    val api = CoreBridge.api
+                                        ?: return@clickable
+                                    pickingFastest = group.name
+                                    scope.launch {
+                                        // One group test, then jump
+                                        // straight to the fastest node
+                                        // that answered; nodes the core
+                                        // does not report are skipped.
+                                        val result = api.groupDelay(group.name)
+                                        delays = delays + group.members
+                                            .associateWith { result[it] }
+                                        val best = group.members
+                                            .mapNotNull { member ->
+                                                result[member]?.let {
+                                                    member to it
+                                                }
+                                            }
+                                            .minByOrNull { it.second }
+                                        if (best != null &&
+                                            api.selectProxy(group.name, best.first)
+                                        ) {
+                                            refresh()
+                                        }
+                                        pickingFastest = null
+                                    }
+                                }
+                                .padding(horizontal = 10.dp, vertical = 6.dp),
+                        )
+                    }
                     Spacer(Modifier.height(8.dp))
                     displayMembers.forEach { node ->
                         NodeRow(

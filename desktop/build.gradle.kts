@@ -11,7 +11,7 @@ plugins {
 }
 
 group = "com.tuxundl.windows"
-version = "1.3.1"
+version = "1.3.2"
 
 dependencies {
     implementation(compose.desktop.currentOs)
@@ -30,7 +30,7 @@ compose.desktop {
 
         nativeDistributions {
             packageName = "TuxunDL"
-            packageVersion = "1.3.1"
+            packageVersion = "1.3.2"
             description = "TuxunDL for Windows"
             vendor = "TuxunDL"
 
