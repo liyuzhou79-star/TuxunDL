@@ -10,8 +10,18 @@ plugins {
     id("org.jetbrains.compose") version "1.7.3"
 }
 
-group = "com.tuxundl.windows"
-version = "1.6.1"
+// One source tree, two desktop editions. The build follows the OS
+// of the machine running it: Windows CI builds the Windows edition,
+// Linux CI builds the Linux edition. Versions are independent from
+// here on — the Windows edition is at 1.6.1, the Linux edition
+// starts at 1.0.0 — and each edition's update checker only follows
+// its own release tags (win-v* / linux-v*).
+val hostOsName = System.getProperty("os.name").lowercase()
+val linuxBuild = hostOsName.contains("linux")
+val editionVersion = if (linuxBuild) "1.0.0" else "1.6.1"
+
+group = if (linuxBuild) "com.tuxundl.linux" else "com.tuxundl.windows"
+version = editionVersion
 
 dependencies {
     implementation(compose.desktop.currentOs)
@@ -30,16 +40,31 @@ compose.desktop {
 
         nativeDistributions {
             packageName = "TuxunDL"
-            packageVersion = "1.6.1"
-            description = "TuxunDL for Windows"
+            packageVersion = editionVersion
+            description = if (linuxBuild) {
+                "TuxunDL for Linux"
+            } else {
+                "TuxunDL for Windows"
+            }
             vendor = "TuxunDL"
 
-            targetFormats(TargetFormat.Msi, TargetFormat.Exe)
+            if (linuxBuild) {
+                targetFormats(TargetFormat.Deb, TargetFormat.AppImage)
 
-            windows {
-                menuGroup = "TuxunDL"
-                // Stable upgrade UUID so installers upgrade in place.
-                upgradeUuid = "7e2b8f4a-3c1d-4a5e-9b6f-2d8a1c5e7f90"
+                linux {
+                    // The application identifier doubles as the deb
+                    // package name, mirroring how the Windows
+                    // edition is identified by com.tuxundl.windows.
+                    packageName = "com.tuxundl.linux"
+                }
+            } else {
+                targetFormats(TargetFormat.Msi, TargetFormat.Exe)
+
+                windows {
+                    menuGroup = "TuxunDL"
+                    // Stable upgrade UUID so installers upgrade in place.
+                    upgradeUuid = "7e2b8f4a-3c1d-4a5e-9b6f-2d8a1c5e7f90"
+                }
             }
         }
     }
@@ -55,10 +80,37 @@ val coreResDir = layout.projectDirectory.dir("src/main/resources/core")
 tasks.register("fetchCore") {
     val exeFile = coreResDir.file("mihomo.exe").asFile
     val dllFile = coreResDir.file("wintun.dll").asFile
-    outputs.files(exeFile, dllFile)
-    onlyIf { !exeFile.exists() || !dllFile.exists() }
+    val binFile = coreResDir.file("mihomo").asFile
+    if (linuxBuild) {
+        outputs.file(binFile)
+        onlyIf { !binFile.exists() }
+    } else {
+        outputs.files(exeFile, dllFile)
+        onlyIf { !exeFile.exists() || !dllFile.exists() }
+    }
     doLast {
         coreResDir.asFile.mkdirs()
+        if (linuxBuild) {
+            // Linux ships a single gzipped binary; there is no
+            // wintun — the kernel provides /dev/net/tun natively.
+            if (!binFile.exists()) {
+                val gz = File(temporaryDir, "mihomo.gz")
+                URI(
+                    "https://github.com/MetaCubeX/mihomo/releases/download/" +
+                        "$mihomoVersion/mihomo-linux-amd64-compatible-$mihomoVersion.gz",
+                ).toURL().openStream().use { input ->
+                    gz.outputStream().use { output -> input.copyTo(output) }
+                }
+                java.util.zip.GZIPInputStream(gz.inputStream()).use { input ->
+                    binFile.outputStream().use { output -> input.copyTo(output) }
+                }
+                binFile.setExecutable(true)
+                check(binFile.exists() && binFile.length() > 0) {
+                    "mihomo missing after fetchCore"
+                }
+            }
+            return@doLast
+        }
         if (!exeFile.exists()) {
             val zip = File(temporaryDir, "mihomo.zip")
             URI(

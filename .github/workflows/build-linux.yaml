@@ -1,0 +1,67 @@
+name: Build Linux
+
+# Builds the Linux desktop edition from the same desktop/ sources as
+# the Windows edition. desktop/build.gradle.kts follows the build
+# machine's OS, so this workflow produces the .deb and AppImage
+# packages while Build Windows keeps producing the MSI/EXE ones from
+# the same code.
+on:
+  workflow_dispatch:
+  push:
+    paths:
+      - "desktop/**"
+      - ".github/workflows/build-linux.yaml"
+
+jobs:
+  BuildLinux:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v6
+
+      - name: Setup Java
+        uses: actions/setup-java@v5
+        with:
+          distribution: "temurin"
+          java-version: 17
+
+      - name: Setup Gradle
+        uses: gradle/actions/setup-gradle@v5
+
+      - name: Install packaging tools
+        # jpackage shells out to fakeroot/dpkg for the .deb; libfuse2
+        # is cheap insurance for the AppImage tooling.
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y fakeroot dpkg-dev libfuse2
+          chmod +x gradlew
+
+      - name: Compile desktop app
+        run: ./gradlew -p desktop compileKotlin --no-daemon --stacktrace
+
+      - name: Create app image
+        if: success()
+        run: ./gradlew -p desktop createDistributable --no-daemon --stacktrace
+
+      - name: Upload app image
+        uses: actions/upload-artifact@v7
+        if: ${{ success() }}
+        with:
+          name: TuxunDL Linux app image
+          path: desktop/build/compose/binaries/main/app/**
+
+      - name: Package installers
+        if: success()
+        run: ./gradlew -p desktop packageDeb packageAppImage --no-daemon --stacktrace
+
+      - name: Upload installers
+        uses: actions/upload-artifact@v7
+        if: ${{ success() }}
+        with:
+          name: TuxunDL Linux installers
+          # A missing package must fail loudly instead of warning
+          # into the void.
+          if-no-files-found: error
+          path: |
+            desktop/build/compose/binaries/main/deb/*.deb
+            desktop/build/compose/binaries/main/appimage/*.AppImage
