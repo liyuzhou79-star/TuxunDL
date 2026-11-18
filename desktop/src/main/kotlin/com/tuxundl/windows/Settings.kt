@@ -192,6 +192,27 @@ object SettingsStore {
         )
     }
 
+    /**
+     * Pinned subscription ids, pinned on the subscriptions page.
+     * Pinned subscriptions sort to the front of the list and stay
+     * there across restarts. Stored by id, like favorite nodes are
+     * stored by name.
+     */
+    fun pinnedSubscriptions(): Set<String> =
+        read()["pinnedSubscriptions"]?.jsonArray
+            ?.mapNotNull { it.jsonPrimitive.contentOrNull }
+            ?.toSet() ?: emptySet()
+
+    fun setPinnedSubscriptions(value: Set<String>) {
+        write(
+            mapOf(
+                "pinnedSubscriptions" to kotlinx.serialization.json.JsonArray(
+                    value.map { kotlinx.serialization.json.JsonPrimitive(it) },
+                ),
+            ),
+        )
+    }
+
     /** All settings as one JSON object, for backup export. */
     fun snapshot(): kotlinx.serialization.json.JsonObject =
         kotlinx.serialization.json.JsonObject(read())

@@ -20,7 +20,7 @@ import java.time.Duration
  * the other desktop edition's releases are different products and
  * never count here, mirroring the platform filter the Android
  * checker gained in 1.2.2. The two desktop editions version
- * independently (Windows 1.6.5, Linux 1.0.0 at the time of writing),
+ * independently (Windows 1.6.6, Linux 1.0.0 at the time of writing),
  * so the current version is picked per OS as well.
  *
  * Two data sources, tried in order:
@@ -44,7 +44,7 @@ object DesktopUpdateCheck {
     /** Release tag prefix of the running edition: "win-v" / "linux-v". */
     val TAG_PREFIX: String = if (Platform.isLinux) "linux-v" else "win-v"
 
-    private const val WINDOWS_VERSION = "1.6.5"
+    private const val WINDOWS_VERSION = "1.6.6"
     private const val LINUX_VERSION = "1.0.0"
 
     /** Version of the running edition (kept in sync with build.gradle.kts). */

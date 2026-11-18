@@ -399,6 +399,35 @@ internal fun SettingsPage() {
 
         Spacer(Modifier.height(28.dp))
 
+        Text(text = "数据文件夹", color = Color.White, fontSize = 16.sp)
+        Spacer(Modifier.height(4.dp))
+        Text(
+            text = "订阅、设置、日志和核心文件都存在这个文件夹里。要手动备份、找日志排查问题或者卸载前清理时，先到这里。当前位置：" +
+                CoreBridge.workDir.absolutePath,
+            color = TextDim,
+            fontSize = 13.sp,
+        )
+        Spacer(Modifier.height(10.dp))
+        Text(
+            text = "打开数据文件夹",
+            color = Color.White,
+            fontSize = 15.sp,
+            modifier = Modifier
+                .clip(RoundedCornerShape(8.dp))
+                .background(PanelDark)
+                .clickable {
+                    CoreBridge.workDir.mkdirs()
+                    note = if (Platform.openInFileManager(CoreBridge.workDir)) {
+                        "已打开数据文件夹"
+                    } else {
+                        "没能自动打开，文件夹位置就是上面的路径，可以手动打开"
+                    }
+                }
+                .padding(horizontal = 16.dp, vertical = 10.dp),
+        )
+
+        Spacer(Modifier.height(28.dp))
+
         Text(text = "系统代理维护", color = Color.White, fontSize = 16.sp)
         Spacer(Modifier.height(4.dp))
         Text(

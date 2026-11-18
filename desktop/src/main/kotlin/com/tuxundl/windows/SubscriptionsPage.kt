@@ -8,6 +8,7 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -35,6 +36,7 @@ import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
 
+private val Indigo = Color(0xFF5B5BD6)
 private val PanelDark = Color(0xFF1E1E2A)
 private val TextDim = Color(0xFF9A9AB0)
 private val WarnAmber = Color(0xFFFFB84D)
@@ -87,6 +89,11 @@ fun SubscriptionsPage() {
     // Why the last update of a subscription failed, by subscription
     // id; shown on its card until an update succeeds again.
     var updateErrors by remember { mutableStateOf<Map<String, String>>(emptyMap()) }
+    // Pinned subscription ids (persisted in settings); pinned ones
+    // render ahead of the rest, each group keeping its list order.
+    var pinned by remember {
+        mutableStateOf(SettingsStore.pinnedSubscriptions())
+    }
     val scope = rememberCoroutineScope()
 
     fun persist() = SubscriptionStore.save(subscriptions.toList())
@@ -237,12 +244,33 @@ fun SubscriptionsPage() {
 
         Spacer(Modifier.height(20.dp))
 
+        // Stable sort: pinned subscriptions first, both groups in
+        // their underlying list order. Display-only — the stored
+        // list itself is never reordered.
+        val ordered = subscriptions.sortedBy {
+            if (it.id in pinned) 0 else 1
+        }
+
         LazyColumn(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-            items(subscriptions, key = { it.id }) { sub ->
+            items(ordered, key = { it.id }) { sub ->
                 SubscriptionCard(
                     sub = sub,
                     busy = busy,
+                    pinned = sub.id in pinned,
                     updateError = updateErrors[sub.id],
+                    onTogglePin = {
+                        pinned = if (sub.id in pinned) {
+                            pinned - sub.id
+                        } else {
+                            pinned + sub.id
+                        }
+                        SettingsStore.setPinnedSubscriptions(pinned)
+                        status = if (sub.id in pinned) {
+                            "已置顶 ${sub.name}"
+                        } else {
+                            "已取消置顶 ${sub.name}"
+                        }
+                    },
                     onUpdate = {
                         busy = true
                         updateErrors = updateErrors - sub.id
@@ -272,6 +300,10 @@ fun SubscriptionsPage() {
                         val remaining = SubscriptionStore.delete(sub, subscriptions.toList())
                         subscriptions.clear()
                         subscriptions.addAll(remaining)
+                        if (sub.id in pinned) {
+                            pinned = pinned - sub.id
+                            SettingsStore.setPinnedSubscriptions(pinned)
+                        }
                         persist()
                         status = "已删除 ${sub.name}"
                     },
@@ -285,7 +317,9 @@ fun SubscriptionsPage() {
 private fun SubscriptionCard(
     sub: Subscription,
     busy: Boolean,
+    pinned: Boolean,
     updateError: String?,
+    onTogglePin: () -> Unit,
     onUpdate: () -> Unit,
     onActivate: () -> Unit,
     onDelete: () -> Unit,
@@ -296,12 +330,23 @@ private fun SubscriptionCard(
         modifier = Modifier.fillMaxWidth(),
     ) {
         Column(modifier = Modifier.padding(16.dp)) {
-            Text(
-                text = sub.name,
-                color = Color.White,
-                fontSize = 16.sp,
-                fontWeight = FontWeight.Medium,
-            )
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Text(
+                    text = sub.name,
+                    color = Color.White,
+                    fontSize = 16.sp,
+                    fontWeight = FontWeight.Medium,
+                )
+                if (pinned) {
+                    Spacer(Modifier.width(8.dp))
+                    Text(
+                        text = "已置顶",
+                        color = Indigo,
+                        fontSize = 12.sp,
+                        fontWeight = FontWeight.Medium,
+                    )
+                }
+            }
 
             Spacer(Modifier.height(4.dp))
 
@@ -364,6 +409,9 @@ private fun SubscriptionCard(
             Spacer(Modifier.height(8.dp))
 
             Row {
+                TextButton(enabled = !busy, onClick = onTogglePin) {
+                    Text(if (pinned) "取消置顶" else "置顶")
+                }
                 TextButton(enabled = !busy, onClick = onUpdate) {
                     Text("更新")
                 }
