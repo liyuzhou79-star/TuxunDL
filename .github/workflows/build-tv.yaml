@@ -1,0 +1,111 @@
+name: Build TV
+
+# Builds the Android TV edition (product flavor "tv",
+# applicationId com.tuxundl.android.tv, version line 0.1.0 Beta)
+# and uploads the two sideload APKs as workflow artifacts. Unlike
+# Build Release it never bumps a version, never tags and never
+# creates a GitHub release — the TV Beta release page is curated
+# separately as a pre-release.
+on:
+  workflow_dispatch:
+
+jobs:
+  BuildTV:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v6
+
+      # Same signing story as Build Release: the release key is NOT
+      # stored in this repository. It is injected from the
+      # KEYSTORE_BASE64 secret for this run only and overwrites the
+      # checkout's placeholder keystore on disk. Fail loudly when
+      # the secret is missing so a TV build can never be signed
+      # with the wrong key by accident (a wrong key would also
+      # break upgrades over the user's installed Beta).
+      - name: Restore release keystore from secret
+        env:
+          KEYSTORE_BASE64: ${{ secrets.KEYSTORE_BASE64 }}
+        run: |
+          if [ -z "$KEYSTORE_BASE64" ]; then
+            echo "::error::KEYSTORE_BASE64 secret is not set; refusing to build a release that would be signed with the wrong key."
+            exit 1
+          fi
+          echo "$KEYSTORE_BASE64" | base64 -d > release.keystore
+          keytool -list -keystore release.keystore -storepass "${{ secrets.SIGNING_STORE_PASSWORD }}" > /dev/null \
+            && echo "Keystore restored and readable." \
+            || { echo "::error::Restored keystore cannot be opened with SIGNING_STORE_PASSWORD."; exit 1; }
+
+      - name: Checkout submodules
+        run: git submodule update --init --recursive --force
+
+      - name: Setup Java
+        uses: actions/setup-java@v5
+        with:
+          distribution: "temurin"
+          java-version: 21
+
+      - name: Setup Gradle
+        uses: gradle/actions/setup-gradle@v5
+
+      - name: Setup Go
+        uses: actions/setup-go@4a3601121dd01d1626a1e23e37211e3254c1c06c
+        with:
+          go-download-base-url: 'https://github.com/MetaCubeX/go/releases/download/build'
+          go-version: '1.26'
+
+      - name: Apply Patches
+        run: |
+          cd $(go env GOROOT)
+          for p in $GITHUB_WORKSPACE/.github/patch/*.patch; do patch --verbose -p 1 < "$p"; done
+
+      - uses: actions/cache@v5
+        with:
+          path: |
+            ~/.cache/go-build
+            ~/go/pkg/mod
+          key: ${{ runner.os }}-go-${{ hashFiles('**/go.sum') }}
+          restore-keys: |
+            ${{ runner.os }}-go-
+
+      - name: Update CA
+        run: |
+          sudo apt-get update && sudo apt-get install ca-certificates
+          sudo update-ca-certificates
+          cp -f /etc/ssl/certs/ca-certificates.crt core/src/foss/golang/clash/component/ca/ca-certificates.crt
+
+      - name: Signing properties
+        env:
+          SIGNING_STORE_PASSWORD: ${{ secrets.SIGNING_STORE_PASSWORD }}
+          SIGNING_KEY_ALIAS: ${{ secrets.SIGNING_KEY_ALIAS }}
+          SIGNING_KEY_PASSWORD: ${{ secrets.SIGNING_KEY_PASSWORD }}
+        run: |
+          touch signing.properties
+          echo keystore.password="$SIGNING_STORE_PASSWORD" > signing.properties
+          echo key.alias="$SIGNING_KEY_ALIAS" >> signing.properties
+          echo key.password="$SIGNING_KEY_PASSWORD" >> signing.properties
+
+      - name: Build TV release
+        if: success()
+        run: ./gradlew --no-daemon app:assembleTvRelease
+
+      # Keep only the two TV-relevant ABI splits and give them the
+      # standing Beta file names. The version in the names tracks
+      # the tv flavor's versionName in build.gradle.kts (0.1.0);
+      # bump both together. The x86 / x86_64 / universal splits
+      # are built by the ABI split config but not shipped for TV.
+      - name: Collect TV APKs
+        if: success()
+        run: |
+          mkdir -p tv-out
+          cp app/build/outputs/apk/tv/release/*-arm64-v8a-*.apk tv-out/tuxundl-tv-0.1.0-beta-arm64.apk
+          cp app/build/outputs/apk/tv/release/*-armeabi-v7a-*.apk tv-out/tuxundl-tv-0.1.0-beta-armeabi-v7a.apk
+          ls -la tv-out
+
+      - name: Upload TV APKs
+        uses: actions/upload-artifact@v7
+        if: success()
+        with:
+          name: TuxunDL TV 0.1.0 Beta APKs
+          path: tv-out/*.apk
+          if-no-files-found: error
