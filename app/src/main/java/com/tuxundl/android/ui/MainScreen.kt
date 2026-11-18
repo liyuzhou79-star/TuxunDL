@@ -68,6 +68,8 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
+import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.RadioButton
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
@@ -2717,6 +2719,14 @@ private fun daysUntilExpiry(expireMillis: Long): Long {
 @Composable
 private fun SubscriptionCard(state: MainUiState) {
     val style = animStyle()
+    val context = LocalContext.current
+    val uiStore = remember { UiStore(context) }
+
+    // Traffic alert quick setting (1.5.0): mirrors the exact UiStore
+    // fields the settings page edits, so the two never disagree.
+    var alertEnabled by remember { mutableStateOf(uiStore.trafficAlertEnabled) }
+    var alertThresholdGb by remember { mutableStateOf(uiStore.trafficAlertThresholdGb) }
+    var showAlertDialog by remember { mutableStateOf(false) }
 
     // The card fades + grows in when the profile gains subscription
     // data and shrinks away when it loses it, instead of popping.
@@ -2749,8 +2759,44 @@ private fun SubscriptionCard(state: MainUiState) {
                 Text(
                     text = stringResource(R.string.subscription),
                     style = MaterialTheme.typography.titleMedium,
-                    modifier = Modifier.weight(1f),
                 )
+                // Armed alert marker (1.5.0): a red dot rides next to
+                // the title whenever the low-traffic alert is on. It
+                // breathes gently once the remainder has actually
+                // dropped to the threshold.
+                if (alertEnabled) {
+                    val remainingBytes = state.subTotal - used
+                    val breached = remainingBytes <=
+                        alertThresholdGb.toLong() * 1024L * 1024L * 1024L
+                    val dotAlpha = if (breached) {
+                        val pulse = rememberInfiniteTransition(
+                            label = "alertDotPulse",
+                        )
+                        val animated by pulse.animateFloat(
+                            initialValue = 1f,
+                            targetValue = 0.25f,
+                            animationSpec = infiniteRepeatable(
+                                animation = tween(durationMillis = 900),
+                                repeatMode = RepeatMode.Reverse,
+                            ),
+                            label = "alertDotAlpha",
+                        )
+                        animated
+                    } else {
+                        1f
+                    }
+                    Spacer(modifier = Modifier.size(8.dp))
+                    Box(
+                        modifier = Modifier
+                            .size(8.dp)
+                            .clip(CircleShape)
+                            .background(
+                                MaterialTheme.colorScheme.error
+                                    .copy(alpha = dotAlpha),
+                            ),
+                    )
+                }
+                Spacer(modifier = Modifier.weight(1f))
                 if (state.subExpire > 0L) {
                     Text(
                         text = stringResource(
@@ -2820,8 +2866,185 @@ private fun SubscriptionCard(state: MainUiState) {
                 progress = animatedUsageRatio,
                 modifier = Modifier.fillMaxWidth(),
             )
+            // Quick alert row (1.5.0): tap to arm/disarm and pick the
+            // threshold without leaving the home screen.
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clip(RoundedCornerShape(8.dp))
+                    .clickable { showAlertDialog = true }
+                    .padding(vertical = 2.dp),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Text(
+                    text = stringResource(R.string.traffic_alert),
+                    style = MaterialTheme.typography.bodyMedium,
+                    modifier = Modifier.weight(1f),
+                )
+                Text(
+                    text = if (alertEnabled) {
+                        stringResource(
+                            R.string.traffic_alert_card_value,
+                            alertThresholdGb,
+                        )
+                    } else {
+                        stringResource(R.string.traffic_alert_card_off)
+                    },
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+                Icon(
+                    painter = painterResource(
+                        DesignR.drawable.ic_baseline_expand_more,
+                    ),
+                    contentDescription = null,
+                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.size(18.dp),
+                )
+            }
         }
     }
+    }
+
+    if (showAlertDialog) {
+        SubscriptionAlertDialog(
+            enabled = alertEnabled,
+            thresholdGb = alertThresholdGb,
+            onConfirm = { enabled, gb ->
+                showAlertDialog = false
+                alertEnabled = enabled
+                alertThresholdGb = gb
+                uiStore.trafficAlertEnabled = enabled
+                uiStore.trafficAlertThresholdGb = gb
+                Haptics.buzz(context, uiStore, Haptics.Kind.Tap)
+            },
+            onDismiss = { showAlertDialog = false },
+        )
+    }
+}
+
+/**
+ * Traffic-alert picker for the home subscription card (1.5.0): the
+ * same switch + GiB threshold as the settings page (one shared
+ * UiStore setting), with common presets and a custom value.
+ */
+@Composable
+private fun SubscriptionAlertDialog(
+    enabled: Boolean,
+    thresholdGb: Int,
+    onConfirm: (Boolean, Int) -> Unit,
+    onDismiss: () -> Unit,
+) {
+    val presets = listOf(1, 3, 5, 10, 20)
+    var enabledState by remember { mutableStateOf(enabled) }
+    var customSelected by remember { mutableStateOf(thresholdGb !in presets) }
+    var selectedGb by remember { mutableStateOf(thresholdGb) }
+    var customText by remember {
+        mutableStateOf(
+            if (thresholdGb !in presets) thresholdGb.toString() else "",
+        )
+    }
+
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text(text = stringResource(R.string.traffic_alert)) },
+        text = {
+            Column {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    Text(
+                        text = stringResource(R.string.traffic_alert),
+                        style = MaterialTheme.typography.bodyLarge,
+                        modifier = Modifier.weight(1f),
+                    )
+                    TuxunSwitch(
+                        checked = enabledState,
+                        onCheckedChange = { enabledState = it },
+                    )
+                }
+
+                if (enabledState) {
+                    Spacer(modifier = Modifier.height(8.dp))
+                    presets.forEach { gb ->
+                        AlertThresholdRow(
+                            label = stringResource(
+                                R.string.traffic_alert_threshold_value,
+                                gb,
+                            ),
+                            selected = !customSelected && selectedGb == gb,
+                            onClick = {
+                                customSelected = false
+                                selectedGb = gb
+                            },
+                        )
+                    }
+                    AlertThresholdRow(
+                        label = stringResource(R.string.traffic_alert_custom),
+                        selected = customSelected,
+                        onClick = { customSelected = true },
+                    )
+                    if (customSelected) {
+                        Spacer(modifier = Modifier.height(4.dp))
+                        OutlinedTextField(
+                            value = customText,
+                            onValueChange = { input ->
+                                customText = input
+                                    .filter { it.isDigit() }
+                                    .take(3)
+                            },
+                            singleLine = true,
+                            suffix = { Text(text = "GB") },
+                            modifier = Modifier.fillMaxWidth(),
+                        )
+                    }
+                }
+            }
+        },
+        confirmButton = {
+            TextButton(
+                onClick = {
+                    val gb = if (customSelected) {
+                        customText.toIntOrNull()?.coerceIn(1, 999)
+                            ?: selectedGb
+                    } else {
+                        selectedGb
+                    }
+                    onConfirm(enabledState, gb)
+                },
+            ) {
+                Text(text = stringResource(DesignR.string.ok))
+            }
+        },
+        dismissButton = {
+            TextButton(onClick = onDismiss) {
+                Text(text = stringResource(DesignR.string.cancel))
+            }
+        },
+    )
+}
+
+/** One radio row of the subscription alert picker. */
+@Composable
+private fun AlertThresholdRow(
+    label: String,
+    selected: Boolean,
+    onClick: () -> Unit,
+) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clickable(onClick = onClick)
+            .padding(vertical = 2.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        RadioButton(selected = selected, onClick = onClick)
+        Text(
+            text = label,
+            style = MaterialTheme.typography.bodyLarge,
+            modifier = Modifier.padding(start = 8.dp),
+        )
     }
 }
 

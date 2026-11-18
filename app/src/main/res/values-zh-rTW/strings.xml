@@ -257,6 +257,9 @@
     <string name="traffic_alert_channel">訂閱提醒</string>
     <string name="traffic_alert_title">訂閱流量快用完了</string>
     <string name="traffic_alert_text">%1$s 只剩 %2$s GB，記得續費或換訂閱。</string>
+    <string name="traffic_alert_card_value">剩餘 ≤%1$d GB 時提醒</string>
+    <string name="traffic_alert_card_off">未開啟</string>
+    <string name="traffic_alert_custom">自訂</string>
     <string name="update_check_failed_rate_limited">檢查更新失敗：查太頻繁了，GitHub 暫時限流，過一會兒再試。</string>
     <string name="update_check_failed_server_code">檢查更新失敗：伺服器回了錯誤（代碼 %1$d），請稍後再試。</string>
 </resources>
