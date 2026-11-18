@@ -2,6 +2,14 @@
 
 每個版本的詳細說明與下載見 [Releases](https://github.com/liyuzhou79-star/TuxunDL/releases)。所有版本都同時發布標準版（arm64）與老機型版（armeabi-v7a），同版本號、同一發布頁。自 Windows 版起，每個發布頁都同時附上 Android 與 Windows 兩個平台的最新安裝包。
 
+## TV 0.1.0 Beta — 安卓電視版首個試水版（待發布）
+- 新增 tv flavor：獨立包名 com.tuxundl.android.tv、獨立版本線 0.1.0（versionCode 100，自成公式不與手機版打架），與手機版互不覆蓋、可並存；顯示名仍為 TuxunDL；core 模塊同步新增同名 golang source set（foss 來源與 alpha/meta 相同）
+- 電視入口沿用主清單既有的 Leanback 啟動入口與 320×180 橫幅圖（ic_banner），uses-feature leanback/touchscreen 皆 required=false，手機上安裝不衝突
+- 遙控器基本適配：可點擊卡片（TuxunCard）、模式分段按鈕、主頁功能磚在獲得焦點時顯示主題色邊框；電視版主頁電源鍵自動取得焦點並帶焦點環，OK 可開關、長按選單可達；拖拽排序、圖表手勢等觸摸操作不在本版遙控範圍，未逐頁做遙控審計
+- 不依賴 Google 服務：相冊識圖（ML Kit 非捆綁版，識別模型靠 Google Play 服務下發）在電視版隱藏入口；掃碼用的是捆綁版模型（quickie），不受影響
+- 電視版關閉更新檢查（手機版檢查只認 ^v 手機標籤會誤報），Beta 期間手動下載新包覆蓋安裝
+- 新增 build-tv.yaml：與 build-release 相同的簽名還原寫法（四個 Secrets、缺失即報錯停下），構建 tv release 並上傳 arm64＋armeabi-v7a 兩包產物（不自動建發布頁）
+
 ## Windows 1.6.11 — 桌面三端同步版：首次啟動引導＋數據目錄可改（已發布）
 - 首次啟動引導（五步，三端同一套）：歡迎（吉祥物＋一句話介紹）→ 免責聲明（全文與安卓版一字不差，必須滾動讀完「同意並繼續」才亮，不同意可退出程序）→ 添加訂閱（與訂閱頁同一條添加通路，拉取並設為目前訂閱，失敗只提示不卡流程，可整步跳過）→ 安裝與數據目錄 → 主題與完成（與設置頁同一套主題預設與存儲）；走完寫持久標記（SettingsStore 的 onboardingDone，不在「恢復默認設置」的清除範圍內），之後不再出現
 - 數據目錄可改：數據目錄解析全應用收攏到 CoreBridge.workDir 一個點——預設目錄裡放一個 data-dir.txt 指針檔記錄自訂位置，啟動時解析一次，changeDataDir 可熱切換（先把現有數據複製過去、再寫指針、再切換，失敗則保持不變）；所有消費方（設置、訂閱、日誌、流量記錄、備份）都是使用時現讀 workDir，無一處把路徑存死，所以切換後全部跟著走。正在運行的核心仍用啟動時的主目錄，下次啟動改用新目錄
