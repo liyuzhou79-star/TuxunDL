@@ -16,6 +16,11 @@
         tools:ignore="QueryAllPackagesPermission" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_SPECIAL_USE" />
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS"/>
+    <!-- Timed proxy on/off and night auto-switch (1.5.4). Declared so
+         the user can grant exact alarms; the scheduler checks
+         canScheduleExactAlarms() and degrades to inexact alarms plus
+         an in-panel hint when it is not granted. -->
+    <uses-permission android:name="android.permission.SCHEDULE_EXACT_ALARM" />
     <uses-permission android:name="android.permission.VIBRATE" />
 
     <!-- Workaround for Android 17+ cross profile loopback networking restrictions.
@@ -244,6 +249,21 @@
             <intent-filter>
                 <action android:name="android.intent.action.BOOT_COMPLETED" />
                 <action android:name="android.intent.action.MY_PACKAGE_REPLACED" />
+            </intent-filter>
+        </receiver>
+
+        <!-- Proxy schedule alarms and re-arm triggers (1.5.4). Not
+             exported: the alarm PendingIntent is the app's own, and
+             the system broadcasts below are protected broadcasts,
+             which are delivered to non-exported receivers too. -->
+        <receiver
+            android:name=".ScheduleReceiver"
+            android:exported="false">
+            <intent-filter>
+                <action android:name="android.intent.action.BOOT_COMPLETED" />
+                <action android:name="android.intent.action.MY_PACKAGE_REPLACED" />
+                <action android:name="android.intent.action.TIME_SET" />
+                <action android:name="android.intent.action.TIMEZONE_CHANGED" />
             </intent-filter>
         </receiver>
 

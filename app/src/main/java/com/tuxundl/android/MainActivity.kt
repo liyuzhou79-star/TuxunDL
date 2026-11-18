@@ -43,6 +43,7 @@ import com.tuxundl.android.ui.TrafficSample
 import com.tuxundl.android.ui.theme.TuxunDLTheme
 import com.tuxundl.android.ui.theme.customSeedColor
 import com.tuxundl.android.util.DailyTrafficStore
+import com.tuxundl.android.util.ProxyScheduler
 import com.tuxundl.android.util.DelaySample
 import com.tuxundl.android.util.SavedConnection
 import com.tuxundl.android.util.SavedConnectionStore
@@ -188,6 +189,13 @@ class MainActivity : BaseActivity<MainDesign>() {
         fetch()
         checkUpdateOnStartup()
         maybeAutoBackup()
+
+        // Keep the 1.5.4 proxy schedule aligned whenever the app
+        // opens: re-arm the next alarm, and reconcile the night
+        // mode window in the background (it binds the remote
+        // service on demand, so it must not block the event loop).
+        ProxyScheduler.reschedule(this)
+        launch { ProxyScheduler.reconcileNight(this@MainActivity) }
 
         val ticker = ticker(TimeUnit.SECONDS.toMillis(1))
 

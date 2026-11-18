@@ -303,6 +303,70 @@ class UiStore(context: Context) {
         defaultValue = 0L
     )
 
+    /** Whether the home-panel timed on/off rule is on (off by default, 1.5.4). */
+    var scheduleEnabled: Boolean by store.boolean(
+        key = "schedule_enabled",
+        defaultValue = false
+    )
+
+    /** Minutes after midnight at which the schedule turns the proxy on (1.5.4). */
+    var scheduleOnMinutes: Int by store.int(
+        key = "schedule_on_minutes",
+        defaultValue = 8 * 60
+    )
+
+    /** Minutes after midnight at which the schedule turns the proxy off (1.5.4). */
+    var scheduleOffMinutes: Int by store.int(
+        key = "schedule_off_minutes",
+        defaultValue = 23 * 60
+    )
+
+    /** Whether the home-panel night auto-switch rule is on (off by default, 1.5.4). */
+    var nightEnabled: Boolean by store.boolean(
+        key = "night_enabled",
+        defaultValue = false
+    )
+
+    /** Minutes after midnight at which the night window starts (1.5.4). */
+    var nightStartMinutes: Int by store.int(
+        key = "night_start_minutes",
+        defaultValue = 0
+    )
+
+    /** Minutes after midnight at which the night window ends (1.5.4). */
+    var nightEndMinutes: Int by store.int(
+        key = "night_end_minutes",
+        defaultValue = 7 * 60
+    )
+
+    /** Night action: 0 = switch to Global mode, 1 = turn the proxy off (1.5.4). */
+    var nightAction: Int by store.int(
+        key = "night_action",
+        defaultValue = 0
+    )
+
+    /** True while a scheduler-applied night state is in effect (1.5.4). */
+    var scheduleNightActive: Boolean by store.boolean(
+        key = "schedule_night_active",
+        defaultValue = false
+    )
+
+    /**
+     * Session override mode name recorded when the night Global switch
+     * was applied, so the night end can restore it; "" = there was no
+     * session mode (the profile default applied) (1.5.4).
+     */
+    var schedulePrevSessionMode: String by store.string(
+        key = "schedule_prev_session_mode",
+        defaultValue = ""
+    )
+
+    /** True when the scheduler wrote the mode into the Persist override slot (1.5.4). */
+    var scheduleNightPersistApplied: Boolean by store.boolean(
+        key = "schedule_night_persist_applied",
+        defaultValue = false
+    )
+
     /** Whether the weekly automatic backup is on (off by default, 1.3.5). */
     var autoBackupEnabled: Boolean by store.boolean(
         key = "auto_backup_enabled",
