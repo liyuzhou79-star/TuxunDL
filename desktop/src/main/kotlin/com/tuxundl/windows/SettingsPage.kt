@@ -378,13 +378,19 @@ internal fun SettingsPage() {
                     .clickable {
                         updateText = "检查中…"
                         scope.launch {
-                            val result = WindowsUpdateCheck.check()
-                            if (result.newerVersion != null) {
-                                updateText = "发现新版 v${result.newerVersion}"
-                                updateUrl = result.pageUrl
-                            } else {
-                                updateText = "已是最新版"
-                                updateUrl = null
+                            when (val result = WindowsUpdateCheck.check()) {
+                                is WindowsUpdateCheck.Result.UpdateAvailable -> {
+                                    updateText = "发现新版 v${result.version}"
+                                    updateUrl = result.pageUrl
+                                }
+                                WindowsUpdateCheck.Result.UpToDate -> {
+                                    updateText = "已是最新版"
+                                    updateUrl = null
+                                }
+                                is WindowsUpdateCheck.Result.Failed -> {
+                                    updateText = "检查失败：网络或限流，稍后再试"
+                                    updateUrl = null
+                                }
                             }
                         }
                     }
