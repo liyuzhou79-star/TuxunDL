@@ -830,7 +830,21 @@ class MainActivity : BaseActivity<MainDesign>() {
     ): Boolean = runCatching {
         withProfile {
             val uuid = create(Profile.Type.Url, name, url)
-            update(uuid)
+            try {
+                // commit() is the step the properties screen runs on
+                // save: it fetches the subscription and turns the
+                // pending profile into an imported one. The old code
+                // called update() here, which is a no-op for a profile
+                // that was never imported, so onboarding profiles
+                // stayed pending forever and the main screen demanded
+                // a re-edit + save before they could be used (1.4.0).
+                commit(uuid)
+            } catch (e: Exception) {
+                // Fetch/validation failed: drop the pending profile so
+                // a retry does not pile up half-created entries.
+                runCatching { release(uuid) }
+                throw e
+            }
             if (queryActive() == null) {
                 queryByUUID(uuid)?.let { setActive(it) }
             }
