@@ -20,8 +20,8 @@ import java.time.Duration
  * releases (`v<version>`) and the other desktop editions' releases
  * are different products and never count here, mirroring the
  * platform filter the Android checker gained in 1.2.2. The three
- * desktop editions version independently (Windows 1.6.10, Linux
- * 1.1.0, Mac 1.0.0 at the time of writing), so the current version
+ * desktop editions version independently (Windows 1.6.11, Linux
+ * 1.1.1, Mac 1.0.1 at the time of writing), so the current version
  * is picked per OS as well.
  *
  * Two data sources, tried in order:
@@ -49,9 +49,9 @@ object DesktopUpdateCheck {
         else -> "win-v"
     }
 
-    private const val WINDOWS_VERSION = "1.6.10"
-    private const val LINUX_VERSION = "1.1.0"
-    private const val MAC_VERSION = "1.0.0"
+    private const val WINDOWS_VERSION = "1.6.11"
+    private const val LINUX_VERSION = "1.1.1"
+    private const val MAC_VERSION = "1.0.1"
 
     /** Version of the running edition (kept in sync with build.gradle.kts). */
     val CURRENT_VERSION: String = when {
