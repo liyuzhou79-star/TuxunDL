@@ -2,6 +2,7 @@ package com.tuxundl.android
 
 import android.content.ComponentName
 import android.content.Context
+import android.content.Intent
 import android.content.ServiceConnection
 import android.content.res.Configuration
 import android.net.Uri
@@ -10,6 +11,7 @@ import android.os.IBinder
 import android.widget.Toast
 import androidx.activity.compose.setContent
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.core.content.FileProvider
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.SnackbarDuration
 import androidx.compose.material3.Surface
@@ -38,7 +40,11 @@ import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.selects.select
 import kotlinx.coroutines.withContext
+import java.io.FileOutputStream
 import java.io.OutputStreamWriter
+import java.text.SimpleDateFormat
+import java.util.Date
+import java.util.Locale
 import kotlin.coroutines.resume
 import kotlin.coroutines.suspendCoroutine
 import com.tuxundl.android.design.R
@@ -130,6 +136,9 @@ class LogcatActivity : BaseActivity<LogcatDesign>() {
                         }
                     }
                 }
+                LogcatDesign.Request.Share -> {
+                    shareLog(messages, file.date)
+                }
                 else -> Unit
             }
         }
@@ -156,6 +165,9 @@ class LogcatActivity : BaseActivity<LogcatDesign>() {
                             stopService(LogcatService::class.intent)
                             startActivity(LogsActivity::class.intent)
                             finish()
+                        }
+                        LogcatDesign.Request.Share -> {
+                            shareLog(uiState.messages, Date())
                         }
                         else -> Unit
                     }
@@ -222,6 +234,52 @@ class LogcatActivity : BaseActivity<LogcatDesign>() {
                     }
                 }
             }
+        }
+    }
+
+    /**
+     * Write [messages] to a .txt in the cache dir and hand it to the
+     * system share sheet (1.3.2). The file is served through
+     * FileProvider; it never leaves the app cache except via the
+     * share target the user picks.
+     */
+    private suspend fun shareLog(messages: List<LogMessage>, date: Date) {
+        try {
+            val file = withContext(Dispatchers.IO) {
+                val dir = cacheDir.resolve("share").apply { mkdirs() }
+                val name = "tuxundl-log-" +
+                    SimpleDateFormat("yyyyMMdd-HHmmss", Locale.US).format(date) + ".txt"
+                val target = dir.resolve(name)
+
+                LogcatFilter(
+                    OutputStreamWriter(FileOutputStream(target)),
+                    this@LogcatActivity,
+                ).use {
+                    it.writeHeader(date)
+
+                    messages.forEach { msg -> it.writeMessage(msg) }
+                }
+
+                target
+            }
+
+            val uri = FileProvider.getUriForFile(this, "$packageName.fileprovider", file)
+
+            startActivity(
+                Intent.createChooser(
+                    Intent(Intent.ACTION_SEND).apply {
+                        type = "text/plain"
+                        putExtra(Intent.EXTRA_STREAM, uri)
+                        addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+                    },
+                    getString(com.tuxundl.android.R.string.share_log),
+                ),
+            )
+        } catch (e: Exception) {
+            uiState.snackbarHostState.showSnackbar(
+                message = e.message ?: "Unknown",
+                duration = SnackbarDuration.Long,
+            )
         }
     }
 

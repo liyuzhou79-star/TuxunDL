@@ -81,6 +81,7 @@
     <string name="subscription_expires">Expires %1$s</string>
     <string name="subscription_expires_soon">Subscription expires in %1$d days</string>
     <string name="subscription_expired">Subscription expired</string>
+    <string name="share_log">Share log</string>
     <string name="subscription_usage_warning">Used %1$d%% of traffic, %2$s left</string>
     <string name="subscription_usage_exhausted">Traffic used up</string>
     <string name="profile_details">Profile Details</string>

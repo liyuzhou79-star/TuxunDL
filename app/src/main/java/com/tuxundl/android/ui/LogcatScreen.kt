@@ -117,6 +117,12 @@ fun LogcatScreen(
                 onBack = onBack,
                 actions = {
                     if (state.streaming) {
+                        IconButton(onClick = { onRequest(LogcatDesign.Request.Share) }) {
+                            Icon(
+                                painter = painterResource(DesignR.drawable.ic_baseline_share),
+                                contentDescription = null,
+                            )
+                        }
                         IconButton(onClick = { onRequest(LogcatDesign.Request.Close) }) {
                             Icon(
                                 painter = painterResource(DesignR.drawable.ic_baseline_close),
@@ -133,6 +139,12 @@ fun LogcatScreen(
                         IconButton(onClick = { onRequest(LogcatDesign.Request.Export) }) {
                             Icon(
                                 painter = painterResource(DesignR.drawable.ic_baseline_save),
+                                contentDescription = null,
+                            )
+                        }
+                        IconButton(onClick = { onRequest(LogcatDesign.Request.Share) }) {
+                            Icon(
+                                painter = painterResource(DesignR.drawable.ic_baseline_share),
                                 contentDescription = null,
                             )
                         }

@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<paths>
+    <!-- Log .txt files written for the system share sheet (LogcatActivity). -->
+    <cache-path
+        name="shared_logs"
+        path="share/" />
+</paths>
