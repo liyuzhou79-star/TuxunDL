@@ -34,9 +34,10 @@ class AccessControlActivity : BaseActivity<AccessControlDesign>() {
     private val uiState = AccessControlUiState()
     private val uiRequests = Channel<AccessControlDesign.Request>(Channel.UNLIMITED)
     private val selected: MutableSet<String> = mutableSetOf()
+    private val serviceStore by lazy { ServiceStore(this) }
 
     override suspend fun main() {
-        val service = ServiceStore(this)
+        val service = serviceStore
 
         val stored = withContext(Dispatchers.IO) {
             service.accessControlPackages.toMutableSet()
@@ -45,10 +46,36 @@ class AccessControlActivity : BaseActivity<AccessControlDesign>() {
         selected.clear()
         selected.addAll(stored)
 
+        // Prune packages whose apps are gone. An uninstalled app used
+        // to stay in the stored set forever: invisible in the list (so
+        // the user could not remove it), carried into clipboard
+        // exports, and silently ignored by the tunnel builder.
+        val installed = withContext(Dispatchers.IO) {
+            packageManager.getInstalledPackages(0)
+                .map { it.packageName }
+                .toSet()
+        }
+
+        if (selected.retainAll(installed)) {
+            withContext(Dispatchers.IO) {
+                service.accessControlPackages = selected.toSet()
+            }
+        }
+
+        // Snapshots for the exit-time comparison: the store itself is
+        // now written through on every change (see onCreate), so the
+        // restart decision must compare against the entry state, not
+        // against the live store value.
+        val initialPackages = selected.toSet()
+        val initialMode = service.accessControlMode
+        uiState.mode = initialMode
+
         defer {
             withContext(Dispatchers.IO) {
-                val changed = selected != service.accessControlPackages
+                val changed = selected != initialPackages ||
+                    uiState.mode != initialMode
                 service.accessControlPackages = selected
+                service.accessControlMode = uiState.mode
                 if (clashRunning && changed) {
                     stopClashService()
                     while (clashRunning) {
@@ -70,6 +97,7 @@ class AccessControlActivity : BaseActivity<AccessControlDesign>() {
                     when (it) {
                         AccessControlDesign.Request.ReloadApps -> {
                             uiState.apps = loadApps(selected)
+                            uiState.loaded = true
                         }
 
                         AccessControlDesign.Request.SelectAll -> {
@@ -179,12 +207,35 @@ class AccessControlActivity : BaseActivity<AccessControlDesign>() {
         }
 
         setContent {
+            // Persist the selection the moment it changes instead of
+            // only in the exit defer: if the process dies while this
+            // page is open (task swiped away, system reclaim), the
+            // toggles used to be lost with it. The loaded flag guards
+            // the initial composition, which runs before main() has
+            // read the stored set into [selected].
+            androidx.compose.runtime.LaunchedEffect(
+                uiState.selectionTick,
+                uiState.loaded,
+            ) {
+                if (uiState.loaded) {
+                    val snapshot = selected.toSet()
+                    withContext(Dispatchers.IO) {
+                        serviceStore.accessControlPackages = snapshot
+                    }
+                }
+            }
+
             TuxunDLTheme(darkTheme = darkTheme, palette = uiStore.themePalette, customSeed = customSeedColor(uiStore), animStyle = uiStore.animationStyle) {
                 Surface(color = MaterialTheme.colorScheme.background) {
                     AccessControlScreen(
                         state = uiState,
                         uiStore = uiStore,
                         selected = selected,
+                        running = clashRunning,
+                        onModeChange = { mode ->
+                            uiState.mode = mode
+                            serviceStore.accessControlMode = mode
+                        },
                         onRequest = { request -> uiRequests.trySend(request) },
                         onBack = { finish() },
                     )

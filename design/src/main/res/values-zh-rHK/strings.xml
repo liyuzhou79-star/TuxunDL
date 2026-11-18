@@ -101,6 +101,11 @@
     <string name="allow_all_apps">允許所有應用</string>
     <string name="allow_selected_apps">僅允許已選擇的應用</string>
     <string name="deny_selected_apps">不允許已選擇的應用</string>
+    <string name="access_control_current_mode">目前模式：%1$s</string>
+    <string name="access_control_selected_count">已選 %1$d 個</string>
+    <string name="access_control_all_mode_hint">目前模式允許所有應用，下面這份名單不會生效；切換模式後才會按名單放行或攔截。</string>
+    <string name="access_control_apply_running">正在連接中：改動會在你退出本頁時自動重新連接後生效。</string>
+    <string name="access_control_apply_next">改動會在下次連接時生效。</string>
     <string name="no_profile_selected">沒有選擇配置文件</string>
     <string name="copied">已複製</string>
     <string name="google_play">Google Play</string>

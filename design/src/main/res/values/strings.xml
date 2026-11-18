@@ -270,6 +270,11 @@
     <string name="allow_all_apps">Allow all apps</string>
     <string name="allow_selected_apps">Allow selected apps</string>
     <string name="deny_selected_apps">Deny selected apps</string>
+    <string name="access_control_current_mode">Current mode: %1$s</string>
+    <string name="access_control_selected_count">%1$d selected</string>
+    <string name="access_control_all_mode_hint">All apps are allowed in this mode, so the list below has no effect. Switch the mode to allow or deny by list.</string>
+    <string name="access_control_apply_running">You are connected: changes take effect when you leave this page, and the connection restarts automatically.</string>
+    <string name="access_control_apply_next">Changes take effect the next time you connect.</string>
 
     <string name="no_profile_selected">No profile selected</string>
 

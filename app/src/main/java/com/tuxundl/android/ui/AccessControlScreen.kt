@@ -45,11 +45,18 @@ import com.tuxundl.android.design.AccessControlDesign
 import com.tuxundl.android.design.model.AppInfo
 import com.tuxundl.android.design.model.AppInfoSort
 import com.tuxundl.android.design.store.UiStore
+import com.tuxundl.android.service.model.AccessControlMode
 import com.tuxundl.android.design.R as DesignR
 
 /** State holder for the Compose access control screen. */
 class AccessControlUiState {
     var apps by mutableStateOf<List<AppInfo>>(emptyList())
+
+    /** False until the first app-list load lands; drives the spinner. */
+    var loaded by mutableStateOf(false)
+
+    /** The live access-control mode, mirrored from the service store. */
+    var mode by mutableStateOf(AccessControlMode.AcceptAll)
 
     /** Bumped whenever the selection set changes so checkboxes re-render. */
     var selectionTick by mutableStateOf(0)
@@ -63,6 +70,8 @@ fun AccessControlScreen(
     state: AccessControlUiState,
     uiStore: UiStore,
     selected: MutableSet<String>,
+    running: Boolean,
+    onModeChange: (AccessControlMode) -> Unit,
     onRequest: (AccessControlDesign.Request) -> Unit,
     onBack: () -> Unit,
 ) {
@@ -237,6 +246,61 @@ fun AccessControlScreen(
                     Text(text = stringResource(DesignR.string.search))
                 },
             )
+
+            // Status disclosure: which mode is active, how many apps
+            // are picked, and when an edit takes effect. This page used
+            // to show none of it — with the mode set to "allow all"
+            // the checkboxes silently did nothing. Reading
+            // selectionTick keeps the count live as boxes are toggled.
+            val modeLabel = stringResource(
+                when (state.mode) {
+                    AccessControlMode.AcceptAll ->
+                        DesignR.string.allow_all_apps
+                    AccessControlMode.AcceptSelected ->
+                        DesignR.string.allow_selected_apps
+                    AccessControlMode.DenySelected ->
+                        DesignR.string.deny_selected_apps
+                }
+            )
+            val selectedCount = state.selectionTick.let { selected.size }
+
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 16.dp, vertical = 4.dp),
+            ) {
+                Text(
+                    text = stringResource(
+                        DesignR.string.access_control_current_mode,
+                        modeLabel,
+                    ) + " · " + stringResource(
+                        DesignR.string.access_control_selected_count,
+                        selectedCount,
+                    ),
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+                if (state.mode == AccessControlMode.AcceptAll) {
+                    Text(
+                        text = stringResource(
+                            DesignR.string.access_control_all_mode_hint
+                        ),
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.error,
+                    )
+                }
+                Text(
+                    text = stringResource(
+                        if (running) {
+                            DesignR.string.access_control_apply_running
+                        } else {
+                            DesignR.string.access_control_apply_next
+                        }
+                    ),
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
 
             Row(
                 modifier = Modifier
