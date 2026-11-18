@@ -13,11 +13,15 @@ import java.net.http.HttpResponse
 import java.time.Duration
 
 /**
- * Update check for the Windows edition. Reads this repository's
- * release list and only considers tags shaped `win-v<version>` —
- * Android releases (`v<version>`) are a different product and never
- * count here, mirroring the platform filter the Android checker
- * gained in 1.2.2.
+ * Update check for the desktop editions. Reads this repository's
+ * release list and only considers tags shaped `<prefix><version>`
+ * for the edition that is running — `win-v<version>` on Windows,
+ * `linux-v<version>` on Linux. Android releases (`v<version>`) and
+ * the other desktop edition's releases are different products and
+ * never count here, mirroring the platform filter the Android
+ * checker gained in 1.2.2. The two desktop editions version
+ * independently (Windows 1.6.1, Linux 1.0.0 at the time of writing),
+ * so the current version is picked per OS as well.
  *
  * Two data sources, tried in order:
  * 1. The GitHub REST API (api.github.com). Unauthenticated requests
@@ -28,15 +32,24 @@ import java.time.Duration
  *    subject to the API quota. Entry links carry the tag
  *    (`/releases/tag/win-v<x.y.z>`), which is all the check needs.
  *
- * Outcomes are explicit (1.6.1): before this version every failure —
- * offline, timeout, rate limit, unparsable answer — collapsed into
- * the same "no newer version" result, so the settings page happily
- * reported "already up to date" when the check had never succeeded.
- * Failures now surface as [Result.Failed] and the UI says so.
+ * Outcomes are explicit (Windows 1.6.1): before that version every
+ * failure — offline, timeout, rate limit, unparsable answer —
+ * collapsed into the same "no newer version" result, so the
+ * settings page happily reported "already up to date" when the
+ * check had never succeeded. Failures now surface as [Result.Failed]
+ * and the UI says so.
  */
-object WindowsUpdateCheck {
+object DesktopUpdateCheck {
 
-    const val CURRENT_VERSION = "1.6.1"
+    /** Release tag prefix of the running edition: "win-v" / "linux-v". */
+    val TAG_PREFIX: String = if (Platform.isLinux) "linux-v" else "win-v"
+
+    private const val WINDOWS_VERSION = "1.6.1"
+    private const val LINUX_VERSION = "1.0.0"
+
+    /** Version of the running edition (kept in sync with build.gradle.kts). */
+    val CURRENT_VERSION: String =
+        if (Platform.isLinux) LINUX_VERSION else WINDOWS_VERSION
 
     private const val RELEASES_URL =
         "https://api.github.com/repos/liyuzhou79-star/TuxunDL/releases?per_page=30"
@@ -47,14 +60,17 @@ object WindowsUpdateCheck {
     private const val TAG_PAGE_PREFIX =
         "https://github.com/liyuzhou79-star/TuxunDL/releases/tag/"
 
-    private val tagPattern = Regex("^win-v(\\d+)\\.(\\d+)\\.(\\d+)$")
+    private val tagPattern =
+        Regex("^" + Regex.escape(TAG_PREFIX) + "(\\d+)\\.(\\d+)\\.(\\d+)$")
 
     /** Release tags as they appear in Atom entry links. */
-    private val atomTagPattern = Regex("/releases/tag/(win-v\\d+\\.\\d+\\.\\d+)")
+    private val atomTagPattern = Regex(
+        "/releases/tag/(" + Regex.escape(TAG_PREFIX) + "\\d+\\.\\d+\\.\\d+)",
+    )
 
     /** The three honest outcomes of an update check. */
     sealed interface Result {
-        /** A strictly newer Windows release exists. */
+        /** A strictly newer release of this edition exists. */
         data class UpdateAvailable(
             /** Newer version without the prefix, e.g. "1.1.0". */
             val version: String,
@@ -62,7 +78,7 @@ object WindowsUpdateCheck {
             val pageUrl: String?,
         ) : Result
 
-        /** The newest Windows release is not newer than the running one. */
+        /** The newest release of this edition is not newer than the running one. */
         object UpToDate : Result
 
         /** Every data source failed; the check did not succeed. */
@@ -104,8 +120,8 @@ object WindowsUpdateCheck {
             }
         }
 
-        // A parsed list without a single Windows release is not a
-        // trustworthy "up to date" — let the fallback source try.
+        // A parsed list without a single release of this edition is
+        // not a trustworthy "up to date" — let the fallback source try.
         if (best == null) return null
 
         return verdict(best!!, bestText!!, bestUrl)
@@ -115,7 +131,7 @@ object WindowsUpdateCheck {
      * Fallback source: the releases Atom feed. Carries no draft /
      * prerelease flags, but entries are newest-first public releases
      * and the tag in each entry link is enough to find the newest
-     * Windows version. Null on any failure.
+     * version of this edition. Null on any failure.
      */
     private fun checkViaAtom(): Result? {
         val body = httpGet(ATOM_URL, "application/atom+xml") ?: return null
@@ -124,7 +140,7 @@ object WindowsUpdateCheck {
         var bestTag: String? = null
         for (match in atomTagPattern.findAll(body)) {
             val tag = match.groupValues[1]
-            val parts = tag.removePrefix("win-v").split(".")
+            val parts = tag.removePrefix(TAG_PREFIX).split(".")
             val version = Triple(parts[0].toInt(), parts[1].toInt(), parts[2].toInt())
             if (best == null || compare(version, best!!) > 0) {
                 best = version
@@ -134,7 +150,7 @@ object WindowsUpdateCheck {
 
         if (best == null || bestTag == null) return null
 
-        val bestText = bestTag!!.removePrefix("win-v")
+        val bestText = bestTag!!.removePrefix(TAG_PREFIX)
         return verdict(best!!, bestText, TAG_PAGE_PREFIX + bestTag)
     }
 
@@ -161,7 +177,7 @@ object WindowsUpdateCheck {
             .build()
         val request = HttpRequest.newBuilder(URI.create(url))
             .header("Accept", accept)
-            .header("User-Agent", "TuxunDL-Windows")
+            .header("User-Agent", "TuxunDL-${Platform.editionName}")
             .timeout(Duration.ofSeconds(20))
             .GET()
             .build()

@@ -54,7 +54,10 @@ object SettingsStore {
         write(mapOf("mixedPort" to kotlinx.serialization.json.JsonPrimitive(value)))
     }
 
-    /** Launch at Windows sign-in (HKCU Run key, per-user, no admin). */
+    /**
+     * Launch at sign-in, per-user, no admin: the HKCU Run key on
+     * Windows, an XDG autostart entry on Linux.
+     */
     fun autoStart(): Boolean =
         read()["autoStart"]?.jsonPrimitive?.booleanOrNull ?: false
 
@@ -149,12 +152,16 @@ object SettingsStore {
     fun restore(snapshot: kotlinx.serialization.json.JsonObject) {
         CoreBridge.workDir.mkdirs()
         file.writeText(snapshot.toString())
-        // The auto-start registry entry is a side effect of its
+        // The system autostart entry is a side effect of its
         // setting; re-apply it so a restored value actually takes hold.
         applyAutoStart(autoStart())
     }
 
     private fun applyAutoStart(value: Boolean) {
+        if (Platform.isLinux) {
+            applyAutoStartLinux(value)
+            return
+        }
         if (!Elevation.isWindows()) return
         val key = "HKCU\\Software\\Microsoft\\Windows\\CurrentVersion\\Run"
         runCatching {
@@ -169,6 +176,35 @@ object SettingsStore {
             } else {
                 ProcessBuilder("reg", "delete", key, "/v", "TuxunDL", "/f")
                     .start().waitFor()
+            }
+        }
+    }
+
+    /**
+     * Linux autostart is an XDG desktop entry in ~/.config/autostart,
+     * honoured by GNOME, KDE and the other major desktops. For the
+     * AppImage build the entry must point at the AppImage file
+     * itself — the launcher path inside a mounted AppImage is
+     * temporary — which the AppImage runtime exposes as $APPIMAGE.
+     */
+    private fun applyAutoStartLinux(value: Boolean) {
+        val dir = File(System.getProperty("user.home"), ".config/autostart")
+        val entry = File(dir, "tuxundl.desktop")
+        runCatching {
+            if (value) {
+                val exe = System.getenv("APPIMAGE")?.takeIf { it.isNotBlank() }
+                    ?: ProcessHandle.current().info().command().orElse("")
+                if (exe.isBlank()) return
+                dir.mkdirs()
+                entry.writeText(
+                    "[Desktop Entry]\n" +
+                        "Type=Application\n" +
+                        "Name=TuxunDL\n" +
+                        "Exec=\"$exe\"\n" +
+                        "X-GNOME-Autostart-enabled=true\n",
+                )
+            } else {
+                entry.delete()
             }
         }
     }

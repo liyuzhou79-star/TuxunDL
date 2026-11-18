@@ -9,8 +9,9 @@ import java.io.File
 
 /**
  * Owns the mihomo core process, the same core the Android edition
- * embeds. On Windows the core ships as a sidecar executable in the
- * install directory (with `wintun.dll` beside it for TUN mode), and
+ * embeds. The core ships as a sidecar executable in the install
+ * directory (on Windows with `wintun.dll` beside it for TUN mode;
+ * Linux needs no driver — the kernel provides /dev/net/tun), and
  * this bridge starts it with a generated config, waits for its REST
  * API, and stops it cleanly.
  *
@@ -18,13 +19,26 @@ import java.io.File
  * - System proxy (default): the core runs unelevated and the user's
  *   system proxy is pointed at the core's mixed port while connected.
  * - TUN: the config gains a `tun:` block (see ConfigFactory) and the
- *   core must run elevated. Elevation of the sidecar is handled at
- *   packaging time; this bridge only notes the requirement in the log.
+ *   core must run with administrator/root rights. On Windows the
+ *   whole app restarts elevated (see Elevation); on Linux the app
+ *   stays unprivileged and only the core is started as root through
+ *   pkexec.
  */
 object CoreBridge {
 
-    /** App data root: config, profiles and the core log live here. */
-    val workDir: File = File(System.getProperty("user.home"), ".tuxundl-windows")
+    /**
+     * App data root: config, profiles and the core log live here.
+     * Windows keeps its historical ~/.tuxundl-windows folder; Linux
+     * follows the XDG base directory convention
+     * (~/.local/share/tuxundl, honouring $XDG_DATA_HOME).
+     */
+    val workDir: File = if (Platform.isLinux) {
+        val xdgBase = System.getenv("XDG_DATA_HOME")?.takeIf { it.isNotBlank() }
+            ?: File(System.getProperty("user.home"), ".local/share").path
+        File(xdgBase, "tuxundl")
+    } else {
+        File(System.getProperty("user.home"), ".tuxundl-windows")
+    }
 
     // Compose state (not a plain flag) so the tray menu and the home
     // page both observe connection changes immediately.
@@ -37,6 +51,13 @@ object CoreBridge {
         private set
 
     private var process: Process? = null
+
+    /**
+     * When the running core was started through pkexec (Linux TUN),
+     * the pkill pattern that matches exactly this instance's command
+     * line; null for a normally started core. See [stop].
+     */
+    private var pkexecKillPattern: String? = null
 
     /** The profile the home page connects with, once subscriptions land. */
     fun profileFile(): File = File(workDir, "profiles/current.yaml")
@@ -77,7 +98,9 @@ object CoreBridge {
             // ships inside the app resources (see the fetchCore task
             // in build.gradle.kts).
             extractBundled(exe.name, exe)
-            extractBundled("wintun.dll", File(exe.parentFile, "wintun.dll"))
+            if (Platform.isWindows) {
+                extractBundled("wintun.dll", File(exe.parentFile, "wintun.dll"))
+            }
         }
         if (!exe.exists()) {
             log("core executable not found at ${exe.absolutePath}")
@@ -94,14 +117,44 @@ object CoreBridge {
             ),
         )
 
+        // Linux TUN: the core itself needs root (it creates the tun
+        // device), so it is launched through pkexec while the app
+        // stays unprivileged. Without pkexec there is no honest way
+        // to do this — fail loudly instead of pretending. The root
+        // core gets its own home folder (tun-home) so the files it
+        // creates as root never block later unprivileged runs.
+        var command = listOf(
+            exe.absolutePath, "-d", workDir.absolutePath,
+            "-f", configFile.absolutePath,
+        )
+        pkexecKillPattern = null
+        if (tunMode && Platform.isLinux && !Elevation.isRoot()) {
+            if (!Elevation.pkexecAvailable()) {
+                log(
+                    "TUN mode on Linux starts the core as root through " +
+                        "pkexec, but pkexec was not found. Install polkit " +
+                        "(pkexec) or use system-proxy mode instead.",
+                )
+                return@withContext false
+            }
+            val tunHome = File(workDir, "tun-home")
+            tunHome.mkdirs()
+            command = listOf(
+                "pkexec", exe.absolutePath, "-d", tunHome.absolutePath,
+                "-f", configFile.absolutePath,
+            )
+            pkexecKillPattern = "mihomo -d ${tunHome.absolutePath}"
+        }
+
         val started = runCatching {
-            ProcessBuilder(exe.absolutePath, "-d", workDir.absolutePath, "-f", configFile.absolutePath)
+            ProcessBuilder(command)
                 .directory(workDir)
                 .redirectErrorStream(true)
                 .redirectOutput(ProcessBuilder.Redirect.appendTo(File(workDir, "core.log")))
                 .start()
         }.getOrElse {
             log("failed to launch core: ${it.message}")
+            pkexecKillPattern = null
             return@withContext false
         }
         process = started
@@ -110,6 +163,7 @@ object CoreBridge {
         if (!client.waitReady()) {
             log("core did not answer its API in time, killing it")
             started.destroy()
+            killPkexecCore()
             process = null
             return@withContext false
         }
@@ -118,9 +172,21 @@ object CoreBridge {
         running = true
 
         // In TUN mode the core routes everything itself; only the
-        // system-proxy mode touches the user's proxy settings.
-        if (!tunMode) {
-            SystemProxy.enable(mixedPort)
+        // system-proxy mode touches the user's proxy settings. A
+        // failed switch is logged honestly — on Linux it usually
+        // means the desktop is not GNOME, where the user has to set
+        // the proxy by hand (the log line says so).
+        if (!tunMode && !SystemProxy.enable(mixedPort)) {
+            log(
+                if (Platform.isLinux) {
+                    "the system proxy was NOT set automatically: on " +
+                        "Linux that needs a GNOME desktop. Set your " +
+                        "system proxy to 127.0.0.1:$mixedPort manually " +
+                        "to use this connection."
+                } else {
+                    "the system proxy could not be set (registry write failed)"
+                },
+            )
         }
 
         log("core started, version ${client.version()}")
@@ -134,9 +200,37 @@ object CoreBridge {
             it.destroy()
             runCatching { it.waitFor() }
         }
+        killPkexecCore()
         process = null
         api = null
         running = false
+    }
+
+    /**
+     * Best-effort cleanup for a core started through pkexec (Linux
+     * TUN): destroying the pkexec wrapper does not guarantee the
+     * root-owned core died with it, so when the controller still
+     * answers afterwards, ask pkexec to kill exactly this instance
+     * (matched by its unique home folder). If even that fails, the
+     * leftover core holds the ports and the next start fails loudly
+     * instead of silently — see the release notes' honesty section.
+     */
+    private fun killPkexecCore() {
+        val pattern = pkexecKillPattern ?: return
+        pkexecKillPattern = null
+        val alive = runCatching {
+            java.net.Socket().use { socket ->
+                socket.connect(java.net.InetSocketAddress("127.0.0.1", 9090), 300)
+                true
+            }
+        }.getOrDefault(false)
+        if (!alive) return
+        runCatching {
+            ProcessBuilder("pkexec", "pkill", "-f", pattern)
+                .redirectErrorStream(true)
+                .start()
+                .waitFor()
+        }
     }
 
     /** Copy a bundled core file out of the app resources, once. */

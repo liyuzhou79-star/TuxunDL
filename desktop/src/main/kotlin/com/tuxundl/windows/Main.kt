@@ -252,7 +252,7 @@ private fun Sidebar(selected: Int, onSelect: (Int) -> Unit) {
         Spacer(Modifier.weight(1f))
 
         Text(
-            text = "Windows 版 v${WindowsUpdateCheck.CURRENT_VERSION}",
+            text = "${Platform.editionName} 版 v${DesktopUpdateCheck.CURRENT_VERSION}",
             color = TextDim,
             fontSize = 12.sp,
         )

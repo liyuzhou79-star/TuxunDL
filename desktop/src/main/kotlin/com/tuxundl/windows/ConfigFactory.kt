@@ -50,8 +50,9 @@ object ConfigFactory {
         }
     }
 
-    // The core runs elevated in TUN mode (see CoreBridge); the system
-    // stack uses the bundled wintun.dll.
+    // The core runs with administrator/root rights in TUN mode (see
+    // CoreBridge); the system stack uses wintun.dll on Windows and
+    // the kernel's /dev/net/tun on Linux.
     private const val TUN_BLOCK = """tun:
   enable: true
   stack: system

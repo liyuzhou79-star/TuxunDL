@@ -78,7 +78,11 @@ internal fun SettingsPage() {
         Text(text = "连接模式", color = Color.White, fontSize = 16.sp)
         Spacer(Modifier.height(4.dp))
         Text(
-            text = "系统代理不用管理员权限；TUN 接管全部流量，点连接时会自动请求管理员权限并重启本程序（系统会弹确认框）。",
+            text = if (Platform.isLinux) {
+                "系统代理不用管理员权限；TUN 接管全部流量，点连接时会通过 pkexec 弹密码框、只把核心以管理员权限启动（程序本身不提权，需要系统装有 pkexec）。"
+            } else {
+                "系统代理不用管理员权限；TUN 接管全部流量，点连接时会自动请求管理员权限并重启本程序（系统会弹确认框）。"
+            },
             color = TextDim,
             fontSize = 13.sp,
         )
@@ -138,7 +142,11 @@ internal fun SettingsPage() {
         Text(text = "开机自启", color = Color.White, fontSize = 16.sp)
         Spacer(Modifier.height(4.dp))
         Text(
-            text = "登录 Windows 时自动打开 TuxunDL（只对当前用户生效，不需要管理员权限）。",
+            text = if (Platform.isLinux) {
+                "登录桌面时自动打开 TuxunDL（写入 ~/.config/autostart，只对当前用户生效，不需要管理员权限）。"
+            } else {
+                "登录 Windows 时自动打开 TuxunDL（只对当前用户生效，不需要管理员权限）。"
+            },
             color = TextDim,
             fontSize = 13.sp,
         )
@@ -154,7 +162,11 @@ internal fun SettingsPage() {
         Text(text = "启动时自动连接", color = Color.White, fontSize = 16.sp)
         Spacer(Modifier.height(4.dp))
         Text(
-            text = "打开 TuxunDL 时，如果已有订阅配置就自动连上。TUN 模式仍会先弹管理员权限确认并重启本程序。",
+            text = if (Platform.isLinux) {
+                "打开 TuxunDL 时，如果已有订阅配置就自动连上。TUN 模式会先通过 pkexec 请求管理员密码来启动核心。"
+            } else {
+                "打开 TuxunDL 时，如果已有订阅配置就自动连上。TUN 模式仍会先弹管理员权限确认并重启本程序。"
+            },
             color = TextDim,
             fontSize = 13.sp,
         )
@@ -335,7 +347,12 @@ internal fun SettingsPage() {
         Text(text = "系统代理维护", color = Color.White, fontSize = 16.sp)
         Spacer(Modifier.height(4.dp))
         Text(
-            text = "如果程序异常退出（崩溃、被强制结束），系统代理可能还开着并指向本程序，浏览器会因此上不了网。首页检测到这种情况会提醒你一键清理；这里也可以随时手动重置一次，走的是和断开连接时同一条清理路径，只关系统代理开关。",
+            text = "如果程序异常退出（崩溃、被强制结束），系统代理可能还开着并指向本程序，浏览器会因此上不了网。首页检测到这种情况会提醒你一键清理；这里也可以随时手动重置一次，走的是和断开连接时同一条清理路径，只关系统代理开关。" +
+                if (Platform.isLinux) {
+                    "Linux 下自动管理的是 GNOME 系统代理；非 GNOME 桌面请在系统设置里手动填写 127.0.0.1 与上面的混合端口。"
+                } else {
+                    ""
+                },
             color = TextDim,
             fontSize = 13.sp,
         )
@@ -348,8 +365,13 @@ internal fun SettingsPage() {
                 .clip(RoundedCornerShape(8.dp))
                 .background(PanelDark)
                 .clickable {
-                    SystemProxy.disable()
-                    note = "系统代理已重置（开关已关闭）"
+                    val ok = SystemProxy.disable()
+                    note = when {
+                        !SystemProxy.isSupported() ->
+                            "当前桌面环境不支持自动管理系统代理（Linux 仅支持 GNOME），请在系统设置里手动处理"
+                        ok -> "系统代理已重置（开关已关闭）"
+                        else -> "重置没有成功，系统代理可能还开着"
+                    }
                 }
                 .padding(horizontal = 16.dp, vertical = 10.dp),
         )
@@ -359,7 +381,7 @@ internal fun SettingsPage() {
         Text(text = "检查更新", color = Color.White, fontSize = 16.sp)
         Spacer(Modifier.height(4.dp))
         Text(
-            text = "当前版本 Windows v${WindowsUpdateCheck.CURRENT_VERSION}，只认 win-v 开头的 Windows 发布。",
+            text = "当前版本 ${Platform.editionName} v${DesktopUpdateCheck.CURRENT_VERSION}，只认 ${DesktopUpdateCheck.TAG_PREFIX} 开头的 ${Platform.editionName} 发布。",
             color = TextDim,
             fontSize = 13.sp,
         )
@@ -378,16 +400,16 @@ internal fun SettingsPage() {
                     .clickable {
                         updateText = "检查中…"
                         scope.launch {
-                            when (val result = WindowsUpdateCheck.check()) {
-                                is WindowsUpdateCheck.Result.UpdateAvailable -> {
+                            when (val result = DesktopUpdateCheck.check()) {
+                                is DesktopUpdateCheck.Result.UpdateAvailable -> {
                                     updateText = "发现新版 v${result.version}"
                                     updateUrl = result.pageUrl
                                 }
-                                WindowsUpdateCheck.Result.UpToDate -> {
+                                DesktopUpdateCheck.Result.UpToDate -> {
                                     updateText = "已是最新版"
                                     updateUrl = null
                                 }
-                                is WindowsUpdateCheck.Result.Failed -> {
+                                is DesktopUpdateCheck.Result.Failed -> {
                                     updateText = "检查失败：网络或限流，稍后再试"
                                     updateUrl = null
                                 }
@@ -421,7 +443,7 @@ internal fun SettingsPage() {
         Text(text = "关于", color = Color.White, fontSize = 16.sp)
         Spacer(Modifier.height(10.dp))
         Text(
-            text = "应用版本：Windows v${WindowsUpdateCheck.CURRENT_VERSION}",
+            text = "应用版本：${Platform.editionName} v${DesktopUpdateCheck.CURRENT_VERSION}",
             color = TextDim,
             fontSize = 14.sp,
         )
