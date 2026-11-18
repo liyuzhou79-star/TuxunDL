@@ -75,6 +75,11 @@ class MainActivity : BaseActivity<MainDesign>() {
     private var prevTrafficDown = 0L
     private var prevTrafficAt = 0L
 
+    // Tiered 2-hour history behind the fullscreen traffic chart
+    // (1.4.0): 1-second points for 10 minutes, 10-second buckets
+    // beyond that, plus the counter-reset instants that mark a drop.
+    private val trafficHistory = com.tuxundl.android.util.TrafficHistoryRecorder()
+
     // Throttle widget persistence: write rates at most every 5 ticks.
     private var widgetTickCount = 0
 
@@ -370,6 +375,10 @@ class MainActivity : BaseActivity<MainDesign>() {
         uiState.sessionDownBytes = 0L
         uiState.stallCount = 0
         uiState.delaySamples = emptyList()
+        uiState.delayHistory = emptyList()
+        trafficHistory.clear()
+        uiState.historyPoints = emptyList()
+        uiState.disconnectTimes = emptyList()
     }
 
     /**
@@ -604,10 +613,12 @@ class MainActivity : BaseActivity<MainDesign>() {
                     delayMs = if (delay in 1..65534) delay else -1,
                 )
                 uiState.delaySamples = (uiState.delaySamples + sample).takeLast(40)
+                uiState.delayHistory = (uiState.delayHistory + sample).takeLast(480)
             } catch (e: Exception) {
                 // Core stopped mid-probe: count it as a failed probe.
                 val sample = DelaySample(System.currentTimeMillis(), -1)
                 uiState.delaySamples = (uiState.delaySamples + sample).takeLast(40)
+                uiState.delayHistory = (uiState.delayHistory + sample).takeLast(480)
             } finally {
                 qualityProbing = false
             }
@@ -652,6 +663,32 @@ class MainActivity : BaseActivity<MainDesign>() {
 
             // The monitor chart keeps the last 2 minutes (120 samples).
             uiState.trafficSamples = (uiState.trafficSamples + sample).takeLast(120)
+
+            // Long-window history (1.4.0): the same deltas feed the
+            // tiered recorder behind the fullscreen chart. A tick
+            // that took far longer than a second means the app was
+            // paused (background / doze): the span stays a gap — no
+            // point is recorded — instead of one smeared average, and
+            // a counter reset hidden inside a gap is not stamped as
+            // a disconnect at resume time either.
+            val tickDurationMs = now - prevTrafficAt
+            if (tickDurationMs <= HISTORY_GAP_LIMIT_MS) {
+                val wallNow = System.currentTimeMillis()
+
+                if (up < prevTrafficUp || down < prevTrafficDown) {
+                    // Cumulative counters dropped: the core restarted
+                    // or the tunnel reconnected — a real drop moment.
+                    trafficHistory.recordDisconnect(wallNow)
+                }
+                trafficHistory.record(
+                    startMillis = wallNow - tickDurationMs,
+                    durationMillis = tickDurationMs,
+                    upBytes = deltaUp,
+                    downBytes = deltaDown,
+                )
+                uiState.historyPoints = trafficHistory.points()
+                uiState.disconnectTimes = trafficHistory.disconnects()
+            }
 
             // Daily totals: accumulate the raw byte deltas for today.
             // Only traffic while the app is open is counted (see the
@@ -985,6 +1022,12 @@ class MainActivity : BaseActivity<MainDesign>() {
         private const val TRAFFIC_ALERT_CHANNEL_ID = "subscription_alerts"
         private const val TRAFFIC_ALERT_NOTIFICATION_ID = 0x7A01
         private const val GIB_BYTES = 1024L * 1024L * 1024L
+
+        /**
+         * Ticks longer than this are sampling gaps (app paused), not
+         * data: the 2-hour history records nothing for the span.
+         */
+        private const val HISTORY_GAP_LIMIT_MS = 3_000L
 
         /** All orderable home cards, in their default display order. */
         private val HOME_CARD_KEYS =

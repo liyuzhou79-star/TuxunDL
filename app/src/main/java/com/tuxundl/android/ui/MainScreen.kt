@@ -253,6 +253,19 @@ class MainUiState {
     /** Recent quality probes of the main group (memory only, last 40). */
     var delaySamples by mutableStateOf<List<DelaySample>>(emptyList())
 
+    /**
+     * Tiered traffic history for the fullscreen chart (1.4.0):
+     * 1-second points for the last 10 minutes, 10-second buckets out
+     * to 2 hours, oldest first. Empty while the tunnel is stopped.
+     */
+    var historyPoints by mutableStateOf<List<com.tuxundl.android.util.TrafficPoint>>(emptyList())
+
+    /** Delay probes kept for the whole 2-hour window (15 s apart, last 480). */
+    var delayHistory by mutableStateOf<List<DelaySample>>(emptyList())
+
+    /** Instants this session where the core's counters reset (a drop / reconnect). */
+    var disconnectTimes by mutableStateOf<List<Long>>(emptyList())
+
     /** Zero-rate stalls (5+ seconds) seen this session. */
     var stallCount by mutableStateOf(0)
 
