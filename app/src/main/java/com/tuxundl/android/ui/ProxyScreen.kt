@@ -802,8 +802,9 @@ private fun ProxyRow(
  *
  * Display states, in priority order:
  * - testing: a breathing dot + "Testing…" (never a stale number);
- * - a real delay (1..65534): "X ms", coloured by tier
- *   (<=200 green, <=500 neutral, above orange);
+ * - a real delay (1..65534): "X ms", coloured by tier — the same
+ *   tiers as the desktop node list (1.3.6): green under 100 ms,
+ *   yellow up to 300 ms, red beyond that;
  * - tested but the core sentinel (65535 / 0): red "Timeout";
  * - group rows without a delay: "-";
  * - otherwise: "Not tested".
@@ -816,9 +817,9 @@ private fun DelayCell(
     onTestClick: () -> Unit,
 ) {
     val delayColor = when {
-        proxy.delay <= 200 -> Color(0xFF43A047)
-        proxy.delay <= 500 -> MaterialTheme.colorScheme.onSurfaceVariant
-        else -> Color(0xFFEF6C00)
+        proxy.delay < 100 -> Color(0xFF4ADE80)
+        proxy.delay <= 300 -> Color(0xFFFACC15)
+        else -> Color(0xFFFF6B6B)
     }
 
     Box(
@@ -858,7 +859,7 @@ private fun DelayCell(
                 Text(
                     text = stringResource(R.string.proxy_timeout),
                     style = MaterialTheme.typography.bodyMedium,
-                    color = MaterialTheme.colorScheme.error,
+                    color = Color(0xFFFF6B6B),
                 )
             }
             proxy.isGroup -> {
