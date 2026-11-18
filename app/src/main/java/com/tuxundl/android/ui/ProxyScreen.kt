@@ -147,6 +147,9 @@ fun ProxyScreen(
                         onRequest = onRequest,
                         onSortChange = onSortChange,
                         onExcludeNotSelectableChange = onExcludeNotSelectableChange,
+                        onSetAllExpanded = { expandAll ->
+                            state.groups.forEach { group -> group.expanded = expandAll }
+                        },
                         onOpenRules = onOpenRules,
                     )
                 },
@@ -295,6 +298,7 @@ private fun ProxyOverflowMenu(
     onRequest: (ProxyDesign.Request) -> Unit,
     onSortChange: (ProxySort) -> Unit,
     onExcludeNotSelectableChange: (Boolean) -> Unit,
+    onSetAllExpanded: (Boolean) -> Unit,
     onOpenRules: () -> Unit,
 ) {
     var expanded by remember { mutableStateOf(false) }
@@ -317,6 +321,22 @@ private fun ProxyOverflowMenu(
                 onClick = {
                     expanded = false
                     onOpenRules()
+                },
+            )
+            // Expand / collapse every group at once (groups are all
+            // loaded up front, so this is a pure UI state change).
+            DropdownMenuItem(
+                text = { Text(text = stringResource(R.string.expand_all_groups)) },
+                onClick = {
+                    expanded = false
+                    onSetAllExpanded(true)
+                },
+            )
+            DropdownMenuItem(
+                text = { Text(text = stringResource(R.string.collapse_all_groups)) },
+                onClick = {
+                    expanded = false
+                    onSetAllExpanded(false)
                 },
             )
             // Mode: "do not modify" (the three modes live in the segmented row)

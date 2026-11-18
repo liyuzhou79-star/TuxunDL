@@ -61,6 +61,8 @@
     <string name="pin_profile">置頂</string>
     <string name="unpin_profile">取消置頂</string>
     <string name="pinned_label">已置頂</string>
+    <string name="expand_all_groups">全部展開</string>
+    <string name="collapse_all_groups">全部摺疊</string>
     <string name="share_log">分享日誌</string>
     <string name="subscription_usage_warning">流量已用 %1$d%%，還剩 %2$s</string>
     <string name="subscription_usage_exhausted">流量已用完</string>
