@@ -15,14 +15,14 @@ plugins {
 // of the machine running it: Windows CI builds the Windows edition,
 // Linux CI builds the Linux edition, Mac CI builds the Mac edition.
 // Versions are independent from here on — the Windows edition is at
-// 1.6.10, the Linux and Mac editions start at 1.0.0 — and each
+// 1.6.10, Linux at 1.1.0, Mac at 1.0.0 — and each
 // edition's update checker only follows its own release tags
 // (win-v* / linux-v* / mac-v*).
 val hostOsName = System.getProperty("os.name").lowercase()
 val linuxBuild = hostOsName.contains("linux")
 val macBuild = hostOsName.contains("mac")
 val editionVersion = when {
-    linuxBuild -> "1.0.0"
+    linuxBuild -> "1.1.0"
     macBuild -> "1.0.0"
     else -> "1.6.10"
 }
