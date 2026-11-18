@@ -165,6 +165,44 @@ fun ProfilesScreen(
                 .padding(horizontal = 16.dp, vertical = 12.dp),
             verticalArrangement = Arrangement.spacedBy(12.dp),
         ) {
+            // Summary line above the list (1.3.6), mirroring the
+            // desktop subscriptions page: how many profiles there
+            // are, and how many need attention — expired or within
+            // 3 days of expiring, the same judgement the cards use.
+            if (orderedProfiles.isNotEmpty()) {
+                item(key = "profiles_summary") {
+                    val expiringCount = state.profiles.count { profile ->
+                        profile.expire > 0L &&
+                            daysUntilProfileExpiry(profile.expire, state.now) <= 3L
+                    }
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(horizontal = 4.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        Text(
+                            text = stringResource(
+                                R.string.profiles_summary_total,
+                                state.profiles.size,
+                            ),
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                        if (expiringCount > 0) {
+                            Spacer(modifier = Modifier.width(8.dp))
+                            Text(
+                                text = stringResource(
+                                    R.string.profiles_summary_expiring,
+                                    expiringCount,
+                                ),
+                                style = MaterialTheme.typography.bodyMedium,
+                                color = MaterialTheme.colorScheme.tertiary,
+                            )
+                        }
+                    }
+                }
+            }
             items(orderedProfiles, key = { it.uuid }) { profile ->
                 val itemStyle = LocalAnimStyle.current
                 ProfileCard(

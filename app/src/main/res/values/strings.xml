@@ -84,6 +84,8 @@
     <string name="pin_profile">Pin to top</string>
     <string name="unpin_profile">Unpin</string>
     <string name="pinned_label">Pinned</string>
+    <string name="profiles_summary_total">%1$d subscriptions</string>
+    <string name="profiles_summary_expiring">%1$d expired or expiring within 3 days</string>
     <string name="expand_all_groups">Expand all groups</string>
     <string name="collapse_all_groups">Collapse all groups</string>
     <string name="share_log">Share log</string>

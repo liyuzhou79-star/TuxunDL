@@ -61,6 +61,8 @@
     <string name="pin_profile">置頂</string>
     <string name="unpin_profile">取消置頂</string>
     <string name="pinned_label">已置頂</string>
+    <string name="profiles_summary_total">共 %1$d 個訂閱</string>
+    <string name="profiles_summary_expiring">其中 %1$d 個已過期或 3 天內到期</string>
     <string name="expand_all_groups">全部展開</string>
     <string name="collapse_all_groups">全部摺疊</string>
     <string name="share_log">分享日誌</string>
