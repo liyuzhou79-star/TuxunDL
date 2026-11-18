@@ -21,18 +21,30 @@ import com.tuxundl.android.ui.theme.TuxunDLTheme
 import com.tuxundl.android.ui.theme.customSeedColor
 import com.tuxundl.android.util.AppLock
 import com.tuxundl.android.util.ApplicationObserver
-import com.tuxundl.android.util.UpdateChecker
+import com.tuxundl.android.util.UpdateCheckCenter
 import com.tuxundl.android.util.UpdateCheckResult
+import com.tuxundl.android.util.UpdateCheckSnapshot
 import com.tuxundl.android.util.UpdateFailure
 import com.tuxundl.android.util.withClash
 import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.selects.select
+import java.text.DateFormat
+import java.util.Date
 
 class SettingsActivity : BaseActivity<SettingsDesign>() {
     private val uiState = SettingsUiState()
     private val uiRequests = Channel<SettingsDesign.Request>(Channel.UNLIMITED)
+
+    /**
+     * True while a manual check started from this screen is running.
+     * Separate from the shared state's checking flag: an automatic
+     * check running in the background must not swallow a tap here —
+     * the center starts a forced-fresh run for the manual tap even
+     * while an automatic one is in flight.
+     */
+    private var manualCheckRunning = false
 
     // Same permission-request pattern as MainActivity (which asks for
     // the foreground-service notification); here it is only fired when
@@ -48,6 +60,23 @@ class SettingsActivity : BaseActivity<SettingsDesign>() {
     private var persistOverride: ConfigurationOverride? = null
 
     override suspend fun main() {
+        // The settings entry shows the shared update state (1.6.0):
+        // the same snapshot the home card renders. Hydrate it from
+        // the persisted verdict at once, then keep mirroring it —
+        // including the spinner while any check (auto or manual)
+        // is running.
+        val currentVersion = packageManager
+            .getPackageInfo(packageName, 0).versionName ?: ""
+
+        UpdateCheckCenter.peek(this, currentVersion)
+
+        launch {
+            UpdateCheckCenter.state.collect { snapshot ->
+                uiState.checkingUpdate = snapshot.checking
+                uiState.updateCheckSummary = updateSummaryFor(snapshot)
+            }
+        }
+
         runCatching {
             val config = withClash { queryOverride(Clash.OverrideSlot.Persist) }
             persistOverride = config
@@ -91,17 +120,24 @@ class SettingsActivity : BaseActivity<SettingsDesign>() {
     }
 
     private fun checkUpdate() {
-        if (uiState.checkingUpdate) return
+        if (manualCheckRunning) return
+
+        manualCheckRunning = true
 
         launch {
-            uiState.checkingUpdate = true
-
             val current = packageManager
                 .getPackageInfo(packageName, 0).versionName ?: ""
 
-            val result = UpdateChecker.check(this@SettingsActivity, current)
+            // Manual means manual (1.6.0): the shared center runs a
+            // forced-fresh check — no throttle, no ETag replay — and
+            // every surface sees this same result.
+            val result = UpdateCheckCenter.check(
+                this@SettingsActivity,
+                current,
+                manual = true,
+            )
 
-            uiState.checkingUpdate = false
+            manualCheckRunning = false
 
             when (result) {
                 is UpdateCheckResult.UpdateAvailable -> {
@@ -159,6 +195,43 @@ class SettingsActivity : BaseActivity<SettingsDesign>() {
                 }
             }
         }
+    }
+
+    /** One-line state shown under the "check update" settings entry. */
+    private fun updateSummaryFor(snapshot: UpdateCheckSnapshot): String? {
+        if (snapshot.checking) {
+            return getString(R.string.update_checking)
+        }
+
+        return when (val result = snapshot.result) {
+            is UpdateCheckResult.UpdateAvailable ->
+                getString(R.string.update_new_found, result.info.version)
+
+            is UpdateCheckResult.UpToDate -> {
+                val time = formatCheckedAt(snapshot.checkedAtMillis)
+
+                if (time != null) {
+                    getString(R.string.update_latest) + " · " +
+                        getString(R.string.update_last_checked, time)
+                } else {
+                    getString(R.string.update_latest)
+                }
+            }
+
+            is UpdateCheckResult.Failed ->
+                getString(R.string.update_summary_failed)
+
+            null -> null
+        }
+    }
+
+    private fun formatCheckedAt(millis: Long): String? {
+        if (millis == 0L) return null
+
+        return DateFormat.getDateTimeInstance(
+            DateFormat.SHORT,
+            DateFormat.SHORT,
+        ).format(Date(millis))
     }
 
     /** Mutate the persistent override and write it back at once. */

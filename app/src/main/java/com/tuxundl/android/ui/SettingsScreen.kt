@@ -42,8 +42,8 @@ import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.unit.dp
 import com.tuxundl.android.R
 import com.tuxundl.android.design.SettingsDesign
+import com.tuxundl.android.util.UpdateCheckCenter
 import com.tuxundl.android.util.UpdateCheckResult
-import com.tuxundl.android.util.UpdateChecker
 import com.tuxundl.android.util.UpdateInfo
 import com.tuxundl.android.util.WindowsInfo
 import kotlin.math.roundToInt
@@ -53,6 +53,14 @@ import com.tuxundl.android.design.R as DesignR
 /** State for the settings home: the manual update-check flow lives here. */
 class SettingsUiState {
     var checkingUpdate by mutableStateOf(false)
+
+    /**
+     * One-line shared update state under the "check update" entry
+     * (1.6.0): mirrors [UpdateCheckCenter]'s snapshot via
+     * SettingsActivity — newest version found, up-to-date plus the
+     * last check time, or that the last check failed.
+     */
+    var updateCheckSummary by mutableStateOf<String?>(null)
 
     /** Non-null while the update-check result dialog is shown. */
     var updateMessage by mutableStateOf<String?>(null)
@@ -366,6 +374,7 @@ fun SettingsScreen(
             SettingsEntryCard(
                 icon = DesignR.drawable.ic_baseline_update,
                 title = stringResource(R.string.check_update),
+                summary = state.updateCheckSummary,
                 trailing = {
                     if (state.checkingUpdate) {
                         CircularProgressIndicator(modifier = Modifier.size(24.dp))
@@ -387,8 +396,11 @@ fun SettingsScreen(
                 },
                 onClick = {
                     // Look up the newest Windows release (1.2.4). The
-                    // checker already collects it alongside the
-                    // Android result; here we only surface it.
+                    // shared center already collects it alongside the
+                    // Android result (1.6.0: this entry no longer runs
+                    // a check of its own — it reads the one shared
+                    // state, which the throttled automatic path keeps
+                    // fresh); here we only surface it.
                     if (!state.checkingWindows) {
                         state.checkingWindows = true
                         screenScope.launch {
@@ -397,7 +409,11 @@ fun SettingsScreen(
                                     screenContext.packageName, 0,
                                 ).versionName ?: ""
                             }.getOrDefault("")
-                            val result = UpdateChecker.check(screenContext, current)
+                            val result = UpdateCheckCenter.check(
+                                screenContext,
+                                current,
+                                manual = false,
+                            )
                             state.checkingWindows = false
                             val windows = when (result) {
                                 is UpdateCheckResult.UpdateAvailable ->
@@ -801,6 +817,7 @@ private fun SettingsSectionTitle(text: String, first: Boolean = false) {
 private fun SettingsEntryCard(
     @DrawableRes icon: Int,
     title: String,
+    summary: String? = null,
     trailing: @Composable (() -> Unit)? = null,
     onClick: () -> Unit,
 ) {
@@ -820,11 +837,19 @@ private fun SettingsEntryCard(
                 contentDescription = null,
                 tint = MaterialTheme.colorScheme.primary,
             )
-            Text(
-                text = title,
-                style = MaterialTheme.typography.titleMedium,
-                modifier = Modifier.weight(1f),
-            )
+            Column(modifier = Modifier.weight(1f)) {
+                Text(
+                    text = title,
+                    style = MaterialTheme.typography.titleMedium,
+                )
+                if (summary != null) {
+                    Text(
+                        text = summary,
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                }
+            }
             if (trailing != null) {
                 trailing()
             }
