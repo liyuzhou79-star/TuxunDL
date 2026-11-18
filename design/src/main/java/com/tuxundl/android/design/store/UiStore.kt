@@ -168,6 +168,12 @@ class UiStore(context: Context) {
         defaultValue = emptySet()
     )
 
+    /** Pinned profile uuids (as strings); pinned profiles sort to the top of the profiles list. */
+    var pinnedProfiles: Set<String> by store.stringSet(
+        key = "pinned_profiles",
+        defaultValue = emptySet()
+    )
+
     /** Epoch millis when the current connection started; 0 = not running. */
     var runningSince: Long by store.long(
         key = "running_since",

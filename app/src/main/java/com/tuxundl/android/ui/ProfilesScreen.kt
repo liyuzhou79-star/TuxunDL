@@ -77,6 +77,9 @@ class ProfilesUiState {
     /** Refreshed once a minute by the activity so elapsed labels stay fresh. */
     var now by mutableStateOf(System.currentTimeMillis())
 
+    /** Pinned profile uuids as strings (mirrors UiStore.pinnedProfiles). */
+    var pinnedUuids by mutableStateOf<Set<String>>(emptySet())
+
     /** Profile whose bottom-sheet menu is open, if any. */
     var menuProfile by mutableStateOf<Profile?>(null)
 
@@ -92,6 +95,7 @@ class ProfilesUiState {
 fun ProfilesScreen(
     state: ProfilesUiState,
     onRequest: (ProfilesDesign.Request) -> Unit,
+    onTogglePin: (Profile) -> Unit,
     onBack: () -> Unit,
 ) {
     Scaffold(
@@ -153,7 +157,14 @@ fun ProfilesScreen(
                 .padding(horizontal = 16.dp, vertical = 12.dp),
             verticalArrangement = Arrangement.spacedBy(12.dp),
         ) {
-            items(state.profiles, key = { it.uuid }) { profile ->
+            // Pinned profiles first; sortedBy is stable, so each
+            // partition keeps the service's original order.
+            val orderedProfiles = remember(state.profiles, state.pinnedUuids) {
+                state.profiles.sortedBy { profile ->
+                    if (profile.uuid.toString() in state.pinnedUuids) 0 else 1
+                }
+            }
+            items(orderedProfiles, key = { it.uuid }) { profile ->
                 val itemStyle = LocalAnimStyle.current
                 ProfileCard(
                     modifier = Modifier.animateItem(
@@ -164,6 +175,7 @@ fun ProfilesScreen(
                     profile = profile,
                     now = state.now,
                     updating = profile.uuid in state.updatingUuids,
+                    pinned = profile.uuid.toString() in state.pinnedUuids,
                     onClick = { onRequest(ProfilesDesign.Request.Active(profile)) },
                     onMenu = { state.menuProfile = profile },
                 )
@@ -175,10 +187,15 @@ fun ProfilesScreen(
     if (menuProfile != null) {
         ProfileMenuSheet(
             profile = menuProfile,
+            pinned = menuProfile.uuid.toString() in state.pinnedUuids,
             onDismiss = { state.menuProfile = null },
             onRequest = { request ->
                 state.menuProfile = null
                 onRequest(request)
+            },
+            onTogglePin = {
+                state.menuProfile = null
+                onTogglePin(menuProfile)
             },
         )
     }
@@ -211,6 +228,7 @@ private fun ProfileCard(
     profile: Profile,
     now: Long,
     updating: Boolean,
+    pinned: Boolean,
     onClick: () -> Unit,
     onMenu: () -> Unit,
     modifier: Modifier = Modifier,
@@ -229,10 +247,20 @@ private fun ProfileCard(
         ) {
             RadioButton(selected = profile.active, onClick = onClick)
             Column(modifier = Modifier.weight(1f)) {
-                Text(
-                    text = profile.name,
-                    style = MaterialTheme.typography.titleMedium,
-                )
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Text(
+                        text = profile.name,
+                        style = MaterialTheme.typography.titleMedium,
+                    )
+                    if (pinned) {
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Text(
+                            text = stringResource(R.string.pinned_label),
+                            style = MaterialTheme.typography.labelMedium,
+                            color = MaterialTheme.colorScheme.tertiary,
+                        )
+                    }
+                }
                 Text(
                     text = if (profile.pending) {
                         stringResource(
@@ -339,11 +367,19 @@ private fun ProfileCard(
 @Composable
 private fun ProfileMenuSheet(
     profile: Profile,
+    pinned: Boolean,
     onDismiss: () -> Unit,
     onRequest: (ProfilesDesign.Request) -> Unit,
+    onTogglePin: () -> Unit,
 ) {
     ModalBottomSheet(onDismissRequest = onDismiss) {
         Column(modifier = Modifier.padding(bottom = 24.dp)) {
+            MenuItem(
+                text = stringResource(
+                    if (pinned) R.string.unpin_profile else R.string.pin_profile,
+                ),
+                onClick = onTogglePin,
+            )
             if (profile.imported && profile.type != Profile.Type.File) {
                 MenuItem(
                     text = stringResource(DesignR.string.update),

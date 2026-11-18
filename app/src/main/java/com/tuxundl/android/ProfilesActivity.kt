@@ -117,7 +117,19 @@ class ProfilesActivity : BaseActivity<ProfilesDesign>() {
 
             uiState.profiles = profiles
             uiState.updatable = profiles.any { it.imported && it.type != Profile.Type.File }
+            uiState.pinnedUuids = uiStore.pinnedProfiles
         }
+    }
+
+    /** Pin/unpin a profile; pinned profiles sort to the top of the list. */
+    private fun togglePin(profile: Profile) {
+        val key = profile.uuid.toString()
+        val updated = uiStore.pinnedProfiles.toMutableSet().apply {
+            if (!add(key)) remove(key)
+        }
+
+        uiStore.pinnedProfiles = updated
+        uiState.pinnedUuids = updated
     }
 
     private suspend fun requestSave(profile: Profile) {
@@ -211,6 +223,7 @@ class ProfilesActivity : BaseActivity<ProfilesDesign>() {
                     ProfilesScreen(
                         state = uiState,
                         onRequest = { request -> uiRequests.trySend(request) },
+                        onTogglePin = { profile -> togglePin(profile) },
                         onBack = { finish() },
                     )
                 }
