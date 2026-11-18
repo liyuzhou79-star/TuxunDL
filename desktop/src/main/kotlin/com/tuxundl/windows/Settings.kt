@@ -117,6 +117,14 @@ object SettingsStore {
         write(mapOf("coreMode" to kotlinx.serialization.json.JsonPrimitive(value)))
     }
 
+    /** Theme accent color as an ARGB hex string (see ThemeState). */
+    fun themeColorHex(): String? =
+        read()["themeColor"]?.jsonPrimitive?.contentOrNull
+
+    fun setThemeColorHex(value: String) {
+        write(mapOf("themeColor" to kotlinx.serialization.json.JsonPrimitive(value)))
+    }
+
     /** Favorite node names, starred on the nodes page. Stored by name. */
     fun favoriteNodes(): Set<String> =
         read()["favoriteNodes"]?.jsonArray

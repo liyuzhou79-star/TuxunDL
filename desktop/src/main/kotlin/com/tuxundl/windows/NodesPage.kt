@@ -36,7 +36,7 @@ import kotlinx.serialization.json.jsonPrimitive
 
 // Palette duplicated from Main.kt for now; the pages consolidate into
 // a shared theme file as they grow.
-private val Indigo = Color(0xFF5B5BD6)
+private val Indigo get() = ThemeState.accent
 private val PanelDark = Color(0xFF1E1E2A)
 private val TextDim = Color(0xFF9A9AB0)
 private val StarGold = Color(0xFFFFB84D)

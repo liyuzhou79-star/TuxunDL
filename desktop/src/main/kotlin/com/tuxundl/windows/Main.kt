@@ -49,10 +49,10 @@ import androidx.compose.ui.window.Tray
 import androidx.compose.ui.window.Window
 import androidx.compose.ui.window.application
 
-// Palette mirrors the Android app's indigo theme so both editions read
-// as one product.
-private val Indigo = Color(0xFF5B5BD6)
-private val IndigoSoft = Color(0xFF8E8EF0)
+// The accent comes from ThemeState (default indigo, matching the
+// Android app) so the settings page can recolor the whole app live.
+private val Indigo get() = ThemeState.accent
+private val IndigoSoft get() = ThemeState.accentSoft
 private val BgDark = Color(0xFF14141C)
 private val PanelDark = Color(0xFF1E1E2A)
 private val TextDim = Color(0xFF9A9AB0)

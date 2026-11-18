@@ -34,7 +34,7 @@ import kotlinx.coroutines.launch
 
 // Each page file keeps its own private palette copy (the package has
 // several, so a new file must declare its own to stay unambiguous).
-private val Indigo = Color(0xFF5B5BD6)
+private val Indigo get() = ThemeState.accent
 private val PanelDark = Color(0xFF1E1E2A)
 private val TextDim = Color(0xFF9A9AB0)
 

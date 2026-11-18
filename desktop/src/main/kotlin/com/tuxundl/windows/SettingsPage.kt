@@ -1,8 +1,10 @@
 package com.tuxundl.windows
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -10,7 +12,9 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
@@ -32,7 +36,7 @@ import kotlinx.coroutines.launch
 import java.awt.Desktop
 import java.net.URI
 
-private val Indigo = Color(0xFF5B5BD6)
+private val Indigo get() = ThemeState.accent
 private val PanelDark = Color(0xFF1E1E2A)
 private val TextDim = Color(0xFF9A9AB0)
 
@@ -217,6 +221,45 @@ internal fun SettingsPage() {
                     logLevel = level
                     SettingsStore.setLogLevel(level)
                     note = "日志级别已设为 $level，下次连接生效"
+                }
+            }
+        }
+
+        Spacer(Modifier.height(28.dp))
+
+        Text(text = "主题色", color = Color.White, fontSize = 16.sp)
+        Spacer(Modifier.height(4.dp))
+        Text(
+            text = "整个应用的强调色：按钮、选中状态、高亮文字都跟着变。点一下立刻全应用生效，重启也不会丢。",
+            color = TextDim,
+            fontSize = 13.sp,
+        )
+        Spacer(Modifier.height(10.dp))
+        Row(horizontalArrangement = Arrangement.spacedBy(14.dp)) {
+            ThemeState.presets.forEach { (name, color) ->
+                val selected = ThemeState.accent == color
+                Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                    Box(
+                        modifier = Modifier
+                            .size(36.dp)
+                            .clip(CircleShape)
+                            .background(color)
+                            .border(
+                                width = if (selected) 2.dp else 0.dp,
+                                color = Color.White,
+                                shape = CircleShape,
+                            )
+                            .clickable {
+                                ThemeState.select(color)
+                                note = "主题色已换成$name"
+                            },
+                    )
+                    Spacer(Modifier.height(6.dp))
+                    Text(
+                        text = name,
+                        color = if (selected) Color.White else TextDim,
+                        fontSize = 12.sp,
+                    )
                 }
             }
         }
