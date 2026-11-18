@@ -63,7 +63,13 @@ import com.tuxundl.android.core.model.ProxySort
 import com.tuxundl.android.core.model.TunnelState
 import com.tuxundl.android.design.ProxyDesign
 import com.tuxundl.android.design.model.AnimationStyle
+import java.text.SimpleDateFormat
+import java.util.Date
+import java.util.Locale
 import com.tuxundl.android.design.R as DesignR
+
+/** HH:mm:ss clock format for the "last tested" line. */
+private val lastTestTimeFormat = SimpleDateFormat("HH:mm:ss", Locale.US)
 
 /**
  * State of one proxy group on the Compose proxy screen.
@@ -111,6 +117,9 @@ class ProxyUiState {
      * shows in red, untested shows "not tested").
      */
     var testedNodes by mutableStateOf<Set<String>>(emptySet())
+
+    /** Epoch millis of the last completed delay test (mirrors UiStore.proxyLastTestAt); 0 = never. */
+    var lastTestAt by mutableStateOf(0L)
 
     val snackbarHostState = SnackbarHostState()
 }
@@ -198,6 +207,20 @@ fun ProxyScreen(
                     Text(text = stringResource(DesignR.string.search))
                 },
             )
+
+            // When the last delay test finished (single-node or
+            // whole-group); hidden until the first test completes.
+            if (state.lastTestAt > 0L) {
+                Text(
+                    text = stringResource(
+                        R.string.proxy_last_test,
+                        lastTestTimeFormat.format(Date(state.lastTestAt)),
+                    ),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.padding(horizontal = 16.dp, vertical = 2.dp),
+                )
+            }
 
             // Groups that still have a matching row. A group that has not
             // finished loading yet stays visible — it may still match.

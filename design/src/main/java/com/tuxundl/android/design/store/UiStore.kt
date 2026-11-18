@@ -140,6 +140,12 @@ class UiStore(context: Context) {
         defaultValue = ""
     )
 
+    /** Epoch millis of the last completed proxy delay test (single-node or whole-group); 0 = never tested. */
+    var proxyLastTestAt: Long by store.long(
+        key = "proxy_last_test_at",
+        defaultValue = 0L
+    )
+
     var accessControlSort: AppInfoSort by store.enum(
         key = "access_control_sort",
         defaultValue = AppInfoSort.Label,

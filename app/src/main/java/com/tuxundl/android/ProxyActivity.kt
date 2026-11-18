@@ -53,6 +53,16 @@ class ProxyActivity : BaseActivity<ProxyDesign>() {
         // keys). Group tests do not use this set.
         val completedTestNodes = mutableSetOf<String>()
 
+        // Record a finished delay test (single-node or whole-group)
+        // for the "last tested" line on the proxy screen; persisted
+        // so it survives leaving and re-entering the page.
+        fun markTestFinished() {
+            val now = System.currentTimeMillis()
+
+            uiStore.proxyLastTestAt = now
+            uiState.lastTestAt = now
+        }
+
         suspend fun reloadNames() {
             names = withClash {
                 queryProxyGroupNames(uiStore.proxyExcludeNotSelectable)
@@ -73,6 +83,7 @@ class ProxyActivity : BaseActivity<ProxyDesign>() {
         uiState.sort = uiStore.proxySort
         uiState.excludeNotSelectable = uiStore.proxyExcludeNotSelectable
         uiState.favorites = uiStore.favoriteProxies
+        uiState.lastTestAt = uiStore.proxyLastTestAt
 
         reloadNames()
 
@@ -140,6 +151,8 @@ class ProxyActivity : BaseActivity<ProxyDesign>() {
                                         }
 
                                         completedTestNodes += key
+
+                                        markTestFinished()
 
                                         uiRequests.send(ProxyDesign.Request.Reload(index))
                                     }
@@ -240,6 +253,8 @@ class ProxyActivity : BaseActivity<ProxyDesign>() {
                                 withClash {
                                     healthCheck(names[index])
                                 }
+
+                                markTestFinished()
 
                                 uiRequests.send(ProxyDesign.Request.Reload(index))
 

@@ -113,6 +113,7 @@
     <string name="sort_delay_asc">延遲由低到高</string>
     <string name="proxy_not_tested">未測試</string>
     <string name="proxy_search_no_result">沒有符合的節點</string>
+    <string name="proxy_last_test">上次測速 %1$s</string>
     <string name="log_search_no_result">沒有符合的日誌</string>
     <string name="log_level_all">全部</string>
     <string name="log_level_error">錯誤</string>
