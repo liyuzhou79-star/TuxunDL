@@ -54,6 +54,8 @@ private val IndigoSoft = Color(0xFF8E8EF0)
 private val BgDark = Color(0xFF14141C)
 private val PanelDark = Color(0xFF1E1E2A)
 private val TextDim = Color(0xFF9A9AB0)
+private val WarnAmber = Color(0xFFFFB84D)
+private val WarnRed = Color(0xFFFF6B6B)
 
 private val NAV_ITEMS =
     listOf("首页", "节点", "连接", "订阅", "规则", "日志", "设置")
@@ -476,7 +478,8 @@ private fun SubscriptionTrafficCard(
     } else {
         0f
     }
-    val expireText = if (sub.expireAt > 0) {
+    val warning = expiryWarning(sub.expireAt)
+    val expireText = if (sub.expireAt > 0 && warning == null) {
         val date = java.time.Instant.ofEpochSecond(sub.expireAt)
             .atZone(java.time.ZoneId.systemDefault())
             .toLocalDate()
@@ -526,6 +529,15 @@ private fun SubscriptionTrafficCard(
                 color = Color.White,
                 fontSize = 14.sp,
             )
+            if (warning != null) {
+                Spacer(Modifier.height(4.dp))
+                Text(
+                    text = warning.text,
+                    color = if (warning.expired) WarnRed else WarnAmber,
+                    fontSize = 14.sp,
+                    fontWeight = FontWeight.Medium,
+                )
+            }
         }
     }
 }

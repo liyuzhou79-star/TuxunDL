@@ -29,6 +29,31 @@ data class Subscription(
     val expireAt: Long = 0,
 )
 
+/** A plan-expiry warning: the text plus whether the plan already expired. */
+internal data class ExpiryWarning(val text: String, val expired: Boolean)
+
+/**
+ * Warning for a plan that expires within three days or already has.
+ * Null when the expiry is unknown or comfortably far away; callers
+ * fall back to showing the plain expiry date then.
+ */
+internal fun expiryWarning(expireAt: Long): ExpiryWarning? {
+    if (expireAt <= 0) return null
+    if (System.currentTimeMillis() / 1000 >= expireAt) {
+        return ExpiryWarning("已到期，请续费或更换订阅", expired = true)
+    }
+    val today = java.time.LocalDate.now()
+    val expireDate = java.time.Instant.ofEpochSecond(expireAt)
+        .atZone(java.time.ZoneId.systemDefault())
+        .toLocalDate()
+    val days = java.time.temporal.ChronoUnit.DAYS.between(today, expireDate)
+    return when {
+        days <= 0L -> ExpiryWarning("今天到期，请尽快续费", expired = false)
+        days <= 3L -> ExpiryWarning("还有 $days 天到期", expired = false)
+        else -> null
+    }
+}
+
 /**
  * Subscription storage under the app data dir: the list lives in
  * `subscriptions.json`, each fetched config in `profiles/<id>.yaml`,

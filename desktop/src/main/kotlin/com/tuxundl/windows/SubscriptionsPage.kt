@@ -37,6 +37,8 @@ import java.util.Locale
 
 private val PanelDark = Color(0xFF1E1E2A)
 private val TextDim = Color(0xFF9A9AB0)
+private val WarnAmber = Color(0xFFFFB84D)
+private val WarnRed = Color(0xFFFF6B6B)
 
 private fun fmtBytes(bytes: Long): String = when {
     bytes < 1024 -> "$bytes B"
@@ -300,6 +302,18 @@ private fun SubscriptionCard(
                     },
                     color = TextDim,
                     fontSize = 13.sp,
+                )
+            }
+
+            val warning = expiryWarning(sub.expireAt)
+            if (warning != null) {
+                Spacer(Modifier.height(2.dp))
+
+                Text(
+                    text = warning.text,
+                    color = if (warning.expired) WarnRed else WarnAmber,
+                    fontSize = 13.sp,
+                    fontWeight = FontWeight.Medium,
                 )
             }
 
