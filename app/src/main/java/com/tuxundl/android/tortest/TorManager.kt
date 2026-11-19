@@ -306,10 +306,11 @@ object TorManager {
                 appendLog("[Tor] 控制口关停失败（${e.message}），直接结束进程")
             }
             try {
-                process?.waitFor()
+                val exited = process?.waitFor(3, java.util.concurrent.TimeUnit.SECONDS) ?: true
+                if (!exited) process?.destroy()
             } catch (_: Exception) {
+                process?.destroy()
             }
-            process?.destroy()
             process = null
             stopTransports()
             _state.update {

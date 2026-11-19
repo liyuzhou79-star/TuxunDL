@@ -2,6 +2,11 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:tools="http://schemas.android.com/tools">
 
+    <!-- Tor spike (tor-spike branch only): tor-android and IPtProxy
+         declare minSdk 24 while the app supports 21; the test package
+         only ever runs on modern devices, so override for the merge. -->
+    <uses-sdk tools:overrideLibrary="org.torproject.jni, go.IPtProxy.gojni" />
+
     <uses-feature
         android:name="android.software.leanback"
         android:required="false" />
