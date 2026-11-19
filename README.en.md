@@ -7,7 +7,8 @@
 <h1 align="center">TuxunDL</h1>
 
 <p align="center">
-  An open-source, highly customizable proxy client for Android, Windows, Linux and Mac, powered by the mihomo core.
+  One repository, four platforms — an open-source proxy client built around deep customization.<br>
+  Android, Windows, Linux and Mac, developed and released together on the mihomo core: from theme colors to rule details, everything is yours to tune.
 </p>
 
 <p align="center">
@@ -28,6 +29,7 @@
 
 <p align="center">
   <a href="https://github.com/liyuzhou79-star/TuxunDL/releases/latest"><b>Download the latest version</b></a> ·
+  <a href="#quick-start">Quick start</a> ·
   <a href="#features">Features</a> ·
   <a href="#editions">Editions</a> ·
   <a href="#changelog">Changelog</a> ·
@@ -42,9 +44,24 @@
 
 ## About
 
-TuxunDL is a fully open-source (GPL-3.0) proxy client powered by the [mihomo](https://github.com/MetaCubeX/mihomo) core, available for **Android, Windows, Linux and Mac**, all developed in this single repository. Its defining word is **customization** — theme colors, home layout, card toggles, node favorites, rule editing and DNS overrides are all yours to change.
+TuxunDL is a fully open-source (GPL-3.0) proxy client powered by the [mihomo](https://github.com/MetaCubeX/mihomo) core. Two things set it apart from most tools of its kind:
+
+- **One repository, four platforms**: **Android, Windows, Linux and Mac** are developed side by side in this single repository, and every release ships the installers for all four platforms together — plus an Android TV beta. Switch devices without switching habits; your data and subscriptions travel with you.
+- **Customization, all the way down**: theme colors, home layout, card toggles, node favorites and ordering, rule editing, DNS overrides, per-app proxying — if it can be opened up, it is open, so you can shape the client exactly the way you like it.
+
+It is fully featured, too: real-time traffic monitoring with long-term statistics, scheduled on/off and night mode, an app lock with privacy controls, automatic backups, and subscription expiry reminders on every platform. Every installer is built publicly by GitHub Actions and the code is fully open — safe to use, free to modify.
 
 The Android edition is built with Kotlin + Jetpack Compose + Material 3, with a little antenna robot as its mascot. The desktop editions (Windows / Linux / Mac) are written from scratch (code in the `desktop/` directory, fully original), use a window-shaped mascot, and also run on mihomo — the core is bundled in the installer, so it works right after installation.
+
+## Quick start
+
+New here? Three steps and you are connected:
+
+1. Pick your platform's installer in the Download section below, install it, and open the app.
+2. Add a subscription: paste your subscription link, scan a QR code, or import from a file.
+3. Back on the home screen, pick a node and tap the big button in the middle — you are connected.
+
+Everything else lives in Settings whenever you feel like tinkering: themes, home-screen cards, scheduled and night modes, per-app proxying, and more.
 
 ## Download
 

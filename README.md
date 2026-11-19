@@ -7,7 +7,8 @@
 <h1 align="center">TuxunDL</h1>
 
 <p align="center">
-  高自定义、强个性化的开源代理工具，Android、Windows、Linux、Mac 四个平台，基于 mihomo 核心。
+  一个仓库，四个平台——把「自定义」做到骨子里的开源代理客户端。<br>
+  Android、Windows、Linux、Mac 全平台同步开发、同步发布，mihomo 核心驱动，从主题配色到规则细节，想改的都能改。
 </p>
 
 <p align="center">
@@ -28,6 +29,7 @@
 
 <p align="center">
   <a href="https://github.com/liyuzhou79-star/TuxunDL/releases/latest"><b>下载最新版</b></a> ·
+  <a href="#快速上手">快速上手</a> ·
   <a href="#功能总览">功能</a> ·
   <a href="#版本一览">版本一览</a> ·
   <a href="#更新记录">更新记录</a> ·
@@ -42,9 +44,24 @@
 
 ## 这是什么
 
-TuxunDL 是一个完全开源（GPL-3.0）的代理客户端，核心采用 [mihomo](https://github.com/MetaCubeX/mihomo)，有 **Android、Windows、Linux、Mac** 四个平台版本，在同一个仓库里开发。主打一个词：**自定义**——主题色、首页排版、卡片开关、节点收藏、规则编辑、DNS 覆写，能自己改的全都开放给你改。
+TuxunDL 是一个完全开源（GPL-3.0）的代理客户端，核心采用 [mihomo](https://github.com/MetaCubeX/mihomo)。它和大多数同类工具最大的不同有两点：
+
+- **一个仓库，四个平台**：**Android、Windows、Linux、Mac** 四个版本在同一个仓库里同步开发、每次发布四个平台的安装包一起到位，另外还有一个 Android TV 测试版。换设备不用换习惯，数据和订阅都能带走。
+- **自定义拉满**：主题色、首页排版、卡片开关、节点收藏与排序、规则编辑、DNS 覆写、分应用代理——能开放的全都开放，就是要让你把客户端调成自己最顺手的样子。
+
+功能上也不含糊：实时流量监控与长期统计、定时开关与夜间模式、应用锁与隐私保护、自动备份、订阅到期提醒，各平台该有的都有。所有安装包都由 GitHub Actions 公开构建，代码全开源——用得放心，改得自由。
 
 Android 版界面以 Kotlin + Jetpack Compose + Material 3 打造，吉祥物是天线连着节点的小机器人；桌面版（Windows / Linux / Mac）是全新编写的程序（代码在 `desktop/` 目录，全部原创），吉祥物换成窗户造型，内核同样是 mihomo，安装包已内置核心，装完即用。
+
+## 快速上手
+
+第一次用，三步就够：
+
+1. 在下方「下载」里选你平台的安装包，装好打开。
+2. 添加订阅：粘贴你的订阅链接，或者扫码、从文件导入都可以。
+3. 回到首页，选一个节点，点中间的大按钮——连上了。
+
+连上之后想折腾的都在设置里：换主题、调首页卡片、开定时与夜间模式、让某个应用单独走代理，慢慢玩。
 
 ## 下载
 
