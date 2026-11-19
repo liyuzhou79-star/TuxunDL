@@ -9,6 +9,12 @@ import android.webkit.WebView
 import android.webkit.WebViewClient
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
+import androidx.compose.animation.core.LinearEasing
+import androidx.compose.animation.core.RepeatMode
+import androidx.compose.animation.core.animateFloat
+import androidx.compose.animation.core.infiniteRepeatable
+import androidx.compose.animation.core.rememberInfiniteTransition
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -54,9 +60,12 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.geometry.Rect
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.Path
+import androidx.compose.ui.graphics.PathEffect
 import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.platform.LocalContext
@@ -74,6 +83,8 @@ import androidx.webkit.ProxyConfig
 import androidx.webkit.ProxyController
 import androidx.webkit.WebViewFeature
 import java.net.URLEncoder
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 
 /**
  * Tor page (tor-spike branch only), phase 2 design as locked by the
@@ -184,6 +195,44 @@ private fun TorPage() {
     val connected = state.running && state.bootstrap >= 100
     val connecting = state.running && state.bootstrap in 0..99
 
+    // Country outlines are parsed once off the main thread, then the
+    // Canvas only scales the cached normalized paths.
+    val appContext = context.applicationContext
+    var mapPaths by remember { mutableStateOf<List<Path>?>(null) }
+    LaunchedEffect(Unit) {
+        mapPaths = withContext(Dispatchers.IO) { WorldMapData.load(appContext) }
+    }
+
+    // Lit points on the map: located circuit hops in order (the last
+    // one is the exit); if the circuit could not be read, the exit
+    // alone. A hop whose position is unknown is simply not lit.
+    val mapPoints: List<MapDot> = remember(state.hops, state.exitLat, state.exitLon, connected) {
+        if (!connected) {
+            emptyList()
+        } else {
+            val located = state.hops.mapNotNull { hop ->
+                val lat = hop.lat
+                val lon = hop.lon
+                if (lat != null && lon != null) {
+                    MapDot(normX(lon), normY(lat), isExit = false)
+                } else {
+                    null
+                }
+            }
+            when {
+                located.size >= 2 -> located.mapIndexed { index, dot ->
+                    if (index == located.lastIndex) dot.copy(isExit = true) else dot
+                }
+
+                state.exitLat != null && state.exitLon != null -> listOf(
+                    MapDot(normX(state.exitLon!!), normY(state.exitLat!!), isExit = true)
+                )
+
+                else -> located
+            }
+        }
+    }
+
     // If Tor dies while the browser is open, leave the browser too —
     // its proxy port is gone and nothing may fall back to direct.
     LaunchedEffect(state.running) {
@@ -290,8 +339,12 @@ private fun TorPage() {
                 horizontalAlignment = Alignment.CenterHorizontally,
                 verticalArrangement = Arrangement.Center
             ) {
-                Globe(active = connected, inProgress = connecting)
-                Spacer(Modifier.height(20.dp))
+                WorldMapDisc(
+                    paths = mapPaths,
+                    points = mapPoints,
+                    connected = connected
+                )
+                Spacer(Modifier.height(16.dp))
                 when {
                     connected && state.exitIp != null -> {
                         Text(
@@ -461,10 +514,20 @@ private fun TorPage() {
     }
 }
 
-private fun hopsLine(hops: List<String>): String = when {
-    hops.size >= 3 -> "入口 ${hops.first()} → 中间 ${hops[hops.size / 2]} → 出口 ${hops.last()}"
-    else -> hops.joinToString(" → ")
+private fun hopsLine(hops: List<TorManager.Hop>): String = when {
+    hops.size >= 3 ->
+        "入口：${hops.first().place} → 中间：${hops[hops.size / 2].place} → 出口：${hops.last().place}"
+
+    hops.size == 2 -> "入口：${hops.first().place} → 出口：${hops.last().place}"
+    else -> hops.joinToString(" → ") { it.place }
 }
+
+/** A lit point on the map disc, in normalized 0..1 map coordinates. */
+private data class MapDot(val x: Float, val y: Float, val isExit: Boolean)
+
+private fun normX(lon: Double): Float = ((lon + 180.0) / 360.0).toFloat()
+
+private fun normY(lat: Double): Float = ((90.0 - lat) / 180.0).toFloat()
 
 @Composable
 private fun DuckBar(
@@ -605,59 +668,145 @@ private fun CustomBridgeInput(
     }
 }
 
-/** Line-art globe: bright when connected, faint while connecting, grey when off. */
+/**
+ * The centerpiece: a real world map on a circular disc. Country
+ * polygons (cached normalized paths from [WorldMapData]) are filled
+ * muted purple with light borders; located hops glow on top, joined
+ * in order by slowly flowing dashed arcs, the exit breathing.
+ */
 @Composable
-private fun Globe(active: Boolean, inProgress: Boolean) {
-    val stroke = when {
-        active -> Color(0xFFF3E8FF)
-        inProgress -> Color.White.copy(alpha = 0.55f)
-        else -> Color.White.copy(alpha = 0.22f)
-    }
-    Canvas(Modifier.size(168.dp)) {
-        val width = 1.6.dp.toPx()
-        val radius = size.minDimension / 2f - width
-        val c = center
-        if (active) {
-            drawCircle(
-                brush = Brush.radialGradient(
-                    listOf(Accent.copy(alpha = 0.40f), Color.Transparent)
-                ),
-                radius = radius * 1.25f,
-                center = c
-            )
-        }
-        drawCircle(color = stroke, radius = radius, center = c, style = Stroke(width))
-        // Meridians
-        for (fraction in listOf(0.38f, 0.72f)) {
-            drawOval(
-                color = stroke,
-                topLeft = Offset(c.x - radius * fraction, c.y - radius),
-                size = Size(radius * 2 * fraction, radius * 2),
-                style = Stroke(width * 0.8f)
-            )
-        }
-        drawLine(
-            color = stroke,
-            start = Offset(c.x, c.y - radius),
-            end = Offset(c.x, c.y + radius),
-            strokeWidth = width * 0.8f
+private fun WorldMapDisc(
+    paths: List<Path>?,
+    points: List<MapDot>,
+    connected: Boolean
+) {
+    val pulse = rememberInfiniteTransition(label = "exitPulse")
+    val pulseAlpha by pulse.animateFloat(
+        initialValue = 0.55f,
+        targetValue = 1f,
+        animationSpec = infiniteRepeatable(tween(1500), RepeatMode.Reverse),
+        label = "exitPulseAlpha"
+    )
+    val pulseScale by pulse.animateFloat(
+        initialValue = 0.85f,
+        targetValue = 1.3f,
+        animationSpec = infiniteRepeatable(tween(1500), RepeatMode.Reverse),
+        label = "exitPulseScale"
+    )
+    val flow = rememberInfiniteTransition(label = "dashFlow")
+    val dashPhase by flow.animateFloat(
+        initialValue = 0f,
+        targetValue = 0.028f,
+        animationSpec = infiniteRepeatable(
+            tween(1400, easing = LinearEasing),
+            RepeatMode.Restart
+        ),
+        label = "dashPhase"
+    )
+
+    Canvas(Modifier.size(252.dp)) {
+        val disc = Path().apply { addOval(Rect(Offset.Zero, size)) }
+        drawCircle(
+            brush = Brush.radialGradient(
+                listOf(Color(0xFF4A238A), DeepBottom),
+                center = center,
+                radius = size.minDimension * 0.72f
+            ),
+            radius = size.minDimension / 2f,
+            center = center
         )
-        // Parallels
-        for (fraction in listOf(0.42f, 0.78f)) {
-            drawOval(
-                color = stroke,
-                topLeft = Offset(c.x - radius, c.y - radius * fraction),
-                size = Size(radius * 2, radius * 2 * fraction),
-                style = Stroke(width * 0.8f)
-            )
+        if (paths != null) {
+            clipPath(disc) {
+                withTransform({ scale(size.width, size.height) }) {
+                    val landFill = if (connected) {
+                        Color(0xFF7E57C2).copy(alpha = 0.55f)
+                    } else {
+                        Color(0xFF7E57C2).copy(alpha = 0.30f)
+                    }
+                    val border = Color.White.copy(
+                        alpha = if (connected) 0.38f else 0.20f
+                    )
+                    for (path in paths) {
+                        drawPath(path, color = landFill)
+                        drawPath(
+                            path,
+                            color = border,
+                            style = Stroke(width = 0.0016f)
+                        )
+                    }
+                    // Flowing dashed arcs between consecutive hops.
+                    if (points.size >= 2) {
+                        val dash = PathEffect.dashPathEffect(
+                            floatArrayOf(0.016f, 0.012f),
+                            dashPhase
+                        )
+                        for (i in 0 until points.size - 1) {
+                            val a = points[i]
+                            val b = points[i + 1]
+                            drawPath(
+                                arcPath(a, b),
+                                color = Color.White.copy(alpha = 0.85f),
+                                style = Stroke(width = 0.0035f, pathEffect = dash)
+                            )
+                        }
+                    }
+                    // Glowing hop dots; the exit breathes.
+                    for (dot in points) {
+                        val c = Offset(dot.x, dot.y)
+                        val glowRadius = if (dot.isExit) {
+                            0.052f * pulseScale
+                        } else {
+                            0.034f
+                        }
+                        drawCircle(
+                            brush = Brush.radialGradient(
+                                listOf(
+                                    Accent.copy(
+                                        alpha = if (dot.isExit) pulseAlpha else 0.75f
+                                    ),
+                                    Color.Transparent
+                                ),
+                                center = c,
+                                radius = glowRadius
+                            ),
+                            radius = glowRadius,
+                            center = c
+                        )
+                        drawCircle(
+                            color = Color.White,
+                            radius = if (dot.isExit) 0.010f else 0.0075f,
+                            center = c
+                        )
+                    }
+                }
+            }
         }
-        drawLine(
-            color = stroke,
-            start = Offset(c.x - radius, c.y),
-            end = Offset(c.x + radius, c.y),
-            strokeWidth = width * 0.8f
+        drawCircle(
+            color = Color.White.copy(alpha = 0.30f),
+            radius = size.minDimension / 2f - 1.dp.toPx(),
+            center = center,
+            style = Stroke(1.2.dp.toPx())
         )
     }
+}
+
+/** Quadratic arc between two map points, sampled into segments. */
+private fun arcPath(a: MapDot, b: MapDot): Path {
+    val midX = (a.x + b.x) / 2f
+    val midY = (a.y + b.y) / 2f
+    val distance = kotlin.math.hypot((b.x - a.x).toDouble(), (b.y - a.y).toDouble())
+    val controlX = midX
+    val controlY = (midY - distance * 0.22).toFloat()
+    val path = Path()
+    path.moveTo(a.x, a.y)
+    val segments = 24
+    for (i in 1..segments) {
+        val t = i / segments.toFloat()
+        val x = (1 - t) * (1 - t) * a.x + 2 * (1 - t) * t * controlX + t * t * b.x
+        val y = (1 - t) * (1 - t) * a.y + 2 * (1 - t) * t * controlY + t * t * b.y
+        path.lineTo(x, y)
+    }
+    return path
 }
 
 /** Small filled lock, drawn — no emoji, no icon font needed. */
