@@ -681,7 +681,19 @@ private fun GroupCard(
                                 onToggleFavorite = { onToggleFavorite(proxy.name) },
                                 onTestClick = { onTestNode(proxy.name) },
                                 onClick = { onSelect(proxy.name) },
-                                modifier = Modifier.tuxunStagger(index),
+                                // Entrance stagger only for the first
+                                // screenful of rows (1.6.1): a large
+                                // group can hold hundreds of nodes, and
+                                // giving every row its own Animatable +
+                                // effect made expanding such a group
+                                // start hundreds of animations at once.
+                                // Rows past the fold appear instantly —
+                                // they were never seen animating anyway.
+                                modifier = if (index < 12) {
+                                    Modifier.tuxunStagger(index)
+                                } else {
+                                    Modifier
+                                },
                             )
                         }
                     }

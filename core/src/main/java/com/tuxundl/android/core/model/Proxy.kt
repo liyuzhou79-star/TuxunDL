@@ -12,7 +12,12 @@ data class Proxy(
     val subtitle: String,
     val type: String,
     val delay: Int,
-    var isGroup: Boolean,
+    // A val, not a var (1.6.1): nothing ever mutates this after
+    // construction, and keeping every property immutable is what
+    // lets the Compose compiler treat Proxy as stable — node rows
+    // can then skip recomposing when their inputs did not change
+    // instead of redrawing on every unrelated state update.
+    val isGroup: Boolean,
 ) : Parcelable {
     override fun writeToParcel(parcel: Parcel, flags: Int) {
         Parcelizer.encodeToParcel(serializer(), parcel, this)

@@ -91,13 +91,17 @@ fun AccessControlScreen(
 
     // Live filter over name and package; a blank keyword shows everything.
     // The selection set lives in the Activity and is keyed by package name,
-    // so filtering never loses a checked app.
-    val displayed = if (keyword.isBlank()) {
-        state.apps
-    } else {
-        state.apps.filter {
-            it.label.contains(keyword, ignoreCase = true) ||
-                it.packageName.contains(keyword, ignoreCase = true)
+    // so filtering never loses a checked app. Remembered (1.6.1): without
+    // this, every recomposition — each checkbox toggle included — re-ran
+    // the scan over the full installed-app list.
+    val displayed = remember(keyword, state.apps) {
+        if (keyword.isBlank()) {
+            state.apps
+        } else {
+            state.apps.filter {
+                it.label.contains(keyword, ignoreCase = true) ||
+                    it.packageName.contains(keyword, ignoreCase = true)
+            }
         }
     }
 
