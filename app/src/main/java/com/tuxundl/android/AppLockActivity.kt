@@ -6,8 +6,8 @@ import android.os.Build
 import android.os.Bundle
 import android.os.LocaleList
 import android.view.WindowManager
-import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
+import androidx.fragment.app.FragmentActivity
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import com.tuxundl.android.design.model.DarkMode
@@ -27,7 +27,9 @@ import java.util.Locale
  * not dismiss it — it sends the whole task to the background, and
  * coming back reopens this gate because the lock is still engaged.
  */
-class AppLockActivity : ComponentActivity() {
+// A FragmentActivity (not a plain ComponentActivity) since 1.6.1:
+// the biometric prompt on the lock screen is hosted by it.
+class AppLockActivity : FragmentActivity() {
 
     // Same in-app language wrap as BaseActivity, so the gate speaks
     // the language the user picked for the app.

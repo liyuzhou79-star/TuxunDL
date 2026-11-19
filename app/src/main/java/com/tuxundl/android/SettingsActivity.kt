@@ -20,6 +20,7 @@ import com.tuxundl.android.ui.SettingsUiState
 import com.tuxundl.android.ui.theme.TuxunDLTheme
 import com.tuxundl.android.ui.theme.customSeedColor
 import com.tuxundl.android.util.AppLock
+import com.tuxundl.android.util.BiometricUnlock
 import com.tuxundl.android.util.ApplicationObserver
 import com.tuxundl.android.util.UpdateCheckCenter
 import com.tuxundl.android.util.UpdateCheckResult
@@ -284,6 +285,8 @@ class SettingsActivity : BaseActivity<SettingsDesign>() {
         uiState.hideFromRecents = uiStore.hideFromRecents
         uiState.appLockEnabled = AppLock.isConfigured(uiStore)
         uiState.appLockType = uiStore.appLockType
+        uiState.appLockBiometric = uiStore.appLockBiometric
+        uiState.biometricAvailable = BiometricUnlock.isAvailable(this)
 
         val darkTheme = when (uiStore.darkMode) {
             DarkMode.Auto -> resources.configuration.uiMode and
@@ -401,6 +404,10 @@ class SettingsActivity : BaseActivity<SettingsDesign>() {
                             uiState.appLockEnabled =
                                 AppLock.isConfigured(uiStore)
                             uiState.appLockType = uiStore.appLockType
+                        },
+                        onAppLockBiometricChange = { enabled ->
+                            uiStore.appLockBiometric = enabled
+                            uiState.appLockBiometric = enabled
                         },
                         onBack = { finish() },
                     )

@@ -17,10 +17,15 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
+import androidx.biometric.BiometricManager
+import androidx.biometric.BiometricPrompt
 import androidx.compose.material3.Button
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
+import androidx.core.content.ContextCompat
+import androidx.fragment.app.FragmentActivity
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -41,6 +46,7 @@ import com.tuxundl.android.R
 import com.tuxundl.android.design.store.UiStore
 import com.tuxundl.android.util.AppLock
 import com.tuxundl.android.util.AppLockManager
+import com.tuxundl.android.util.BiometricUnlock
 import com.tuxundl.android.util.Haptics
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
@@ -105,6 +111,57 @@ fun AppLockScreen(
         } else {
             fail()
         }
+    }
+
+    // Biometric unlock (1.6.1): offered only when the user left it
+    // on and the device has a strong biometric enrolled. It is one
+    // more door into the same room — a successful biometric counts
+    // exactly like the right secret, and every failure or dismissal
+    // simply leaves the secret entry standing.
+    val biometricOffered = remember {
+        BiometricUnlock.shouldOffer(context, uiStore)
+    }
+    val biometricTitle = stringResource(R.string.app_lock_biometric_prompt_title)
+    val biometricSubtitle =
+        stringResource(R.string.app_lock_biometric_prompt_subtitle)
+    val biometricNegative = stringResource(R.string.app_lock_biometric_negative)
+
+    fun launchBiometric() {
+        val activity = context as? FragmentActivity ?: return
+
+        val prompt = BiometricPrompt(
+            activity,
+            ContextCompat.getMainExecutor(activity),
+            object : BiometricPrompt.AuthenticationCallback() {
+                override fun onAuthenticationSucceeded(
+                    result: BiometricPrompt.AuthenticationResult,
+                ) {
+                    success()
+                }
+
+                override fun onAuthenticationError(
+                    errorCode: Int,
+                    errString: CharSequence,
+                ) = Unit
+
+                override fun onAuthenticationFailed() = Unit
+            },
+        )
+
+        prompt.authenticate(
+            BiometricPrompt.PromptInfo.Builder()
+                .setTitle(biometricTitle)
+                .setSubtitle(biometricSubtitle)
+                .setNegativeButtonText(biometricNegative)
+                .setAllowedAuthenticators(
+                    BiometricManager.Authenticators.BIOMETRIC_STRONG,
+                )
+                .build(),
+        )
+    }
+
+    LaunchedEffect(Unit) {
+        if (biometricOffered) launchBiometric()
     }
 
     val promptRes = when (type) {
@@ -237,6 +294,13 @@ fun AppLockScreen(
                         },
                     )
                 }
+            }
+        }
+
+        if (biometricOffered) {
+            Spacer(modifier = Modifier.height(20.dp))
+            TextButton(onClick = { launchBiometric() }) {
+                Text(text = stringResource(R.string.app_lock_use_biometric))
             }
         }
 

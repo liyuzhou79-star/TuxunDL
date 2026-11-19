@@ -126,6 +126,12 @@ class SettingsUiState {
 
     /** App-lock kind: 0 pattern / 1 PIN / 2 password (mirrors UiStore). */
     var appLockType by mutableStateOf(1)
+
+    /** Whether biometric unlock is offered (mirrors UiStore, 1.6.1). */
+    var appLockBiometric by mutableStateOf(true)
+
+    /** Whether this device has a strong biometric enrolled (1.6.1). */
+    var biometricAvailable by mutableStateOf(false)
 }
 
 /**
@@ -161,6 +167,7 @@ fun SettingsScreen(
     onIpv6Change: (Boolean) -> Unit,
     onSnifferChange: (Boolean) -> Unit,
     onAppLockChanged: () -> Unit,
+    onAppLockBiometricChange: (Boolean) -> Unit,
     onBack: () -> Unit,
 ) {
     var showLanguageDialog by remember { mutableStateOf(false) }
@@ -301,6 +308,20 @@ fun SettingsScreen(
                 },
                 onClick = { showAppLockSetup = true },
             )
+            // Biometric unlock (1.6.1): only offered when the lock
+            // is on AND this device has a strong biometric enrolled;
+            // on any other device the row simply does not exist.
+            if (state.appLockEnabled && state.biometricAvailable) {
+                SettingsSwitchCard(
+                    icon = DesignR.drawable.ic_baseline_fingerprint,
+                    title = stringResource(R.string.app_lock_biometric),
+                    summary = stringResource(
+                        R.string.app_lock_biometric_summary,
+                    ),
+                    checked = state.appLockBiometric,
+                    onCheckedChange = onAppLockBiometricChange,
+                )
+            }
 
             SettingsSectionTitle(
                 text = stringResource(R.string.settings_group_alerts),

@@ -415,6 +415,17 @@ class UiStore(context: Context) {
         defaultValue = 1
     )
 
+    /**
+     * Whether biometric unlock (fingerprint / face) is offered on
+     * the lock screen when the device has biometrics enrolled
+     * (1.6.1). On by default: it is purely an additional door — the
+     * pattern / PIN / password always keeps working alongside it.
+     */
+    var appLockBiometric: Boolean by store.boolean(
+        key = "app_lock_biometric",
+        defaultValue = true
+    )
+
     companion object {
         private const val PREFERENCE_NAME = "ui"
 

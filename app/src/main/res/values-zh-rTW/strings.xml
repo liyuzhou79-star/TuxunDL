@@ -305,6 +305,12 @@
     <string name="app_lock_password_rule">至少 4 位，且同時包含字母和數字</string>
     <string name="app_lock_pin_rule">4–6 位數字</string>
     <string name="app_lock_current">目前方式：%1$s</string>
+    <string name="app_lock_biometric">指紋解鎖</string>
+    <string name="app_lock_biometric_summary">可用時用指紋或人臉解鎖；圖案、數字密碼、字母密碼照樣能用。</string>
+    <string name="app_lock_biometric_prompt_title">解鎖 TuxunDL</string>
+    <string name="app_lock_biometric_prompt_subtitle">驗證是你在操作</string>
+    <string name="app_lock_biometric_negative">用其他方式</string>
+    <string name="app_lock_use_biometric">使用指紋解鎖</string>
     <string name="update_check_failed_rate_limited">檢查更新失敗：查太頻繁了，GitHub 暫時限流，過一會兒再試。</string>
     <string name="update_check_failed_server_code">檢查更新失敗：伺服器回了錯誤（代碼 %1$d），請稍後再試。</string>
     <string name="update_current_version">目前版本：v%1$s</string>
