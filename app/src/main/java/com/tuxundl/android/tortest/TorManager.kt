@@ -36,13 +36,18 @@ object TorManager {
     const val CONTROL_PORT = 19051
     const val HTTP_TUNNEL_PORT = 19052
 
-    enum class Mode(val label: String) {
-        DIRECT("直连（无网桥）"),
-        SNOWFLAKE("Snowflake（内置桥，无需地址）"),
-        OBFS4("obfs4（内置桥）"),
-        MEEK("meek（内置桥）"),
-        CUSTOM("自定义网桥（可粘贴多行，支持 obfs4 / webtunnel / snowflake 等）")
+    enum class Mode(val label: String, val via: String) {
+        AUTO("智能（自动尝试）", "智能"),
+        DIRECT("直连（无网桥）", "直连"),
+        SNOWFLAKE("Snowflake（内置桥，无需地址）", "Snowflake"),
+        OBFS4("obfs4（内置桥）", "obfs4"),
+        MEEK("meek（内置桥）", "meek"),
+        CUSTOM("自定义网桥（可粘贴多行，支持 obfs4 / webtunnel / snowflake 等）", "自定义网桥")
     }
+
+    /** Attempts of the 智能 chain, in order, and the stall budget. */
+    private val autoChain = listOf(Mode.SNOWFLAKE, Mode.OBFS4, Mode.MEEK)
+    private const val STALL_TIMEOUT_MS = 45_000L
 
     /** One relay of the current circuit; lat/lon null when unlocated. */
     data class Hop(val place: String, val lat: Double?, val lon: Double?)
@@ -63,6 +68,8 @@ object TorManager {
         val exitLocation: String? = null,
         val exitLat: Double? = null,
         val exitLon: Double? = null,
+        /** Which transport actually connected (matters for 智能）. */
+        val connectedVia: String? = null,
         val hops: List<Hop> = emptyList(),
         val testing: Boolean = false,
         val logs: List<String> = emptyList()
@@ -72,7 +79,11 @@ object TorManager {
     val state: StateFlow<UiState> = _state.asStateFlow()
 
     // Built-in bridge lines, as published by the Tor Project and shipped
-    // by Orbot (assets/builtin-bridges.json, fetched 2026-11-19).
+    // by Orbot (app/src/main/assets/builtin-bridges.json in
+    // guardianproject/orbot-android; fetched 2026-11-19 and re-verified
+    // against Orbot master the same day for phase 3 — the published set
+    // was unchanged: 2 snowflake, 5 unique obfs4 (the JSON lists 7 with
+    // duplicates), 1 meek_lite).
     // There is no published built-in WebTunnel line, so WebTunnel is
     // reachable through the custom-bridge input only.
     private val snowflakeBridges = listOf(
@@ -146,9 +157,22 @@ object TorManager {
     @Volatile
     private var autoExitChecked = false
 
+    /**
+     * Identifies the current connection session. start() and stop()
+     * both bump it; supervisors and watchers from an older session
+     * see the mismatch and quietly leave.
+     */
+    @Volatile
+    private var sessionId = 0
+
+    /** Set by the log reader when the current tor process dies. */
+    @Volatile
+    private var processExited = false
+
     fun start(context: Context, mode: Mode, customText: String) {
         if (_state.value.running) return
         val appContext = context.applicationContext
+        val sid = ++sessionId
         autoExitChecked = false
         _state.update {
             it.copy(
@@ -160,21 +184,168 @@ object TorManager {
                 exitLocation = null,
                 exitLat = null,
                 exitLon = null,
+                connectedVia = null,
                 hops = emptyList()
             )
         }
-        thread(name = "tor-spike-start") {
-            try {
-                doStart(appContext, mode, customText)
-            } catch (e: Exception) {
-                appendLog("[错误] 启动失败: ${e.message}")
-                _state.update { it.copy(running = false, status = "启动失败") }
-                stopTransports()
+        thread(name = "tor-spike-supervisor") {
+            if (mode == Mode.AUTO) {
+                supervise(sid, appContext, autoChain, customText, auto = true)
+            } else {
+                supervise(sid, appContext, listOf(mode), customText, auto = false)
             }
         }
     }
 
-    private fun doStart(context: Context, mode: Mode, customText: String) {
+    /**
+     * Runs one attempt (or the whole 智能 chain) and watches it:
+     * bootstrap reaching 100% is success; the tor process dying or
+     * [STALL_TIMEOUT_MS] without any bootstrap progress is a failed
+     * attempt. In 智能 mode a failed attempt is torn down and the
+     * next transport is tried; in manual mode a stall only produces
+     * a plain-language diagnosis and the attempt keeps running.
+     */
+    private fun supervise(
+        sid: Int,
+        context: Context,
+        attempts: List<Mode>,
+        customText: String,
+        auto: Boolean
+    ) {
+        for ((index, attemptMode) in attempts.withIndex()) {
+            if (sid != sessionId || !_state.value.running) return
+            autoExitChecked = false
+            processExited = false
+            _state.update {
+                it.copy(
+                    bootstrap = 0,
+                    status = if (auto) {
+                        "智能尝试 ${index + 1}/${attempts.size}：正在试 ${attemptMode.via}…"
+                    } else {
+                        it.status
+                    }
+                )
+            }
+            try {
+                launchAttempt(context, attemptMode, customText)
+            } catch (e: Exception) {
+                appendLog("[错误] ${attemptMode.via} 启动失败: ${e.message}")
+                if (!auto) {
+                    _state.update { it.copy(running = false, status = "启动失败") }
+                    stopTransports()
+                    return
+                }
+                continue
+            }
+            var lastBootstrap = 0
+            var lastProgressAt = System.currentTimeMillis()
+            var stallDiagnosed = false
+            var attemptDead = false
+            while (sid == sessionId && _state.value.running) {
+                Thread.sleep(500)
+                val snapshot = _state.value
+                if (snapshot.bootstrap >= 100) {
+                    _state.update {
+                        it.copy(
+                            connectedVia = attemptMode.via,
+                            status = if (auto) {
+                                "已连接（智能模式 · 经 ${attemptMode.via} 连通）"
+                            } else {
+                                it.status
+                            }
+                        )
+                    }
+                    appendLog("[连接] 经 ${attemptMode.via} 连通")
+                    return
+                }
+                if (snapshot.bootstrap > lastBootstrap) {
+                    lastBootstrap = snapshot.bootstrap
+                    lastProgressAt = System.currentTimeMillis()
+                    stallDiagnosed = false
+                }
+                if (processExited) {
+                    attemptDead = true
+                    break
+                }
+                val stalledFor = System.currentTimeMillis() - lastProgressAt
+                if (stalledFor > STALL_TIMEOUT_MS && snapshot.bootstrap < 100) {
+                    if (auto) {
+                        appendLog(
+                            "[诊断] ${attemptMode.via} 卡在 ${snapshot.bootstrap}% " +
+                                "超过 ${STALL_TIMEOUT_MS / 1000} 秒没有进展，自动换下一个"
+                        )
+                        attemptDead = true
+                        break
+                    }
+                    if (!stallDiagnosed) {
+                        stallDiagnosed = true
+                        appendLog(
+                            "[诊断] ${attemptMode.via} 卡在 ${snapshot.bootstrap}% " +
+                                "超过 ${STALL_TIMEOUT_MS / 1000} 秒没有进展"
+                        )
+                        _state.update { it.copy(status = stallHint(attemptMode, snapshot.bootstrap)) }
+                    }
+                }
+            }
+            // The attempt ended without connecting.
+            if (sid != sessionId || !_state.value.running) return
+            teardownAttempt()
+            if (auto && index < attempts.lastIndex) {
+                _state.update {
+                    it.copy(
+                        bootstrap = 0,
+                        status = "${attemptMode.via} 没能连通，自动换 ${attempts[index + 1].via} 试试…"
+                    )
+                }
+                Thread.sleep(800)
+            } else if (auto) {
+                _state.update {
+                    it.copy(
+                        running = false,
+                        bootstrap = -1,
+                        status = "智能模式：Snowflake、obfs4、meek 都没能连通。" +
+                            "当前网络封锁较严时，可以试试「自定义网桥」贴一条 WebTunnel 桥，往往更有效"
+                    )
+                }
+                stopTransports()
+                return
+            } else {
+                // Manual mode: the tor process died on its own.
+                if (attemptDead) {
+                    _state.update {
+                        it.copy(running = false, status = "Tor 进程已退出，连接中断")
+                    }
+                    stopTransports()
+                }
+                return
+            }
+        }
+    }
+
+    /** Plain-language explanation when a manual attempt stalls. */
+    private fun stallHint(mode: Mode, bootstrap: Int): String = when (mode) {
+        Mode.SNOWFLAKE ->
+            "卡在 $bootstrap% 一阵了：Snowflake 在当前网络可能被拦住。" +
+                "可以停下换 obfs4，或选「智能」让它自动轮着试"
+
+        Mode.OBFS4 ->
+            "卡在 $bootstrap% 一阵了：这批 obfs4 内置桥可能已被封锁。" +
+                "可以换 meek，或选「智能」自动尝试；有 WebTunnel 桥地址时，自定义网桥往往更有效"
+
+        Mode.MEEK ->
+            "卡在 $bootstrap% 一阵了：meek 的通道可能暂时不可用。" +
+                "可以换 Snowflake，或选「智能」自动尝试"
+
+        Mode.DIRECT ->
+            "卡在 $bootstrap% 一阵了：直连 Tor 在当前网络基本行不通，请改用网桥（推荐「智能」）"
+
+        Mode.CUSTOM ->
+            "卡在 $bootstrap% 一阵了：自定义网桥暂时没有响应，检查桥行是否完整，或换一条试试"
+
+        Mode.AUTO -> "连接中… bootstrap $bootstrap%"
+    }
+
+    private fun launchAttempt(context: Context, mode: Mode, customText: String) {
         val baseDir = File(context.filesDir, "tor-test").apply { mkdirs() }
         val dataDir = File(baseDir, "data").apply { mkdirs() }
         val ptDir = File(baseDir, "pt-state").apply { mkdirs() }
@@ -187,6 +358,9 @@ object TorManager {
         val transports = mutableListOf<String>()
         var bridgeLines: List<String> = emptyList()
         when (mode) {
+            // The supervisor resolves 智能 into concrete attempts;
+            // launchAttempt never receives it.
+            Mode.AUTO -> Unit
             Mode.DIRECT -> Unit
             Mode.SNOWFLAKE -> {
                 configureSnowflake(controller, snowflakeBridges.first())
@@ -283,7 +457,11 @@ object TorManager {
                     _state.update {
                         it.copy(
                             bootstrap = percent,
-                            status = if (percent >= 100) "已连接（bootstrap 100%）" else "连接中… bootstrap $percent%"
+                            status = if (percent >= 100) {
+                                "已连接（bootstrap 100%）"
+                            } else {
+                                "连接中（${mode.via}）… bootstrap $percent%"
+                            }
                         )
                     }
                     if (percent >= 100 && !autoExitChecked) {
@@ -294,9 +472,24 @@ object TorManager {
             }
             val exitCode = proc.waitFor()
             appendLog("[Tor] 进程退出，code=$exitCode")
-            if (_state.value.running) {
-                _state.update { it.copy(running = false, status = "Tor 进程已退出（code $exitCode）") }
-                stopTransports()
+            // State transitions on process death belong to the
+            // supervisor (it decides between retry, diagnosis and
+            // giving up); the reader only raises the flag. Exception:
+            // death AFTER a successful connect has no supervisor
+            // watching anymore, so it is finalized right here.
+            if (process === proc) {
+                processExited = true
+                val snapshot = _state.value
+                if (snapshot.running && snapshot.bootstrap >= 100) {
+                    _state.update {
+                        it.copy(
+                            running = false,
+                            status = "Tor 进程已退出，连接中断",
+                            connectedVia = null
+                        )
+                    }
+                    stopTransports()
+                }
             }
         }
     }
@@ -313,36 +506,44 @@ object TorManager {
         startedTransports.clear()
     }
 
+    /** Shut down the current attempt's tor process and transports. */
+    private fun teardownAttempt() {
+        // Ask tor to shut down over the control port first.
+        try {
+            Socket().use { socket ->
+                socket.connect(InetSocketAddress("127.0.0.1", CONTROL_PORT), 2000)
+                socket.soTimeout = 2000
+                val writer = socket.getOutputStream().bufferedWriter()
+                val reader = socket.getInputStream().bufferedReader()
+                writer.write("AUTHENTICATE\r\n")
+                writer.flush()
+                reader.readLine()
+                writer.write("SIGNAL SHUTDOWN\r\n")
+                writer.flush()
+                reader.readLine()
+            }
+            appendLog("[Tor] 已发送 SHUTDOWN 信号")
+        } catch (e: Exception) {
+            appendLog("[Tor] 控制口关停失败（${e.message}），直接结束进程")
+        }
+        try {
+            val exited = process?.waitFor(3, java.util.concurrent.TimeUnit.SECONDS) ?: true
+            if (!exited) process?.destroy()
+        } catch (_: Exception) {
+            process?.destroy()
+        }
+        process = null
+        stopTransports()
+    }
+
     fun stop() {
         if (!_state.value.running && process == null) return
+        // Invalidate any running supervisor before tearing down, so
+        // it cannot mistake the shutdown for a failed attempt.
+        sessionId++
         _state.update { it.copy(status = "停止中…") }
         thread(name = "tor-spike-stop") {
-            // Ask tor to shut down over the control port first.
-            try {
-                Socket().use { socket ->
-                    socket.connect(InetSocketAddress("127.0.0.1", CONTROL_PORT), 2000)
-                    socket.soTimeout = 2000
-                    val writer = socket.getOutputStream().bufferedWriter()
-                    val reader = socket.getInputStream().bufferedReader()
-                    writer.write("AUTHENTICATE\r\n")
-                    writer.flush()
-                    reader.readLine()
-                    writer.write("SIGNAL SHUTDOWN\r\n")
-                    writer.flush()
-                    reader.readLine()
-                }
-                appendLog("[Tor] 已发送 SHUTDOWN 信号")
-            } catch (e: Exception) {
-                appendLog("[Tor] 控制口关停失败（${e.message}），直接结束进程")
-            }
-            try {
-                val exited = process?.waitFor(3, java.util.concurrent.TimeUnit.SECONDS) ?: true
-                if (!exited) process?.destroy()
-            } catch (_: Exception) {
-                process?.destroy()
-            }
-            process = null
-            stopTransports()
+            teardownAttempt()
             _state.update {
                 it.copy(
                     running = false,
@@ -353,6 +554,7 @@ object TorManager {
                     exitLocation = null,
                     exitLat = null,
                     exitLon = null,
+                    connectedVia = null,
                     hops = emptyList()
                 )
             }
