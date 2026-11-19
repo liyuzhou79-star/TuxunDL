@@ -13,6 +13,23 @@ android {
     buildFeatures {
         compose = true
     }
+
+    // Tor (1.7.3): the Tor engine and page live in src/tor and are
+    // compiled into the phone flavours (alpha, meta) only — code,
+    // assets and the tor native binary alike. The TV flavour gets
+    // none of it, only a stub entry provider (src/tv).
+    sourceSets {
+        getByName("alpha") {
+            java.srcDir("src/tor/java")
+            jniLibs.srcDir("src/tor/jniLibs")
+            assets.srcDir("src/tor/assets")
+        }
+        getByName("meta") {
+            java.srcDir("src/tor/java")
+            jniLibs.srcDir("src/tor/jniLibs")
+            assets.srcDir("src/tor/assets")
+        }
+    }
 }
 
 dependencies {
@@ -36,6 +53,19 @@ dependencies {
     implementation(libs.zxing.core)
     implementation(libs.androidx.activity.ktx)
     implementation(libs.androidx.biometric)
+
+    // Tor (1.7.3), phone flavours only: IPtProxy 5.8.0 carries the
+    // in-process pluggable transports (lyrebird obfs4 / webtunnel /
+    // meek-lite + snowflake); the tor daemon itself ships as
+    // src/tor/jniLibs/libtor.so (Guardian Project tor-android
+    // 0.4.9.17 binary) because the tor-android AAR's bytecode and
+    // compileSdk requirements clash with this project's toolchain.
+    // androidx.webkit points the Tor page's WebView at Tor's HTTP
+    // tunnel port.
+    alphaImplementation("com.netzarchitekten:IPtProxy:5.8.0")
+    metaImplementation("com.netzarchitekten:IPtProxy:5.8.0")
+    alphaImplementation("androidx.webkit:webkit:1.12.0")
+    metaImplementation("androidx.webkit:webkit:1.12.0")
 
     implementation(platform(libs.androidx.compose.bom))
     implementation(libs.androidx.compose.ui)

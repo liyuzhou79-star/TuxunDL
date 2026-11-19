@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="utf-8"?>
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+
+    <application>
+        <!-- Tor page (1.7.3): full-screen, opened from the home
+             mode selector; not exported, launched in-app only. -->
+        <activity
+            android:name=".tor.TorActivity"
+            android:configChanges="uiMode"
+            android:exported="false"
+            android:label="洋葱路由" />
+    </application>
+
+</manifest>
