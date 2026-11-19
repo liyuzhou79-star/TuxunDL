@@ -2,6 +2,15 @@
 
 每個版本的詳細說明與下載見 [Releases](https://github.com/liyuzhou79-star/TuxunDL/releases)。所有版本都同時發布標準版（arm64）與老機型版（armeabi-v7a），同版本號、同一發布頁。自 Windows 版起，每個發布頁都同時附上 Android 與 Windows 兩個平台的最新安裝包。
 
+## 1.6.1 — App 內直接更新＋流量記錄根治（待發布）
+- App 內直接更新（新增 util/SelfUpdate.kt）：更新頁主按鈕改走 App 內下載——按裝置架構選對應 APK、下載帶進度且可取消（下載在獨立作用域進行、離開頁面不中斷）；完成校驗三重：檔案大小與發布資產一致、包名一致、簽名憑證與已安裝 App 的自身簽名一致（PackageManager 動態比對，不寫死指紋）；通過後經 FileProvider 調起系統安裝器，系統安裝確認仍需用戶親手點（安卓硬性要求）；API 26+ 需「允許安裝未知應用」授權，未授權時頁面給引導入口；任何失敗如實顯示原因並保留瀏覽器下載兜底。資產大小與檔名隨 UpdateInfo 經 UpdateCheckCenter 一併落盤（Atom 兜底路徑無資產資訊時主按鈕自動退回瀏覽器路線）；電視版更新檢查本就關閉，不受影響。清單新增 REQUEST_INSTALL_PACKAGES 權限，file_paths 新增 updates 緩存路徑
+- 更新頁 markdown 渲染（新增 ui/Markdown.kt）：輕量行級渲染器（標題／粗體／斜體／刪除線／行內程式碼與連結／無序與有序列表／引用／程式碼塊／分隔線），不加新依賴；未知語法降級為純文字輸出，發布說明不再把原始 # 與 ** 符號直接顯示給用戶
+- 應用鎖指紋解鎖：新增 androidx.biometric 1.1.0；AppLockActivity 改為 FragmentActivity 承載 BiometricPrompt（BIOMETRIC_STRONG）；進鎖屏自動彈指紋並提供「使用指紋」按鈕，成功等同輸入正確密碼，失敗／取消／無硬體一律回落圖案／PIN／密碼；UiStore 新增 appLockBiometric（默認開），設置隱私欄僅在已設定應用鎖且系統已錄入生物識別時顯示開關
+- 備份補全服務級設置：Backup 新增 service 段（ServiceStore 的繞過私有網絡、存取控制模式與名單、DNS 劫持、系統代理、允許繞過、允許 IPv6、TUN 協議棧、動態通知），還原對稱且舊備份缺段自動跳過（現有設置保持不動、還原結果多一行服務設置狀態）；目前訂閱不在此段（profiles 段已攜帶）；備份格式版本仍為 1
+- 定時電池白名單引導：ProxyScheduler 新增電池白名單查詢與跳轉意圖；定時面板在有定時／夜間規則啟用且 App 未加入白名單時顯示引導行（與精確鬧鐘提示同一款式），點擊優先直達單 App 豁免申請頁、失敗退回電池優化設置列表，回來後自動刷新狀態；清單新增 REQUEST_IGNORE_BATTERY_OPTIMIZATIONS 權限
+- 流量記錄根治——採樣搬進隧道進程：TrafficSampler 按進程分工（:background 為唯一寫入者，UI 進程只讀）；寫入者每次發布寫 traffic-live.json（即時狀態＋會話恢復欄位）、每 10 秒寫 traffic-history.json（分層歷史），皆 tmp＋rename 原子寫；UI 進程以 reader loop 把共享檔案鏡像成同一個 TrafficSnapshot，並隨 daily 檔案變化重載 DailyTrafficStore；flush() 改為分模式（讀者只重載、永不以舊副本覆寫寫入者的檔案）；:background 進程重啟時從共享檔案恢復基準／會話總量／曲線樣本／分層歷史，首個刻度以既有遲到均攤規則補上中斷時段（恢復窗口 10 分鐘，隧道已斷或狀態過舊則丟棄重開）；DailyTrafficStore.save() 改為原子寫；移除 1.5.3 的 clash 廣播起停提示（廣播只送達 UI 進程、寫入者收不到，StatusClient 每秒輪詢本就是權威路徑；代價是 App 可見時 1 秒內的停＋啟可能合併為同一會話，後台場景與先前一致）
+- MainApplication 兩個進程分支都初始化採樣器（主進程＝讀者、:background＝寫入者）；延遲探針（TrafficQuality）仍由主頁在主進程內存採集，屬界面品質提示，不在本版搬遷範圍
+
 ## TV 0.1.0 Beta — 安卓電視版首個試水版（已發布）
 - 新增 tv flavor：獨立包名 com.tuxundl.android.tv、獨立版本線 0.1.0（versionCode 100，自成公式不與手機版打架），與手機版互不覆蓋、可並存；顯示名仍為 TuxunDL；core 模塊同步新增同名 golang source set（foss 來源與 alpha/meta 相同）
 - 電視入口沿用主清單既有的 Leanback 啟動入口與 320×180 橫幅圖（ic_banner），uses-feature leanback/touchscreen 皆 required=false，手機上安裝不衝突
