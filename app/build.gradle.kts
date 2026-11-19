@@ -55,6 +55,11 @@ dependencies {
     // project's toolchain; only its tor binary is used.
     implementation("com.netzarchitekten:IPtProxy:5.8.0")
 
+    // Tor page phase 2: androidx.webkit's ProxyController points the
+    // in-app browser's WebView at Tor's HTTPTunnelPort, so Duck-bar
+    // browsing rides the Tor circuit instead of going direct.
+    implementation("androidx.webkit:webkit:1.12.0")
+
     implementation(platform(libs.androidx.compose.bom))
     implementation(libs.androidx.compose.ui)
     implementation(libs.androidx.compose.ui.graphics)

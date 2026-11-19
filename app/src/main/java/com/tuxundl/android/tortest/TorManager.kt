@@ -34,6 +34,7 @@ object TorManager {
 
     const val SOCKS_PORT = 19050
     const val CONTROL_PORT = 19051
+    const val HTTP_TUNNEL_PORT = 19052
 
     enum class Mode(val label: String) {
         DIRECT("直连（无网桥）"),
@@ -48,6 +49,9 @@ object TorManager {
         val bootstrap: Int = -1,
         val status: String = "未启动",
         val exitResult: String? = null,
+        val exitIp: String? = null,
+        val exitLocation: String? = null,
+        val hops: List<String> = emptyList(),
         val testing: Boolean = false,
         val logs: List<String> = emptyList()
     )
@@ -127,15 +131,22 @@ object TorManager {
         else -> null
     }
 
+    @Volatile
+    private var autoExitChecked = false
+
     fun start(context: Context, mode: Mode, customText: String) {
         if (_state.value.running) return
         val appContext = context.applicationContext
+        autoExitChecked = false
         _state.update {
             it.copy(
                 running = true,
                 bootstrap = 0,
                 status = "启动中…",
-                exitResult = null
+                exitResult = null,
+                exitIp = null,
+                exitLocation = null,
+                hops = emptyList()
             )
         }
         thread(name = "tor-spike-start") {
@@ -211,6 +222,7 @@ object TorManager {
         val torrc = buildString {
             appendLine("DataDirectory ${dataDir.absolutePath}")
             appendLine("SocksPort 127.0.0.1:$SOCKS_PORT")
+            appendLine("HTTPTunnelPort 127.0.0.1:$HTTP_TUNNEL_PORT")
             appendLine("ControlPort 127.0.0.1:$CONTROL_PORT")
             appendLine("CookieAuthentication 0")
             appendLine("Log notice stdout")
@@ -259,6 +271,10 @@ object TorManager {
                             bootstrap = percent,
                             status = if (percent >= 100) "已连接（bootstrap 100%）" else "连接中… bootstrap $percent%"
                         )
+                    }
+                    if (percent >= 100 && !autoExitChecked) {
+                        autoExitChecked = true
+                        testExit()
                     }
                 }
             }
@@ -314,7 +330,15 @@ object TorManager {
             process = null
             stopTransports()
             _state.update {
-                it.copy(running = false, bootstrap = -1, status = "已停止", testing = false)
+                it.copy(
+                    running = false,
+                    bootstrap = -1,
+                    status = "已停止",
+                    testing = false,
+                    exitIp = null,
+                    exitLocation = null,
+                    hops = emptyList()
+                )
             }
         }
     }
@@ -324,6 +348,8 @@ object TorManager {
         if (_state.value.testing) return
         _state.update { it.copy(testing = true, exitResult = null) }
         thread(name = "tor-spike-exit-test") {
+            var exitIp: String? = null
+            var isTor = false
             val result = try {
                 val proxy = Proxy(Proxy.Type.SOCKS, InetSocketAddress("127.0.0.1", SOCKS_PORT))
                 val connection =
@@ -332,12 +358,122 @@ object TorManager {
                 connection.readTimeout = 20_000
                 val body = connection.inputStream.bufferedReader().use { it.readText() }
                 val json = JSONObject(body)
-                "IsTor = ${json.optBoolean("IsTor")}，出口 IP = ${json.optString("IP")}"
+                isTor = json.optBoolean("IsTor")
+                exitIp = json.optString("IP").ifBlank { null }
+                "IsTor = $isTor，出口 IP = ${exitIp ?: "未知"}"
             } catch (e: Exception) {
                 "失败：${e.javaClass.simpleName}: ${e.message}"
             }
             appendLog("[出口测试] $result")
-            _state.update { it.copy(testing = false, exitResult = result) }
+            _state.update { it.copy(testing = false, exitResult = result, exitIp = exitIp) }
+            // Geolocate the exit (through Tor as well) for the globe
+            // visual; failure just leaves the location empty and the
+            // page shows the bare IP — never a guessed place.
+            val ip = exitIp
+            if (ip != null) {
+                val location = lookupLocation(ip)
+                if (location != null) {
+                    appendLog("[出口位置] $location")
+                    _state.update { it.copy(exitLocation = location) }
+                }
+                if (isTor) fetchCircuitCountries()
+            }
+        }
+    }
+
+    /** Country/city for an IP, asked through the Tor SOCKS port. */
+    private fun lookupLocation(ip: String): String? = try {
+        val proxy = Proxy(Proxy.Type.SOCKS, InetSocketAddress("127.0.0.1", SOCKS_PORT))
+        val connection =
+            URL("http://ip-api.com/json/$ip?fields=status,country,city")
+                .openConnection(proxy) as HttpURLConnection
+        connection.connectTimeout = 15_000
+        connection.readTimeout = 15_000
+        val body = connection.inputStream.bufferedReader().use { it.readText() }
+        val json = JSONObject(body)
+        if (json.optString("status") == "success") {
+            val country = json.optString("country")
+            val city = json.optString("city")
+            when {
+                country.isBlank() -> null
+                city.isNotBlank() && city != country -> "$country · $city"
+                else -> country
+            }
+        } else {
+            null
+        }
+    } catch (e: Exception) {
+        appendLog("[出口位置] 查询失败: ${e.message}")
+        null
+    }
+
+    /**
+     * Best effort: ask the control port for the current circuit and
+     * geolocate its relays (entry → middle → exit). Any failure just
+     * leaves the hops empty; the exit location stays the baseline.
+     */
+    private fun fetchCircuitCountries() {
+        thread(name = "tor-spike-circuit") {
+            try {
+                val places = mutableListOf<String>()
+                Socket().use { socket ->
+                    socket.connect(InetSocketAddress("127.0.0.1", CONTROL_PORT), 3_000)
+                    socket.soTimeout = 5_000
+                    val writer = socket.getOutputStream().bufferedWriter()
+                    val reader = socket.getInputStream().bufferedReader()
+
+                    fun send(command: String) {
+                        writer.write("$command\r\n")
+                        writer.flush()
+                    }
+
+                    fun readReply(): List<String> {
+                        val lines = mutableListOf<String>()
+                        while (true) {
+                            val line = reader.readLine() ?: break
+                            if (line == "250 OK") break
+                            // "250+key=" opens a data block and "." ends
+                            // it; a circuit line may itself start with
+                            // a numeric id like 250, so only skip the
+                            // plus form.
+                            if (line.startsWith("250+") || line == ".") continue
+                            lines += line
+                        }
+                        return lines
+                    }
+
+                    send("AUTHENTICATE")
+                    readReply()
+                    send("GETINFO circuit-status")
+                    val circuits = readReply()
+                    val built = circuits.firstOrNull { it.contains(" BUILT ") }
+                    val path = built?.split(" ")?.firstOrNull { it.startsWith("$") }
+                    if (path != null) {
+                        val fingerprints = path.split(",")
+                            .map { it.substringBefore("~").removePrefix("$") }
+                            .filter { it.isNotBlank() }
+                        for (fingerprint in fingerprints) {
+                            send("GETINFO desc/id/$fingerprint")
+                            val desc = readReply()
+                            val router = desc.firstOrNull { it.startsWith("router ") }
+                            val parts = router?.split(" ")
+                            val relayIp = parts?.getOrNull(2)
+                            val nickname = parts?.getOrNull(1)
+                            val place = relayIp?.let { lookupLocation(it) }
+                                ?.substringBefore(" ·")
+                            places += place ?: nickname ?: "?"
+                        }
+                    }
+                    send("QUIT")
+                    readReply()
+                }
+                if (places.isNotEmpty()) {
+                    appendLog("[线路] ${places.joinToString(" → ")}")
+                    _state.update { it.copy(hops = places) }
+                }
+            } catch (e: Exception) {
+                appendLog("[线路] 获取失败: ${e.message}")
+            }
         }
     }
 }
