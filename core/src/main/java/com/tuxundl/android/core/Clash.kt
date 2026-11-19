@@ -119,16 +119,16 @@ object Clash {
             ?: ProxyGroup("Unknown", emptyList(), "")
     }
 
-    fun healthCheck(name: String): CompletableDeferred<Unit> {
+    fun healthCheck(name: String, url: String): CompletableDeferred<Unit> {
         return CompletableDeferred<Unit>().apply {
-            Bridge.nativeHealthCheck(this, name)
+            Bridge.nativeHealthCheck(this, name, url)
         }
     }
 
     /** Delay test for a single proxy only (never its whole group). */
-    fun healthCheckProxy(name: String): CompletableDeferred<Unit> {
+    fun healthCheckProxy(name: String, url: String): CompletableDeferred<Unit> {
         return CompletableDeferred<Unit>().apply {
-            Bridge.nativeHealthCheckProxy(this, name)
+            Bridge.nativeHealthCheckProxy(this, name, url)
         }
     }
 

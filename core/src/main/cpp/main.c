@@ -186,25 +186,27 @@ Java_com_tuxundl_android_core_bridge_Bridge_nativeQueryGroup(JNIEnv *env, jobjec
 JNIEXPORT void JNICALL
 Java_com_tuxundl_android_core_bridge_Bridge_nativeHealthCheck(JNIEnv *env, jobject thiz,
                                                                  jobject completable,
-                                                                 jstring name) {
+                                                                 jstring name, jstring url) {
     TRACE_METHOD();
 
     jobject _completable = new_global(completable);
     scoped_string _name = get_string(name);
+    scoped_string _url = get_string(url);
 
-    healthCheck(_completable, _name);
+    healthCheck(_completable, _name, _url);
 }
 
 JNIEXPORT void JNICALL
 Java_com_tuxundl_android_core_bridge_Bridge_nativeHealthCheckProxy(JNIEnv *env, jobject thiz,
                                                                      jobject completable,
-                                                                     jstring name) {
+                                                                     jstring name, jstring url) {
     TRACE_METHOD();
 
     jobject _completable = new_global(completable);
     scoped_string _name = get_string(name);
+    scoped_string _url = get_string(url);
 
-    healthCheckProxy(_completable, _name);
+    healthCheckProxy(_completable, _name, _url);
 }
 
 JNIEXPORT void JNICALL

@@ -12,7 +12,14 @@ import (
 	"github.com/metacubex/mihomo/tunnel"
 )
 
-func HealthCheck(name string) {
+// HealthCheck tests every proxy of a group. With the default test
+// URL (or an empty one) it runs the providers' own health checks,
+// exactly as before. With a custom test URL the providers would
+// keep using the subscription's URLs, so every proxy of the group
+// is probed directly with the chosen URL instead — the same
+// per-proxy URLTest the single-node test uses. Either way the
+// results land in the proxies' delay histories.
+func HealthCheck(name string, testURL string) {
 	p := tunnel.Proxies()[name]
 
 	if p == nil {
@@ -30,14 +37,33 @@ func HealthCheck(name string) {
 
 	wg := &sync.WaitGroup{}
 
-	for _, pr := range g.Providers() {
-		wg.Add(1)
+	if testURL == "" || testURL == C.DefaultTestURL {
+		for _, pr := range g.Providers() {
+			wg.Add(1)
 
-		go func(provider provider.ProxyProvider) {
-			provider.HealthCheck()
+			go func(provider provider.ProxyProvider) {
+				provider.HealthCheck()
 
-			wg.Done()
-		}(pr)
+				wg.Done()
+			}(pr)
+		}
+	} else {
+		for _, pr := range g.Providers() {
+			for _, px := range pr.Proxies() {
+				wg.Add(1)
+
+				go func(proxy C.Proxy) {
+					defer wg.Done()
+
+					ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+					defer cancel()
+
+					if _, err := proxy.URLTest(ctx, testURL, nil); err != nil {
+						log.Warnln("Delay test for `%s` via %s: %s", proxy.Name(), testURL, err.Error())
+					}
+				}(px)
+			}
+		}
 	}
 
 	wg.Wait()
@@ -48,7 +74,7 @@ func HealthCheck(name string) {
 // HealthCheck above, which re-tests every node of a group through
 // its providers. The result lands in the proxy's delay history and
 // is read back through QueryProxyGroup like any other test.
-func HealthCheckProxy(name string) {
+func HealthCheckProxy(name string, testURL string) {
 	p := tunnel.Proxies()[name]
 
 	if p == nil {
@@ -59,15 +85,19 @@ func HealthCheckProxy(name string) {
 
 	if _, isGroup := p.Adapter().(outboundgroup.ProxyGroup); isGroup {
 		// Groups keep the provider health check.
-		HealthCheck(name)
+		HealthCheck(name, testURL)
 
 		return
+	}
+
+	if testURL == "" {
+		testURL = C.DefaultTestURL
 	}
 
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 
-	if _, err := p.URLTest(ctx, C.DefaultTestURL, nil); err != nil {
+	if _, err := p.URLTest(ctx, testURL, nil); err != nil {
 		log.Warnln("Delay test for `%s`: %s", name, err.Error())
 	}
 }
@@ -75,7 +105,7 @@ func HealthCheckProxy(name string) {
 func HealthCheckAll() {
 	for _, g := range QueryProxyGroupNames(false) {
 		go func(group string) {
-			HealthCheck(group)
+			HealthCheck(group, "")
 		}(g)
 	}
 }
