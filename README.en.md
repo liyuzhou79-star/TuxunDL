@@ -11,11 +11,16 @@
 </p>
 
 <p align="center">
-  <a href="https://github.com/liyuzhou79-star/TuxunDL/releases"><img src="https://img.shields.io/github/v/release/liyuzhou79-star/TuxunDL" alt="Latest release"></a>
+  <a href="https://github.com/liyuzhou79-star/TuxunDL/releases/tag/v1.6.0"><img src="https://img.shields.io/badge/Android-1.6.0-3DDC84" alt="Android 1.6.0"></a>
+  <a href="https://github.com/liyuzhou79-star/TuxunDL/releases/tag/win-v1.6.11"><img src="https://img.shields.io/badge/Windows-1.6.11-0078D6" alt="Windows 1.6.11"></a>
+  <a href="https://github.com/liyuzhou79-star/TuxunDL/releases/tag/linux-v1.1.1"><img src="https://img.shields.io/badge/Linux-1.1.1-FCC624" alt="Linux 1.1.1"></a>
+  <a href="https://github.com/liyuzhou79-star/TuxunDL/releases/tag/mac-v1.0.1"><img src="https://img.shields.io/badge/macOS-1.0.1-555555" alt="Mac 1.0.1"></a>
   <a href="https://github.com/liyuzhou79-star/TuxunDL/releases"><img src="https://img.shields.io/github/downloads/liyuzhou79-star/TuxunDL/total" alt="Downloads"></a>
   <a href="https://github.com/liyuzhou79-star/TuxunDL/actions/workflows/build-debug.yaml"><img src="https://img.shields.io/github/actions/workflow/status/liyuzhou79-star/TuxunDL/build-debug.yaml?branch=main&label=build" alt="Build status"></a>
   <img src="https://img.shields.io/badge/Android-5.0%2B-3DDC84" alt="Android 5.0+">
   <img src="https://img.shields.io/badge/Windows-10%2F11-0078D6" alt="Windows 10/11">
+  <img src="https://img.shields.io/badge/Linux-64bit-FCC624" alt="Linux 64-bit">
+  <img src="https://img.shields.io/badge/macOS-Apple%20Silicon-555555" alt="macOS Apple Silicon">
   <img src="https://img.shields.io/badge/Kotlin-2.1-7F52FF" alt="Kotlin">
   <img src="https://img.shields.io/badge/license-GPL--3.0-blue" alt="GPL-3.0">
   <a href="https://github.com/liyuzhou79-star/TuxunDL/commits/main"><img src="https://img.shields.io/github/last-commit/liyuzhou79-star/TuxunDL" alt="Last commit"></a>
@@ -44,6 +49,14 @@ The Android edition is built with Kotlin + Jetpack Compose + Material 3, with a 
 ## Download
 
 Go to [Releases](https://github.com/liyuzhou79-star/TuxunDL/releases) and open the latest release page for your platform. **Every release page carries the latest installers for all four platforms — Android, Windows, Linux and Mac** — so even when a release only updates one platform, the current versions of the others are attached on the same page. No need to dig through old pages.
+
+**Latest version of each platform (direct links to the release pages):**
+
+- Android: [1.6.0](https://github.com/liyuzhou79-star/TuxunDL/releases/tag/v1.6.0)
+- Windows: [1.6.11](https://github.com/liyuzhou79-star/TuxunDL/releases/tag/win-v1.6.11)
+- Linux: [1.1.1](https://github.com/liyuzhou79-star/TuxunDL/releases/tag/linux-v1.1.1)
+- Mac: [1.0.1](https://github.com/liyuzhou79-star/TuxunDL/releases/tag/mac-v1.0.1)
+- Android TV: [0.1.0 Beta](https://github.com/liyuzhou79-star/TuxunDL/releases/tag/tv-v0.1.0-beta) (prerelease)
 
 ### Android
 
@@ -123,12 +136,35 @@ Shares the same desktop codebase as the Windows / Linux editions (independent ve
 - System tray: closing the window keeps it running; quitting from the tray restores the system proxy automatically
 - Update checks only follow Windows releases (`win-v` tags), never mixing with the Android edition
 
+### Linux edition
+
+- The same desktop program as the Windows edition, with the same features: big round start button, subscription management, grouped nodes with latency tests, Rules and Logs pages, first-run guide, changeable data directory
+- Automatic system-proxy setup supports the GNOME desktop (via gsettings); on other desktops, follow the manual instructions in Settings
+- TUN mode uses pkexec to run only the core as root — the app itself stays unprivileged
+- Autostart uses XDG autostart; the default data directory is `~/.local/share/tuxundl`
+- Update checks only follow Linux releases (`linux-v` tags)
+
+### Mac edition
+
+- The same desktop program as the Windows edition, with the same features: big round start button, subscription management, grouped nodes with latency tests, Rules and Logs pages, first-run guide, changeable data directory
+- System proxy is configured automatically through `networksetup`; autostart uses a LaunchAgent; the default data directory is `~/Library/Application Support/tuxundl`
+- Apple Silicon only for now; unsigned and not notarized, so on first launch right-click → Open to allow it
+- TUN mode is not supported yet — please use system-proxy mode
+- Update checks only follow Mac releases (`mac-v` tags)
+
+### Android TV edition (Beta)
+
+- A TV branch of the same codebase as the phone app, with its own package name `com.tuxundl.android.tv` — it can be installed alongside the phone edition and shows the same TuxunDL name
+- Supports both Google TV and domestic Chinese TV systems: no Google services required, remote-control focus navigation, installers for both 32-bit and 64-bit TVs with "Beta" in the filename
+- Currently a Beta prerelease: a few pages (such as drag sorting and chart gestures) still await remote-control adaptation, and the TV edition does not check for updates yet
+
 ## Editions
 
 - **Android standard & legacy editions**: identical features; they differ only in CPU architecture and package name. Every Android version ships both editions — neither is ever skipped.
 - **Windows edition**: independent version numbers starting at 1.0.0, release tags use `win-v<version>` (Android uses `v<version>`).
 - **Linux edition**: independent version numbers starting at 1.0.0, release tags use `linux-v<version>`.
 - **Mac edition**: independent version numbers starting at 1.0.0, release tags use `mac-v<version>`; Apple Silicon only for now.
+- **Android TV edition (Beta)**: separate package name `com.tuxundl.android.tv`, release tags use `tv-v<version>-beta`; currently a Beta prerelease, and installer filenames carry "Beta".
 - **All platforms on every page**: every GitHub release page attaches the latest installers for all four platforms. If a release only updates the phone app, the current desktop installers are on the same page — and vice versa. The release notes state clearly which platform a release updates.
 
 ## Changelog

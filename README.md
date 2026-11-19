@@ -11,11 +11,16 @@
 </p>
 
 <p align="center">
-  <a href="https://github.com/liyuzhou79-star/TuxunDL/releases"><img src="https://img.shields.io/github/v/release/liyuzhou79-star/TuxunDL" alt="Latest release"></a>
+  <a href="https://github.com/liyuzhou79-star/TuxunDL/releases/tag/v1.6.0"><img src="https://img.shields.io/badge/Android-1.6.0-3DDC84" alt="Android 1.6.0"></a>
+  <a href="https://github.com/liyuzhou79-star/TuxunDL/releases/tag/win-v1.6.11"><img src="https://img.shields.io/badge/Windows-1.6.11-0078D6" alt="Windows 1.6.11"></a>
+  <a href="https://github.com/liyuzhou79-star/TuxunDL/releases/tag/linux-v1.1.1"><img src="https://img.shields.io/badge/Linux-1.1.1-FCC624" alt="Linux 1.1.1"></a>
+  <a href="https://github.com/liyuzhou79-star/TuxunDL/releases/tag/mac-v1.0.1"><img src="https://img.shields.io/badge/macOS-1.0.1-555555" alt="Mac 1.0.1"></a>
   <a href="https://github.com/liyuzhou79-star/TuxunDL/releases"><img src="https://img.shields.io/github/downloads/liyuzhou79-star/TuxunDL/total" alt="Downloads"></a>
   <a href="https://github.com/liyuzhou79-star/TuxunDL/actions/workflows/build-debug.yaml"><img src="https://img.shields.io/github/actions/workflow/status/liyuzhou79-star/TuxunDL/build-debug.yaml?branch=main&label=build" alt="Build status"></a>
   <img src="https://img.shields.io/badge/Android-5.0%2B-3DDC84" alt="Android 5.0+">
   <img src="https://img.shields.io/badge/Windows-10%2F11-0078D6" alt="Windows 10/11">
+  <img src="https://img.shields.io/badge/Linux-64bit-FCC624" alt="Linux 64-bit">
+  <img src="https://img.shields.io/badge/macOS-Apple%20Silicon-555555" alt="macOS Apple Silicon">
   <img src="https://img.shields.io/badge/Kotlin-2.1-7F52FF" alt="Kotlin">
   <img src="https://img.shields.io/badge/license-GPL--3.0-blue" alt="GPL-3.0">
   <a href="https://github.com/liyuzhou79-star/TuxunDL/commits/main"><img src="https://img.shields.io/github/last-commit/liyuzhou79-star/TuxunDL" alt="Last commit"></a>
@@ -44,6 +49,14 @@ Android 版界面以 Kotlin + Jetpack Compose + Material 3 打造，吉祥物是
 ## 下载
 
 到 [Releases](https://github.com/liyuzhou79-star/TuxunDL/releases) 打开对应平台的最新发布页下载。**每个发布页都会同时放齐 Android、Windows、Linux、Mac 四个平台的最新安装包**——就算这次只更新了其中一个平台，其他平台的现行版本也会一并附上，不用翻旧页面找。
+
+**各平台当前最新版本（直达发布页）：**
+
+- Android：[1.6.0](https://github.com/liyuzhou79-star/TuxunDL/releases/tag/v1.6.0)
+- Windows：[1.6.11](https://github.com/liyuzhou79-star/TuxunDL/releases/tag/win-v1.6.11)
+- Linux：[1.1.1](https://github.com/liyuzhou79-star/TuxunDL/releases/tag/linux-v1.1.1)
+- Mac：[1.0.1](https://github.com/liyuzhou79-star/TuxunDL/releases/tag/mac-v1.0.1)
+- Android TV：[0.1.0 Beta](https://github.com/liyuzhou79-star/TuxunDL/releases/tag/tv-v0.1.0-beta)（预发布）
 
 ### Android
 
@@ -123,12 +136,35 @@ App 内置检查更新（设置页手动检查，或有新版时打开 App 全�
 - 系统托盘：关窗口不退出，从系统托盘退出会自动恢复系统代理
 - 检查更新只认 Windows 发布（`win-v` 标签），不会与 Android 版串扰
 
+### Linux 版
+
+- 与 Windows 版同一套桌面程序，功能一致：大圆按钮启停、订阅管理、节点分组与测速、规则与日志页、首次启动引导、数据目录可改
+- 系统代理自动设置支持 GNOME 桌面（gsettings）；其他桌面环境可按设置页说明手动设置代理地址
+- TUN 模式通过 pkexec 只把核心以 root 启动，程序本身不提权
+- 开机自启走 XDG autostart；默认数据目录为 `~/.local/share/tuxundl`
+- 检查更新只认 Linux 发布（`linux-v` 标签）
+
+### Mac 版
+
+- 与 Windows 版同一套桌面程序，功能一致：大圆按钮启停、订阅管理、节点分组与测速、规则与日志页、首次启动引导、数据目录可改
+- 系统代理通过 `networksetup` 自动设置；开机自启走 LaunchAgent；默认数据目录为 `~/Library/Application Support/tuxundl`
+- 目前仅支持 Apple Silicon；未签名、未公证，首次打开需右键 → 打开放行
+- TUN 模式暂不支持，请先使用系统代理模式
+- 检查更新只认 Mac 发布（`mac-v` 标签）
+
+### Android TV 版（Beta）
+
+- 与手机版同一套代码的电视分支，独立包名 `com.tuxundl.android.tv`，可与手机版共存安装，显示名同为 TuxunDL
+- 同时支持 Google TV 与国内电视系统：不依赖 Google 服务，遥控器焦点操作，兼容 32 位与 64 位电视，安装包文件名带 Beta 字样
+- 目前为 Beta 预发布：部分页面（如拖拽排序、图表手势）尚待遥控器适配；电视版暂不提供检查更新
+
 ## 版本一览
 
 - **Android 标准版与老机型版**：功能相同，差别只在处理器架构与包名。每个 Android 版本都同时发布，不会有哪一版被漏掉。
 - **Windows 版**：版本号独立，从 1.0.0 重新开始，发布标签用 `win-v<版本>`（Android 用 `v<版本>`）。
 - **Linux 版**：版本号独立，从 1.0.0 开始，发布标签用 `linux-v<版本>`。
 - **Mac 版**：版本号独立，从 1.0.0 开始，发布标签用 `mac-v<版本>`，目前只有 Apple Silicon 版。
+- **Android TV 版（Beta）**：独立包名 `com.tuxundl.android.tv`，发布标签用 `tv-v<版本>-beta`，目前为预发布（Beta），安装包文件名带 Beta 字样。
 - **四平台同页**：每个 GitHub 发布页都会同时附上四个平台的最新安装包。假如这次只更新了手机端，发布页里照样有电脑端的现行版本；反过来也一样。发布说明会写清这次更新的是哪个平台。
 
 ## 更新记录
