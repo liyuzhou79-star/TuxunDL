@@ -146,6 +146,17 @@ class UiStore(context: Context) {
         defaultValue = 0L
     )
 
+    /**
+     * Delay-test source URL chosen on the proxy screen; "" = the
+     * built-in default (gstatic generate_204). App-initiated tests
+     * use it; group-internal automatic health checks keep the
+     * subscription's own URLs.
+     */
+    var testSourceUrl: String by store.string(
+        key = "test_source_url",
+        defaultValue = ""
+    )
+
     var accessControlSort: AppInfoSort by store.enum(
         key = "access_control_sort",
         defaultValue = AppInfoSort.Label,

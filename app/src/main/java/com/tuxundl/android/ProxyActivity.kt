@@ -16,6 +16,7 @@ import com.tuxundl.android.ui.ProxyScreen
 import com.tuxundl.android.ui.ProxyUiState
 import com.tuxundl.android.ui.theme.TuxunDLTheme
 import com.tuxundl.android.ui.theme.customSeedColor
+import com.tuxundl.android.util.TestSource
 import com.tuxundl.android.util.withClash
 import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.isActive
@@ -40,6 +41,9 @@ class ProxyActivity : BaseActivity<ProxyDesign>() {
 
         /** Test a whole group, then auto-select its fastest node (1.4.1). */
         data class PickFastest(val group: String) : Action
+
+        /** Change the delay-test source URL ("" = built-in default). */
+        data class SetTestSource(val url: String) : Action
     }
 
     override suspend fun main() {
@@ -92,6 +96,7 @@ class ProxyActivity : BaseActivity<ProxyDesign>() {
         uiState.excludeNotSelectable = uiStore.proxyExcludeNotSelectable
         uiState.favorites = uiStore.favoriteProxies
         uiState.lastTestAt = uiStore.proxyLastTestAt
+        uiState.testSourceUrl = uiStore.testSourceUrl
 
         reloadNames()
 
@@ -127,6 +132,11 @@ class ProxyActivity : BaseActivity<ProxyDesign>() {
 
                             reloadNames()
                         }
+                        is Action.SetTestSource -> {
+                            uiStore.testSourceUrl = it.url
+
+                            uiState.testSourceUrl = it.url
+                        }
                         is Action.ToggleFavorite -> {
                             val key = "${it.group}|${it.node}"
                             val updated = uiState.favorites.toMutableSet().apply {
@@ -155,7 +165,10 @@ class ProxyActivity : BaseActivity<ProxyDesign>() {
                                         // other node keeps its last
                                         // result and stays idle.
                                         withClash {
-                                            healthCheckProxy(it.node)
+                                            healthCheckProxy(
+                                                it.node,
+                                                TestSource.effectiveUrl(uiStore.testSourceUrl),
+                                            )
                                         }
 
                                         completedTestNodes += key
@@ -189,7 +202,10 @@ class ProxyActivity : BaseActivity<ProxyDesign>() {
 
                                 launch {
                                     withClash {
-                                        healthCheck(groupState.name)
+                                        healthCheck(
+                                            groupState.name,
+                                            TestSource.effectiveUrl(uiStore.testSourceUrl),
+                                        )
                                     }
 
                                     markTestFinished()
@@ -355,7 +371,10 @@ class ProxyActivity : BaseActivity<ProxyDesign>() {
 
                             launch {
                                 withClash {
-                                    healthCheck(names[index])
+                                    healthCheck(
+                                        names[index],
+                                        TestSource.effectiveUrl(uiStore.testSourceUrl),
+                                    )
                                 }
 
                                 markTestFinished()
@@ -434,6 +453,9 @@ class ProxyActivity : BaseActivity<ProxyDesign>() {
                         },
                         onPickFastest = { group ->
                             uiActions.trySend(Action.PickFastest(group))
+                        },
+                        onTestSourceChange = { url ->
+                            uiActions.trySend(Action.SetTestSource(url))
                         },
                         onOpenRules = { startActivity(RulesActivity::class.intent) },
                         onBack = { finish() },

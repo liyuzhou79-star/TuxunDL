@@ -44,6 +44,7 @@ import com.tuxundl.android.ui.theme.TuxunDLTheme
 import com.tuxundl.android.ui.theme.customSeedColor
 import com.tuxundl.android.util.DailyTrafficStore
 import com.tuxundl.android.util.ExitInfoLookup
+import com.tuxundl.android.util.TestSource
 import com.tuxundl.android.util.ProxyScheduler
 import com.tuxundl.android.util.DelaySample
 import com.tuxundl.android.util.SavedConnection
@@ -295,7 +296,12 @@ class MainActivity : BaseActivity<MainDesign>() {
 
                                 launch {
                                     try {
-                                        withClash { healthCheck(group) }
+                                        withClash {
+                                            healthCheck(
+                                                group,
+                                                TestSource.effectiveUrl(uiStore.testSourceUrl),
+                                            )
+                                        }
                                         fetchCurrentNode()
                                     } catch (e: Exception) {
                                         // Core stopped mid-test: keep last delay.
@@ -316,7 +322,12 @@ class MainActivity : BaseActivity<MainDesign>() {
                                         }
 
                                         for (name in names) {
-                                            withClash { healthCheck(name) }
+                                            withClash {
+                                                healthCheck(
+                                                    name,
+                                                    TestSource.effectiveUrl(uiStore.testSourceUrl),
+                                                )
+                                            }
                                         }
 
                                         fetchCurrentNode()
@@ -820,7 +831,9 @@ class MainActivity : BaseActivity<MainDesign>() {
 
         launch {
             try {
-                withClash { healthCheck(group) }
+                withClash {
+                    healthCheck(group, TestSource.effectiveUrl(uiStore.testSourceUrl))
+                }
                 fetchCurrentNode()
 
                 val delay = uiState.currentNodeDelay

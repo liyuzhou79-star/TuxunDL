@@ -31,6 +31,7 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
@@ -63,6 +64,7 @@ import com.tuxundl.android.core.model.Proxy
 import com.tuxundl.android.core.model.ProxySort
 import com.tuxundl.android.core.model.TunnelState
 import com.tuxundl.android.design.ProxyDesign
+import com.tuxundl.android.util.TestSource
 import com.tuxundl.android.design.model.AnimationStyle
 import java.text.SimpleDateFormat
 import java.util.Date
@@ -122,6 +124,9 @@ class ProxyUiState {
     /** Epoch millis of the last completed delay test (mirrors UiStore.proxyLastTestAt); 0 = never. */
     var lastTestAt by mutableStateOf(0L)
 
+    /** Delay-test source URL (mirrors UiStore.testSourceUrl); "" = built-in default. */
+    var testSourceUrl by mutableStateOf("")
+
     val snackbarHostState = SnackbarHostState()
 }
 
@@ -136,6 +141,7 @@ fun ProxyScreen(
     onToggleFavorite: (group: String, node: String) -> Unit,
     onTestNode: (group: String, node: String) -> Unit,
     onPickFastest: (group: String) -> Unit,
+    onTestSourceChange: (String) -> Unit,
     onOpenRules: () -> Unit,
     onBack: () -> Unit,
 ) {
@@ -161,6 +167,7 @@ fun ProxyScreen(
                         onSetAllExpanded = { expandAll ->
                             state.groups.forEach { group -> group.expanded = expandAll }
                         },
+                        onTestSourceChange = onTestSourceChange,
                         onOpenRules = onOpenRules,
                     )
                 },
@@ -217,7 +224,8 @@ fun ProxyScreen(
                     text = stringResource(
                         R.string.proxy_last_test,
                         lastTestTimeFormat.format(Date(state.lastTestAt)),
-                    ),
+                    ) + " · " + stringResource(R.string.test_source) + ": " +
+                        testSourceLabel(state.testSourceUrl),
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                     modifier = Modifier.padding(horizontal = 16.dp, vertical = 2.dp),
@@ -325,9 +333,11 @@ private fun ProxyOverflowMenu(
     onSortChange: (ProxySort) -> Unit,
     onExcludeNotSelectableChange: (Boolean) -> Unit,
     onSetAllExpanded: (Boolean) -> Unit,
+    onTestSourceChange: (String) -> Unit,
     onOpenRules: () -> Unit,
 ) {
     var expanded by remember { mutableStateOf(false) }
+    var showCustomSourceDialog by remember { mutableStateOf(false) }
 
     Box {
         IconButton(onClick = { expanded = true }) {
@@ -423,8 +433,134 @@ private fun ProxyOverflowMenu(
                     onExcludeNotSelectableChange(!state.excludeNotSelectable)
                 },
             )
+            // Delay-test source: which endpoint app-initiated tests
+            // probe with. The check marks the stored URL; anything
+            // that is not a preset counts as the custom entry.
+            DropdownMenuItem(
+                text = {
+                    Text(
+                        text = stringResource(R.string.test_source) + ": " +
+                            testSourceLabel(state.testSourceUrl),
+                    )
+                },
+                enabled = false,
+                onClick = {},
+            )
+            DropdownMenuItem(
+                text = { Text(text = stringResource(R.string.test_source_gstatic)) },
+                leadingIcon = {
+                    MenuCheckIcon(
+                        checked = TestSource.effectiveUrl(state.testSourceUrl) ==
+                            TestSource.DEFAULT_URL,
+                    )
+                },
+                onClick = {
+                    expanded = false
+                    onTestSourceChange(TestSource.DEFAULT_URL)
+                },
+            )
+            DropdownMenuItem(
+                text = { Text(text = stringResource(R.string.test_source_google)) },
+                leadingIcon = {
+                    MenuCheckIcon(
+                        checked = TestSource.effectiveUrl(state.testSourceUrl) ==
+                            TestSource.GOOGLE_URL,
+                    )
+                },
+                onClick = {
+                    expanded = false
+                    onTestSourceChange(TestSource.GOOGLE_URL)
+                },
+            )
+            DropdownMenuItem(
+                text = { Text(text = stringResource(R.string.test_source_cloudflare)) },
+                leadingIcon = {
+                    MenuCheckIcon(
+                        checked = TestSource.effectiveUrl(state.testSourceUrl) ==
+                            TestSource.CLOUDFLARE_URL,
+                    )
+                },
+                onClick = {
+                    expanded = false
+                    onTestSourceChange(TestSource.CLOUDFLARE_URL)
+                },
+            )
+            DropdownMenuItem(
+                text = { Text(text = stringResource(R.string.test_source_custom)) },
+                leadingIcon = {
+                    MenuCheckIcon(checked = TestSource.isCustom(state.testSourceUrl))
+                },
+                onClick = {
+                    expanded = false
+                    showCustomSourceDialog = true
+                },
+            )
+        }
+
+        if (showCustomSourceDialog) {
+            TestSourceCustomDialog(
+                initial = if (TestSource.isCustom(state.testSourceUrl)) {
+                    state.testSourceUrl
+                } else {
+                    ""
+                },
+                onDismiss = { showCustomSourceDialog = false },
+                onConfirm = { url ->
+                    showCustomSourceDialog = false
+                    onTestSourceChange(url)
+                },
+            )
         }
     }
+}
+
+/** Display label for a stored test-source value: preset name, or "Custom (host)". */
+@Composable
+private fun testSourceLabel(stored: String): String =
+    when (TestSource.effectiveUrl(stored)) {
+        TestSource.DEFAULT_URL -> stringResource(R.string.test_source_gstatic)
+        TestSource.GOOGLE_URL -> stringResource(R.string.test_source_google)
+        TestSource.CLOUDFLARE_URL -> stringResource(R.string.test_source_cloudflare)
+        else -> stringResource(R.string.test_source_custom) +
+            " (" + TestSource.hostLabel(stored) + ")"
+    }
+
+/** Custom test-source URL entry; only http(s) addresses can be confirmed. */
+@Composable
+private fun TestSourceCustomDialog(
+    initial: String,
+    onDismiss: () -> Unit,
+    onConfirm: (String) -> Unit,
+) {
+    var text by remember { mutableStateOf(initial) }
+
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text(text = stringResource(R.string.test_source_custom_title)) },
+        text = {
+            OutlinedTextField(
+                value = text,
+                onValueChange = { text = it },
+                singleLine = true,
+                placeholder = {
+                    Text(text = stringResource(R.string.test_source_custom_hint))
+                },
+            )
+        },
+        confirmButton = {
+            TextButton(
+                enabled = TestSource.isValidCustom(text),
+                onClick = { onConfirm(text.trim()) },
+            ) {
+                Text(text = stringResource(R.string.save))
+            }
+        },
+        dismissButton = {
+            TextButton(onClick = onDismiss) {
+                Text(text = stringResource(android.R.string.cancel))
+            }
+        },
+    )
 }
 
 /**

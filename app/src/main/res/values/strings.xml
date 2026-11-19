@@ -151,6 +151,14 @@
     <string name="proxy_not_tested">Not tested</string>
     <string name="proxy_search_no_result">No matching nodes</string>
     <string name="proxy_last_test">Last tested %1$s</string>
+    <string name="test_source">Test source</string>
+    <string name="test_source_gstatic">Google (gstatic)</string>
+    <string name="test_source_google">Google (google.com)</string>
+    <string name="test_source_cloudflare">Cloudflare</string>
+    <string name="test_source_custom">Custom</string>
+    <string name="test_source_custom_title">Custom test URL</string>
+    <string name="test_source_custom_hint">https://example.com/generate_204</string>
+    <string name="save">Save</string>
     <string name="proxy_pick_fastest">Fastest</string>
     <string name="proxy_fastest_picked">Fastest selected: %1$s (%2$d ms)</string>
     <string name="proxy_fastest_none">No usable node in this group (all timed out)</string>
