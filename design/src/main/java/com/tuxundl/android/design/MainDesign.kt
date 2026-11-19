@@ -16,6 +16,9 @@ import kotlinx.coroutines.withContext
 class MainDesign(context: Context) : Design<MainDesign.Request>(context) {
     sealed class Request {
         object ToggleStatus : Request()
+
+        /** Open the Tor page (1.7.3); only wired when Tor is available in this build. */
+        object OpenTor : Request()
         object OpenProxy : Request()
         object OpenProfiles : Request()
         object OpenProviders : Request()

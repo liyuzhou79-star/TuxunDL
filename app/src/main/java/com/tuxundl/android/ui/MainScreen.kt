@@ -158,6 +158,10 @@ import com.tuxundl.android.design.R as DesignR
 class MainUiState {
     var clashRunning by mutableStateOf(false)
     var mode by mutableStateOf(TunnelState.Mode.Rule)
+
+    /** Tor (1.7.3): whether this build carries Tor, and whether Tor mode is on. */
+    var torAvailable by mutableStateOf(false)
+    var torActive by mutableStateOf(false)
     var profileName by mutableStateOf<String?>(null)
     var hasProviders by mutableStateOf(false)
 
@@ -1321,6 +1325,25 @@ private fun PowerCircle(
                     },
                 )
             }
+            if (state.torAvailable) {
+                DropdownMenuItem(
+                    text = { Text(text = "洋葱路由（Tor）") },
+                    onClick = {
+                        menuOpen = false
+                        onRequest(MainDesign.Request.OpenTor)
+                    },
+                    trailingIcon = {
+                        if (state.torActive) {
+                            Icon(
+                                painter = painterResource(
+                                    DesignR.drawable.ic_outline_check_circle,
+                                ),
+                                contentDescription = null,
+                            )
+                        }
+                    },
+                )
+            }
             HorizontalDivider()
             DropdownMenuItem(
                 text = { Text(text = stringResource(R.string.power_menu_test_group)) },
@@ -1416,15 +1439,27 @@ private fun ModeSelector(
         TunnelState.Mode.Direct,
     )
 
+    // Tor builds get a fourth segment: 洋葱路由. It is a page, not a
+    // tunnel mode — selecting it opens the Tor page; while Tor mode
+    // is active it stays selected, and picking any real mode exits
+    // Tor first (MainActivity performs the exit before SetMode).
+    val options = listOf(
+        stringResource(DesignR.string.rule_mode),
+        stringResource(DesignR.string.global_mode),
+        stringResource(DesignR.string.direct_mode),
+    ) + if (state.torAvailable) listOf("洋葱路由") else emptyList()
+
     // Sliding-pill segmented row: the selected background glides.
     TuxunSegmentedRow(
-        options = listOf(
-            stringResource(DesignR.string.rule_mode),
-            stringResource(DesignR.string.global_mode),
-            stringResource(DesignR.string.direct_mode),
-        ),
-        selectedIndex = modes.indexOf(state.mode),
-        onSelect = { onRequest(MainDesign.Request.SetMode(modes[it])) },
+        options = options,
+        selectedIndex = if (state.torActive) options.lastIndex else modes.indexOf(state.mode),
+        onSelect = { index ->
+            if (state.torAvailable && index == options.lastIndex) {
+                onRequest(MainDesign.Request.OpenTor)
+            } else {
+                onRequest(MainDesign.Request.SetMode(modes[index]))
+            }
+        },
         modifier = Modifier.fillMaxWidth(),
     )
 }

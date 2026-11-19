@@ -33,6 +33,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import com.tuxundl.android.service.model.Profile
+import com.tuxundl.android.tor.TorEntryProvider
 import com.tuxundl.android.ui.DisclaimerScreen
 import com.tuxundl.android.ui.HOME_BRICK_ALL_IDS
 import com.tuxundl.android.ui.HOME_BRICK_DEFAULT_ORDER
@@ -252,6 +253,16 @@ class MainActivity : BaseActivity<MainDesign>() {
                                 startClash()
                         }
                         is MainDesign.Request.SetMode -> {
+                            // Leaving Tor mode: disarm the Tor
+                            // egress first and wait for it, so the
+                            // mode patch below can never resurrect
+                            // the Tor marker from a stale snapshot.
+                            if (uiState.torActive) {
+                                TorEntryProvider.create()
+                                    .exitTorMode(this@MainActivity)
+                                uiState.torActive = false
+                            }
+
                             launch {
                                 uiState.snackbarHostState.showSnackbar(
                                     message = getString(DesignR.string.mode_switch_tips),
@@ -268,6 +279,9 @@ class MainActivity : BaseActivity<MainDesign>() {
                             }
 
                             uiState.mode = it.mode
+                        }
+                        MainDesign.Request.OpenTor -> {
+                            TorEntryProvider.create().launch(this@MainActivity)
                         }
                         MainDesign.Request.OpenProxy ->
                             startActivity(ProxyActivity::class.intent)
@@ -462,6 +476,10 @@ class MainActivity : BaseActivity<MainDesign>() {
 
         uiState.mode = state.mode
         uiState.hasProviders = providers.isNotEmpty()
+
+        val torEntry = TorEntryProvider.create()
+        uiState.torAvailable = torEntry.available
+        uiState.torActive = torEntry.available && torEntry.isActive(this)
 
         val profile = withProfile { queryActive() }
         uiState.profileName = profile?.name
@@ -965,6 +983,11 @@ class MainActivity : BaseActivity<MainDesign>() {
         // Every return to the home screen replays its entrance
         // animation (MainScreen watches this counter).
         uiState.entranceTick++
+
+        // Tor mode may have changed while the Tor page was open.
+        val torEntry = TorEntryProvider.create()
+        uiState.torAvailable = torEntry.available
+        uiState.torActive = torEntry.available && torEntry.isActive(this)
     }
 
     override fun onStop() {
