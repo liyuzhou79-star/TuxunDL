@@ -128,9 +128,12 @@ jobs:
           echo "cat signing.properties"
           cat signing.properties
 
+      # -PreleaseAbis=true trims the ABI splits to the two that ship
+      # (arm64-v8a + armeabi-v7a, no universal / x86 / x86_64); see the
+      # splits block in the root build.gradle.kts.
       - name: Release Build
         if: success()
-        run: ./gradlew --no-daemon app:assembleMetaRelease
+        run: ./gradlew --no-daemon app:assembleMetaRelease -PreleaseAbis=true
 
       - name: Tag Repo
         uses: richardsimko/update-tag@v3

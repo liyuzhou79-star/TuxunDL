@@ -216,12 +216,24 @@ subprojects {
         if (isApp) {
             this as AppExtension
 
+            // -PreleaseAbis=true (passed by build-release.yaml only)
+            // trims the splits to the two ABIs that actually ship —
+            // arm64-v8a and armeabi-v7a — and drops the universal APK,
+            // so a release build stops packaging the x86 variants.
+            // Debug and TV builds do not pass it and keep all splits.
+            val releaseAbisOnly =
+                project.findProperty("releaseAbis")?.toString() == "true"
+
             splits {
                 abi {
                     isEnable = true
-                    isUniversalApk = true
+                    isUniversalApk = !releaseAbisOnly
                     reset()
-                    include("arm64-v8a", "armeabi-v7a", "x86", "x86_64")
+                    if (releaseAbisOnly) {
+                        include("arm64-v8a", "armeabi-v7a")
+                    } else {
+                        include("arm64-v8a", "armeabi-v7a", "x86", "x86_64")
+                    }
                 }
             }
         }
