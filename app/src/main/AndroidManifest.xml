@@ -74,8 +74,13 @@
                 <action android:name="android.service.quicksettings.action.QS_TILE_PREFERENCES" />
             </intent-filter>
         </activity>
+        <!-- Tor spike (tor-spike branch only): the test package boots
+             straight into the Tor test screen, so the normal launcher
+             alias is disabled and TorTestActivity takes the LAUNCHER
+             entry instead. -->
         <activity-alias
             android:name=".MainActivityAlias"
+            android:enabled="false"
             android:exported="true"
             android:targetActivity=".MainActivity">
             <intent-filter>
@@ -117,6 +122,17 @@
                 <category android:name="android.intent.category.DEFAULT" />
             </intent-filter>
         </activity>
+        <activity
+            android:name=".tortest.TorTestActivity"
+            android:configChanges="uiMode"
+            android:exported="true"
+            android:label="TuxunDL Tor 测试">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+        </activity>
+
         <activity
             android:name=".AppLockActivity"
             android:configChanges="uiMode"
