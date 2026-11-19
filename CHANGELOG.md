@@ -2,7 +2,7 @@
 
 每個版本的詳細說明與下載見 [Releases](https://github.com/liyuzhou79-star/TuxunDL/releases)。所有版本都同時發布標準版（arm64）與老機型版（armeabi-v7a），同版本號、同一發布頁。自 Windows 版起，每個發布頁都同時附上 Android 與 Windows 兩個平台的最新安裝包。
 
-## 1.7.3 — 內置 Tor：洋蔥路由模式（待發布）
+## 1.7.3 — 內置 Tor：洋蔥路由模式（已發布）
 - Tor 引擎進主 App（僅 alpha／meta 手機 flavor）：Tor 0.4.9.17 本體（Guardian Project tor-android 二進位）以 libtor.so 形式放 app/src/tor/jniLibs（隨 APK 既有 .so 壓縮方式解壓到 nativeLibraryDir 執行，不走 asset 落地執行，避開 Android 10+ W^X 限制）；IPtProxy 5.8.0（lyrebird 0.10.0：obfs4／meek／Snowflake／WebTunnel）與 androidx.webkit 1.12.0 只以 alphaImplementation／metaImplementation 引入；全部 Tor 程式碼、資源、世界地圖數據（約 160KB）收在 app/src/tor，經 sourceSets 只掛進 alpha／meta；tv flavor 只有 TorEntry stub（available=false），電視版不含 Tor、不含 libtor／libgojni
 - 出口切換的不外洩順序（TorEgress 狀態機）：點連接後先啟 Tor 進程→等 bootstrap 100%→經 Tor SOCKS 向 check.torproject.org 自檢 IsTor=true（最多 3 次）→全部通過才把標記寫進 Session override 並確認核心已切到 global 模式，任一步失敗即拆標記＋停 Tor，原出口全程不動；斷開先拆標記再停 Tor；Tor 進程連通後意外死亡經 onUnexpectedExit 立即拆標記切回；UI 進程被殺時隧道指向已死的 SOCKS 端口只會連接失敗（GLOBAL 已被改寫為只剩 Tor 一個成員，沒有第二個出口可落），且 service 進程 ClashManager 新增心跳看門狗：TorManager 運行中每 4 秒寫 filesDir/tor/heartbeat，看門狗每 5 秒查、心跳過期 20 秒即拆標記重載
 - 核心側改寫（Go 處理器，不動訂閱檔案）：ConfigurationOverride 新增 tuxundl-tor 標記欄位（跟在 mode 後，所有既有 override 讀寫方原樣保留）；native/config 新增 patchTorEgress 處理器（在 patchOverride 之後執行）：標記在場時注入 socks5 代理 TUXUN-TOR（127.0.0.1:19050、udp:false）、把 GLOBAL 分組改寫為只含 TUXUN-TOR 的 select、強制隧道模式為 global——保證 global 語義下預設落點必然是 Tor，不受訂閱 GLOBAL 組預設選 DIRECT 的影響；JNI patchSelector 加守衛：Tor 武裝期間對 GLOBAL 選非 Tor 節點回報成功但不實際應用，防止 ConfigurationModule 每次重載後重放已存選擇時把出口搶回、或因應用失敗把用戶已存選擇刪掉；拆標記後下一次重載即完整恢復訂閱原配置與原選擇
