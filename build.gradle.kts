@@ -45,9 +45,12 @@ subprojects {
 
     extensions.configure<BaseExtension> {
         // -PreleaseAbis=true (passed by build-release.yaml only) builds
-        // just the two ABIs that ship. Read once here and applied to the
-        // ndk / cmake abiFilters below as well as the app splits further
-        // down — AGP refuses a build whose abiFilters exceed the splits.
+        // just the two ABIs that ship. Read once here: the app splits
+        // further down shrink to the shipped ABIs and the universal APK
+        // is dropped — and with no universal APK, AGP refuses any
+        // ndk / cmake abiFilters next to abi splits, so under the gate
+        // the abiFilters below are left unset and the splits alone
+        // decide which native libraries get built.
         val releaseAbisOnly =
             project.findProperty("releaseAbis")?.toString() == "true"
         val shippedAbis = listOf("arm64-v8a", "armeabi-v7a")
@@ -86,12 +89,16 @@ subprojects {
             resValue("integer", "release_code", "$versionCode")
 
             ndk {
-                abiFilters += if (releaseAbisOnly) shippedAbis else allAbis
+                if (!releaseAbisOnly) {
+                    abiFilters += allAbis
+                }
             }
 
             externalNativeBuild {
                 cmake {
-                    abiFilters(*(if (releaseAbisOnly) shippedAbis else allAbis).toTypedArray())
+                    if (!releaseAbisOnly) {
+                        abiFilters(*allAbis.toTypedArray())
+                    }
                 }
             }
 
