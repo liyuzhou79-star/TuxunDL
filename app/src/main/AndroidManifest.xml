@@ -22,6 +22,11 @@
          an in-panel hint when it is not granted. -->
     <uses-permission android:name="android.permission.SCHEDULE_EXACT_ALARM" />
     <uses-permission android:name="android.permission.VIBRATE" />
+    <!-- In-app update installs (1.6.1): lets the update page hand a
+         downloaded, signature-verified APK to the system installer.
+         The per-app "install unknown apps" grant is still the user's
+         to give; the update page guides them to it when missing. -->
+    <uses-permission android:name="android.permission.REQUEST_INSTALL_PACKAGES" />
 
     <!-- Workaround for Android 17+ cross profile loopback networking restrictions.
          This permission allows CMFA to connect to loopback addresses and ports bound

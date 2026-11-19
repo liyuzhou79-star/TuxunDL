@@ -29,6 +29,15 @@ data class UpdateInfo(
      * ABI), if the release has one; callers fall back to [pageUrl].
      */
     val downloadUrl: String?,
+    /**
+     * Size in bytes of the asset [downloadUrl] points at, from the
+     * release's asset list; -1 when unknown (e.g. the Atom fallback
+     * carries no asset data). The in-app updater (1.6.1) verifies the
+     * downloaded file against it before offering the install.
+     */
+    val downloadSize: Long = -1L,
+    /** File name of the asset [downloadUrl] points at; "" when unknown. */
+    val downloadName: String = "",
     /** The release page URL, used as a fallback target. */
     val pageUrl: String?,
     /** Release notes body (markdown) for the full-screen update page. */
@@ -424,15 +433,26 @@ object UpdateChecker {
     }
 
     private fun infoFrom(json: JSONObject, version: String): UpdateInfo {
+        val asset = pickAsset(json.optJSONArray("assets"))
+
         return UpdateInfo(
             version = version,
-            downloadUrl = pickAssetUrl(json.optJSONArray("assets")),
+            downloadUrl = asset?.url,
+            downloadSize = asset?.size ?: -1L,
+            downloadName = asset?.name ?: "",
             pageUrl = json.optString("html_url")
                 .takeIf { it.isNotEmpty() },
             notes = json.optString("body"),
             publishedAt = json.optString("published_at"),
         )
     }
+
+    /** One release asset, as picked for this device. */
+    private data class PickedAsset(
+        val name: String,
+        val url: String,
+        val size: Long,
+    )
 
     private suspend fun fetch(
         url: String,
@@ -509,10 +529,10 @@ object UpdateChecker {
      * ABI (arm64 when supported, otherwise armeabi-v7a). Null when the
      * release has no matching asset.
      */
-    private fun pickAssetUrl(assets: JSONArray?): String? {
+    private fun pickAsset(assets: JSONArray?): PickedAsset? {
         if (assets == null) return null
 
-        val candidates = mutableListOf<Pair<String, String>>()
+        val candidates = mutableListOf<PickedAsset>()
 
         for (i in 0 until assets.length()) {
             val asset = assets.getJSONObject(i)
@@ -520,28 +540,30 @@ object UpdateChecker {
             val url = asset.optString("browser_download_url")
 
             if (name.isNotEmpty() && url.isNotEmpty()) {
-                candidates += name to url
+                candidates += PickedAsset(
+                    name = name,
+                    url = url,
+                    size = asset.optLong("size", -1L),
+                )
             }
         }
 
         val isLegacyPackage = packageName.endsWith(".legacy")
         val deviceSupportsArm64 = Build.SUPPORTED_ABIS.contains("arm64-v8a")
 
-        val match: Pair<String, String>? = when {
+        return when {
             isLegacyPackage -> candidates.firstOrNull {
-                it.first.contains("legacy") && it.first.contains("armeabi-v7a")
+                it.name.contains("legacy") && it.name.contains("armeabi-v7a")
             }
 
             deviceSupportsArm64 -> candidates.firstOrNull {
-                !it.first.contains("legacy") && it.first.contains("arm64")
+                !it.name.contains("legacy") && it.name.contains("arm64")
             }
 
             else -> candidates.firstOrNull {
-                !it.first.contains("legacy") && it.first.contains("armeabi-v7a")
+                !it.name.contains("legacy") && it.name.contains("armeabi-v7a")
             }
         }
-
-        return match?.second
     }
 
     /** Segment-wise numeric comparison: is [remote] strictly newer than [local]? */
@@ -601,6 +623,8 @@ object UpdateCheckCenter {
     private const val KEY_CHECKED_AT = "state_checked_at"
     private const val KEY_LATEST_VERSION = "state_latest_version"
     private const val KEY_DOWNLOAD_URL = "state_download_url"
+    private const val KEY_DOWNLOAD_SIZE = "state_download_size"
+    private const val KEY_DOWNLOAD_NAME = "state_download_name"
     private const val KEY_PAGE_URL = "state_page_url"
     private const val KEY_NOTES = "state_notes"
     private const val KEY_PUBLISHED_AT = "state_published_at"
@@ -769,6 +793,8 @@ object UpdateCheckCenter {
                 info = UpdateInfo(
                     version = latest,
                     downloadUrl = prefs.getString(KEY_DOWNLOAD_URL, null),
+                    downloadSize = prefs.getLong(KEY_DOWNLOAD_SIZE, -1L),
+                    downloadName = prefs.getString(KEY_DOWNLOAD_NAME, "") ?: "",
                     pageUrl = prefs.getString(KEY_PAGE_URL, null),
                     notes = prefs.getString(KEY_NOTES, "") ?: "",
                     publishedAt = publishedAt,
@@ -809,6 +835,8 @@ object UpdateCheckCenter {
                 editor.putString(KEY_VERDICT, VERDICT_AVAILABLE)
                     .putString(KEY_LATEST_VERSION, result.info.version)
                     .putString(KEY_DOWNLOAD_URL, result.info.downloadUrl)
+                    .putLong(KEY_DOWNLOAD_SIZE, result.info.downloadSize)
+                    .putString(KEY_DOWNLOAD_NAME, result.info.downloadName)
                     .putString(KEY_PAGE_URL, result.info.pageUrl)
                     .putString(KEY_NOTES, result.info.notes)
                     .putString(KEY_PUBLISHED_AT, result.info.publishedAt)
@@ -819,6 +847,8 @@ object UpdateCheckCenter {
                 editor.putString(KEY_VERDICT, VERDICT_UP_TO_DATE)
                     .putString(KEY_LATEST_VERSION, result.latestVersion)
                     .putString(KEY_DOWNLOAD_URL, null)
+                    .putLong(KEY_DOWNLOAD_SIZE, -1L)
+                    .putString(KEY_DOWNLOAD_NAME, null)
                     .putString(KEY_PAGE_URL, null)
                     .putString(KEY_NOTES, null)
                     .putString(KEY_PUBLISHED_AT, result.publishedAt)

@@ -4,4 +4,8 @@
     <cache-path
         name="shared_logs"
         path="share/" />
+    <!-- Downloaded update APKs handed to the system installer (1.6.1). -->
+    <cache-path
+        name="updates"
+        path="updates/" />
 </paths>
