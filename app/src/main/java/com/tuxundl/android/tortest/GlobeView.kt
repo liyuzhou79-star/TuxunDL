@@ -49,6 +49,11 @@ private const val PITCH_LIMIT = 1.05f
 private const val AUTO_ROTATE_RAD_PER_SEC = 0.10f
 private const val IDLE_BEFORE_AUTO_ROTATE_MS = 3000L
 
+/** Route colour once connected: lit green points + flowing lines. */
+private val FlowGreen = Color(0xFF69F0AE)
+private val FlowGreenBright = Color(0xFFD9FFE8)
+private const val MAX_FLING_RAD_PER_SEC = 2.2f
+
 /**
  * The centerpiece of the Tor page: a solid globe the user can spin.
  *
@@ -56,9 +61,10 @@ private const val IDLE_BEFORE_AUTO_ROTATE_MS = 3000L
  * coordinates precomputed in [WorldGlobeData]). Per frame the cost
  * is one rotation + projection per point of the rings that survive
  * centroid culling — flat colors only, no shading passes, no text.
- * Hop markers and dashed route arcs are projected onto the sphere
+ * Hop markers and the route arcs are projected onto the sphere
  * the same way (slerp with a slight altitude lift for the arcs);
- * anything on the back hemisphere is hidden.
+ * anything on the back hemisphere is hidden. Once connected, the
+ * hops light up green and the arcs become glowing flow lines.
  */
 @Composable
 fun GlobeCanvas(
@@ -84,15 +90,15 @@ fun GlobeCanvas(
         animationSpec = infiniteRepeatable(tween(1500), RepeatMode.Reverse),
         label = "exitPulseScale"
     )
-    val flow = rememberInfiniteTransition(label = "globeDashFlow")
-    val dashPhase by flow.animateFloat(
+    val flow = rememberInfiniteTransition(label = "globeFlow")
+    val flowPhase by flow.animateFloat(
         initialValue = 0f,
-        targetValue = 34f,
+        targetValue = 148f,
         animationSpec = infiniteRepeatable(
-            tween(1400, easing = LinearEasing),
+            tween(1300, easing = LinearEasing),
             RepeatMode.Restart
         ),
-        label = "dashPhase"
+        label = "flowPhase"
     )
 
     // Frame loop: fling inertia with exponential decay, then a slow
@@ -112,7 +118,7 @@ fun GlobeCanvas(
                         rotation.pitch =
                             (rotation.pitch + rotation.velPitch * dt)
                                 .coerceIn(-PITCH_LIMIT, PITCH_LIMIT)
-                        val decay = exp(-2.4f * dt)
+                        val decay = exp(-3.0f * dt)
                         rotation.velYaw *= decay
                         rotation.velPitch *= decay
                         if (kotlin.math.abs(rotation.velYaw) < 0.005f) {
@@ -151,7 +157,16 @@ fun GlobeCanvas(
                 onDragCancel = { rotation.dragging = false },
                 onDrag = { change, dragAmount ->
                     change.consume()
-                    val sensitivity = 0.0075f
+                    // Low sensitivity, surface-tracking feel: the
+                    // point under the finger follows the finger
+                    // (drag / radius), which lands at roughly a
+                    // third of the old fixed rate — no wild spins.
+                    val radiusPx = size.minDimension / 2f
+                    val sensitivity = if (radiusPx > 0f) {
+                        1f / radiusPx
+                    } else {
+                        0.0035f
+                    }
                     rotation.yaw += dragAmount.x * sensitivity
                     rotation.pitch =
                         (rotation.pitch + dragAmount.y * sensitivity)
@@ -159,10 +174,12 @@ fun GlobeCanvas(
                     val nowMs = change.uptimeMillis
                     if (lastEventMs != 0L) {
                         val dtSec = ((nowMs - lastEventMs) / 1000f).coerceIn(0.008f, 0.1f)
-                        rotation.velYaw = 0.65f * rotation.velYaw +
-                            0.35f * (dragAmount.x * sensitivity / dtSec)
-                        rotation.velPitch = 0.65f * rotation.velPitch +
-                            0.35f * (dragAmount.y * sensitivity / dtSec)
+                        rotation.velYaw = (0.65f * rotation.velYaw +
+                            0.35f * (dragAmount.x * sensitivity / dtSec))
+                            .coerceIn(-MAX_FLING_RAD_PER_SEC, MAX_FLING_RAD_PER_SEC)
+                        rotation.velPitch = (0.65f * rotation.velPitch +
+                            0.35f * (dragAmount.y * sensitivity / dtSec))
+                            .coerceIn(-MAX_FLING_RAD_PER_SEC, MAX_FLING_RAD_PER_SEC)
                     }
                     lastEventMs = nowMs
                     rotation.lastInteractMs = System.currentTimeMillis()
@@ -285,7 +302,6 @@ fun GlobeCanvas(
                 )
             }
             if (vectors.size >= 2) {
-                val dash = PathEffect.dashPathEffect(floatArrayOf(9f, 7f), dashPhase)
                 val arcPath = Path()
                 for (i in 0 until vectors.size - 1) {
                     val a = vectors[i]
@@ -325,10 +341,30 @@ fun GlobeCanvas(
                         }
                     }
                 }
+                // The route as a glowing flow line: a wide soft
+                // halo pass, a solid green core, then bright
+                // packets that keep travelling along the path —
+                // light running through a pipe.
                 drawPath(
                     arcPath,
-                    color = Color.White.copy(alpha = 0.85f),
-                    style = Stroke(width = 2.dp.toPx(), pathEffect = dash)
+                    color = FlowGreen.copy(alpha = 0.20f),
+                    style = Stroke(width = 7.dp.toPx())
+                )
+                drawPath(
+                    arcPath,
+                    color = FlowGreen.copy(alpha = 0.95f),
+                    style = Stroke(width = 2.dp.toPx())
+                )
+                drawPath(
+                    arcPath,
+                    color = FlowGreenBright,
+                    style = Stroke(
+                        width = 3.2.dp.toPx(),
+                        pathEffect = PathEffect.dashPathEffect(
+                            floatArrayOf(30f, 118f),
+                            -flowPhase
+                        )
+                    )
                 )
             }
             for (index in vectors.indices) {
@@ -338,15 +374,15 @@ fun GlobeCanvas(
                 val isExit = points[index].isExit
                 val c = Offset(scratch[0], scratch[1])
                 val glowRadius = if (isExit) {
-                    24.dp.toPx() * pulseScale
+                    26.dp.toPx() * pulseScale
                 } else {
-                    15.dp.toPx()
+                    17.dp.toPx() * (0.9f + 0.25f * pulseScale)
                 }
                 drawCircle(
                     brush = Brush.radialGradient(
                         listOf(
-                            Color(0xFFB388FF).copy(
-                                alpha = if (isExit) pulseAlpha else 0.7f
+                            FlowGreen.copy(
+                                alpha = if (isExit) pulseAlpha else 0.65f
                             ),
                             Color.Transparent
                         ),
@@ -357,8 +393,13 @@ fun GlobeCanvas(
                     center = c
                 )
                 drawCircle(
-                    color = Color.White,
+                    color = FlowGreen,
                     radius = if (isExit) 4.5.dp.toPx() else 3.2.dp.toPx(),
+                    center = c
+                )
+                drawCircle(
+                    color = FlowGreenBright,
+                    radius = if (isExit) 1.6.dp.toPx() else 1.1.dp.toPx(),
                     center = c
                 )
             }

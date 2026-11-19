@@ -43,30 +43,60 @@ object WorldGlobeData {
     @Volatile
     private var cached: List<GlobeRing>? = null
 
-    fun load(context: Context): List<GlobeRing> {
-        cached?.let { return it }
+    @Volatile
+    private var cachedRegional: List<GlobeRing>? = null
+
+    /** Base-dataset feature names the regional variant replaces. */
+    private val regionalNames = setOf("China", "Taiwan")
+
+    fun load(context: Context, regionalVariant: Boolean = false): List<GlobeRing> {
+        if (regionalVariant) {
+            cachedRegional?.let { return it }
+        } else {
+            cached?.let { return it }
+        }
         val rings = mutableListOf<GlobeRing>()
         try {
-            val text = context.assets.open("world-countries.json")
-                .bufferedReader().use { it.readText() }
-            val features = JSONObject(text).getJSONArray("features")
-            for (i in 0 until features.length()) {
-                val geometry = features.getJSONObject(i).getJSONObject("geometry")
-                val coordinates = geometry.getJSONArray("coordinates")
-                when (geometry.getString("type")) {
-                    "Polygon" -> addPolygon(rings, coordinates)
-                    "MultiPolygon" -> {
-                        for (j in 0 until coordinates.length()) {
-                            addPolygon(rings, coordinates.getJSONArray(j))
-                        }
-                    }
-                }
+            parseAsset(context, "world-countries.json", rings, regionalVariant)
+            if (regionalVariant) {
+                parseAsset(context, "world-countries-cn.json", rings, false)
             }
         } catch (_: Exception) {
             // A globe that fails to parse degrades to the bare
             // sphere; the page and Tor itself keep working.
         }
-        return rings.also { cached = it }
+        return rings.also {
+            if (regionalVariant) cachedRegional = it else cached = it
+        }
+    }
+
+    private fun parseAsset(
+        context: Context,
+        asset: String,
+        rings: MutableList<GlobeRing>,
+        skipRegional: Boolean
+    ) {
+        val text = context.assets.open(asset)
+            .bufferedReader().use { it.readText() }
+        val features = JSONObject(text).getJSONArray("features")
+        for (i in 0 until features.length()) {
+            val feature = features.getJSONObject(i)
+            if (skipRegional) {
+                val name = feature.optJSONObject("properties")
+                    ?.optString("name")
+                if (name in regionalNames) continue
+            }
+            val geometry = feature.getJSONObject("geometry")
+            val coordinates = geometry.getJSONArray("coordinates")
+            when (geometry.getString("type")) {
+                "Polygon" -> addPolygon(rings, coordinates)
+                "MultiPolygon" -> {
+                    for (j in 0 until coordinates.length()) {
+                        addPolygon(rings, coordinates.getJSONArray(j))
+                    }
+                }
+            }
+        }
     }
 
     private fun addPolygon(out: MutableList<GlobeRing>, rings: JSONArray) {

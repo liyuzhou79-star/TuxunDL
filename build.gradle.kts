@@ -79,8 +79,8 @@ subprojects {
             minSdk = 21
             targetSdk = 35
 
-            versionName = if (isTorTestBuild) "0.3.0-test" else "1.6.0"
-            versionCode = if (isTorTestBuild) 3 else 106000
+            versionName = if (isTorTestBuild) "0.4.0-test" else "1.6.0"
+            versionCode = if (isTorTestBuild) 4 else 106000
 
             resValue("string", "release_name", "v$versionName")
             resValue("integer", "release_code", "$versionCode")
