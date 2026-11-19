@@ -194,10 +194,12 @@ fun UpdateFullScreen(
                                 .verticalScroll(rememberScrollState())
                                 .padding(16.dp),
                         ) {
-                            Text(
+                            // Rendered markdown (1.6.1): the raw
+                            // body used to print its #, ** and -
+                            // characters straight at the user.
+                            MarkdownText(
                                 text = info.notes.trim(),
-                                style = MaterialTheme.typography.bodyMedium,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                modifier = Modifier.fillMaxWidth(),
                             )
                         }
                     }
