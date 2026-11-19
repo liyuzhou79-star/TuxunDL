@@ -7,6 +7,7 @@ import (
 	"unsafe"
 
 	"cfa/native/app"
+	"cfa/native/config"
 	"cfa/native/tunnel"
 )
 
@@ -92,6 +93,17 @@ func healthCheckAll() {
 func patchSelector(selector, name C.c_string) C.int {
 	s := C.GoString(selector)
 	n := C.GoString(name)
+
+	// While Tor egress is armed, GLOBAL is pinned to the Tor proxy.
+	// ConfigurationModule re-applies the remembered selections after
+	// every config load; a remembered GLOBAL selection must not
+	// steer traffic away from Tor, but dropping it would also lose
+	// it for when Tor mode ends — so report success without applying
+	// and the selection takes effect again on the first load after
+	// Tor mode is switched off.
+	if s == "GLOBAL" && n != config.TorProxyName() && config.TorEgressArmed() {
+		return 1
+	}
 
 	if tunnel.PatchSelector(s, n) {
 		return 1

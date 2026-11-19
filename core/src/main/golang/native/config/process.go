@@ -19,6 +19,7 @@ import (
 var processors = []processor{
 	patchExternalController, // must before patchOverride, so we only apply ExternalController in Override settings
 	patchOverride,
+	patchTorEgress, // after patchOverride: reads the marker from the session override it just applied
 	patchGeneral,
 	patchProfile,
 	patchDns,
