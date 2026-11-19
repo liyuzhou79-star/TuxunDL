@@ -2,6 +2,10 @@
 
 每個版本的詳細說明與下載見 [Releases](https://github.com/liyuzhou79-star/TuxunDL/releases)。所有版本都同時發布標準版（arm64）與老機型版（armeabi-v7a），同版本號、同一發布頁。自 Windows 版起，每個發布頁都同時附上 Android 與 Windows 兩個平台的最新安裝包。
 
+## 1.6.3 — 出口信息卡＋測速源可選（待發布）
+- 首頁出口信息卡（取代原「節點選擇」磚）：沿用原磚 id 與位置（proxy），既有磚塊順序、卡片順序與 showProxyCard 顯隱開關全部保留；新增 util/ExitInfo.kt 出口查詢——請求自 App 進程發出，TunService 恆將本 App 保持在隧道內（AcceptSelected 把自身包名加入允許名單、DenySelected 不排除自身），故查得的即目前節點的真實出口；依序試 ipwho.is、ipapi.co 兩個免 key 接口，失敗回 null、界面如實顯示「出口 IP 未知」；MainActivity 以「runningSince＋目前節點名」為鍵快取，一次連接／每次切節點查一次，過期結果丟棄，斷開後清空；卡面內容在磚自身作用域內讀取（國旗＋國家·城市／出口 IP／已連接時長），逐秒時長刷新不牽動整個卡片區重組；點擊改開進階統計頁（現有連接詳情面）；刪除僅供舊卡使用的 modeText；外觀設置中該卡名稱同步改「出口信息卡片」（繁體一併補齊）
+- 測速源可選：新增 util/TestSource.kt（gstatic／google.com／Cloudflare 三預設＋自訂 http(s) 地址校驗）；UiStore 新增 testSourceUrl（存地址本身，空＝預設）；節點選擇頁 ⋮ 菜單新增「測速源」一節（顯示當前源、三預設勾選、自訂對話框僅接受 http(s) 地址），「上次測速」行尾附當前測速源標籤；核心鏈路全線透傳 url 參數（Bridge／JNI main.c／Go tunnel.go／connectivity.go／Clash.kt／IClashManager／ClashManager）：單節點 URLTest 直接用所選地址；整組測速在預設地址時走原 provider 健康檢查路徑、行為不變，選了其他地址時改為組內每個節點以所選地址逐個 URLTest（provider 自帶健康檢查改不了訂閱裡的地址）；App 發起的測速全部跟隨——節點頁單節點／整組／選最快、首頁測目前組／全部測速、首頁每 15 秒一次的連接質量探針；誠實邊界：URLTest／Fallback 組內部自動健康檢查由內核按訂閱配置執行、App 無覆蓋入口，不跟隨本設置；healthCheckAll 無界面呼叫方，保持預設行為
+
 ## 1.6.1 — App 內直接更新＋流量記錄根治（已發布）
 - App 內直接更新（新增 util/SelfUpdate.kt）：更新頁主按鈕改走 App 內下載——按裝置架構選對應 APK、下載帶進度且可取消（下載在獨立作用域進行、離開頁面不中斷）；完成校驗三重：檔案大小與發布資產一致、包名一致、簽名憑證與已安裝 App 的自身簽名一致（PackageManager 動態比對，不寫死指紋）；通過後經 FileProvider 調起系統安裝器，系統安裝確認仍需用戶親手點（安卓硬性要求）；API 26+ 需「允許安裝未知應用」授權，未授權時頁面給引導入口；任何失敗如實顯示原因並保留瀏覽器下載兜底。資產大小與檔名隨 UpdateInfo 經 UpdateCheckCenter 一併落盤（Atom 兜底路徑無資產資訊時主按鈕自動退回瀏覽器路線）；電視版更新檢查本就關閉，不受影響。清單新增 REQUEST_INSTALL_PACKAGES 權限，file_paths 新增 updates 緩存路徑
 - 更新頁 markdown 渲染（新增 ui/Markdown.kt）：輕量行級渲染器（標題／粗體／斜體／刪除線／行內程式碼與連結／無序與有序列表／引用／程式碼塊／分隔線），不加新依賴；未知語法降級為純文字輸出，發布說明不再把原始 # 與 ** 符號直接顯示給用戶
