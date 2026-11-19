@@ -1,3 +1,5 @@
+<p align="center"><b>简体中文</b> | <a href="README.en.md">English</a></p>
+
 <p align="center">
   <img src="docs/assets/icon.webp" width="120" alt="TuxunDL icon">
 </p>
@@ -5,8 +7,7 @@
 <h1 align="center">TuxunDL</h1>
 
 <p align="center">
-  高自訂、強個性化的開源代理工具，Android、Windows、Linux、Mac 四平台，基於 mihomo 核心。<br>
-  An open-source, highly customizable proxy client for Android, Windows, Linux and Mac, powered by the mihomo core.
+  高自定义、强个性化的开源代理工具，Android、Windows、Linux、Mac 四个平台，基于 mihomo 核心。
 </p>
 
 <p align="center">
@@ -21,162 +22,162 @@
 </p>
 
 <p align="center">
-  <a href="https://github.com/liyuzhou79-star/TuxunDL/releases/latest"><b>下載最新版 / Download</b></a> ·
-  <a href="#功能總覽--features">功能</a> ·
-  <a href="#版本一覽--editions">版本一覽</a> ·
-  <a href="#更新紀錄--changelog">更新紀錄</a> ·
-  <a href="CONTRIBUTING.md">參與貢獻</a>
+  <a href="https://github.com/liyuzhou79-star/TuxunDL/releases/latest"><b>下载最新版</b></a> ·
+  <a href="#功能总览">功能</a> ·
+  <a href="#版本一览">版本一览</a> ·
+  <a href="#更新记录">更新记录</a> ·
+  <a href="CONTRIBUTING.md">参与贡献</a>
 </p>
 
 ---
 
 <p align="center">
-  <img src="docs/assets/screenshot-home.png" width="300" alt="TuxunDL home screen">
+  <img src="docs/assets/screenshot-home.png" width="300" alt="TuxunDL 主界面">
 </p>
 
-## 這是什麼 / About
+## 这是什么
 
-TuxunDL 是一個完全開源（GPL-3.0）的代理客戶端，核心採用 [mihomo](https://github.com/MetaCubeX/mihomo)，有 **Android 版**和 **Windows 版**兩個版本，在同一個倉庫裡開發。主打一個詞：**自訂**——主題色、首頁排版、卡片開關、節點收藏、規則編輯、DNS 覆寫，能自己改的全都開放給你改。
+TuxunDL 是一个完全开源（GPL-3.0）的代理客户端，核心采用 [mihomo](https://github.com/MetaCubeX/mihomo)，有 **Android、Windows、Linux、Mac** 四个平台版本，在同一个仓库里开发。主打一个词：**自定义**——主题色、首页排版、卡片开关、节点收藏、规则编辑、DNS 覆写，能自己改的全都开放给你改。
 
-Android 版介面以 Kotlin + Jetpack Compose + Material 3 打造，吉祥物是天線連著節點的小機器人；Windows 版是全新編寫的桌面程序（程式碼在 `desktop/` 目錄，全部原創），吉祥物換成窗戶造型，內核同樣是 mihomo，安裝包已內置核心，裝完即用。
+Android 版界面以 Kotlin + Jetpack Compose + Material 3 打造，吉祥物是天线连着节点的小机器人；桌面版（Windows / Linux / Mac）是全新编写的程序（代码在 `desktop/` 目录，全部原创），吉祥物换成窗户造型，内核同样是 mihomo，安装包已内置核心，装完即用。
 
-## 下載 / Download
+## 下载
 
-到 [Releases](https://github.com/liyuzhou79-star/TuxunDL/releases/latest) 打開最新發布頁下載。**每個發布頁都會同時放齊 Android、Windows、Linux、Mac 四個平台的最新安裝包**——就算這次只更新了其中一個平台，其他平台的現行版本也會一併附上，不用翻舊頁面找。
+到 [Releases](https://github.com/liyuzhou79-star/TuxunDL/releases) 打开对应平台的最新发布页下载。**每个发布页都会同时放齐 Android、Windows、Linux、Mac 四个平台的最新安装包**——就算这次只更新了其中一个平台，其他平台的现行版本也会一并附上，不用翻旧页面找。
 
 ### Android
 
-| 版本 | 檔案 | 包名 | 適合 |
+| 版本 | 文件 | 包名 | 适合 |
 | --- | --- | --- | --- |
-| 標準版 | `tuxundl-<版本>-arm64.apk` | `com.tuxundl.android` | 64 位元新機型（最低 Android 5.0） |
-| 老機型版 | `tuxundl-<版本>-legacy-armeabi-v7a.apk` | `com.tuxundl.android.legacy` | 32 位元舊機型，可與標準版共存安裝 |
+| 标准版 | `tuxundl-<版本>-arm64.apk` | `com.tuxundl.android` | 64 位新机型（最低 Android 5.0） |
+| 老机型版 | `tuxundl-<版本>-legacy-armeabi-v7a.apk` | `com.tuxundl.android.legacy` | 32 位旧机型，可与标准版共存安装 |
 
-App 內建檢查更新（設定頁手動檢查，或有新版時開啟 App 全屏提醒），會依你的版本自動挑對的安裝包。所有版本都用同一把固定簽名鑰匙簽署，可直接覆蓋安裝。
+App 内置检查更新（设置页手动检查，或有新版时打开 App 全屏提醒），会按你的版本自动挑选对应的安装包。所有版本都用同一把固定签名钥匙签署，可直接覆盖安装。
 
-也可以從 [GitHub Packages](https://github.com/liyuzhou79-star/TuxunDL/pkgs) 取得每個版本的封存（需登入 GitHub 才能下載）。
+也可以从 [GitHub Packages](https://github.com/liyuzhou79-star/TuxunDL/pkgs) 取得每个版本的存档（需登录 GitHub 才能下载）。
 
 ### Windows
 
-| 檔案 | 適合 |
+| 文件 | 适合 |
 | --- | --- |
-| `TuxunDL-<版本>.msi` | Windows 10 / 11，64 位元（MSI 安裝包） |
-| `TuxunDL-<版本>.exe` | Windows 10 / 11，64 位元（EXE 安裝包） |
+| `TuxunDL-<版本>.msi` | Windows 10 / 11，64 位（MSI 安装包） |
+| `TuxunDL-<版本>.exe` | Windows 10 / 11，64 位（EXE 安装包） |
 
-兩個任選其一。程序內置 mihomo 核心，不需要另外下載。系統代理模式免管理員權限；TUN 模式需以管理員身份運行。Windows 版內建檢查更新，只認 `win-v` 開頭的 Windows 發布。
+两个任选其一。程序内置 mihomo 核心，不需要另外下载。系统代理模式免管理员权限；TUN 模式需以管理员身份运行。Windows 版内置检查更新，只认 `win-v` 开头的 Windows 发布。
 
 ### Linux
 
-| 檔案 | 適合 |
+| 文件 | 适合 |
 | --- | --- |
-| `TuxunDL-<版本>.deb` | Debian / Ubuntu 系，64 位元（deb 安裝包，裝到 `/opt/com.tuxundl.linux`） |
-| `TuxunDL-<版本>.AppImage` | 各主流發行版，64 位元（免安裝，下載後加可執行權限直接運行） |
+| `TuxunDL-<版本>.deb` | Debian / Ubuntu 系，64 位（deb 安装包，装到 `/opt/com.tuxundl.linux`） |
+| `TuxunDL-<版本>.AppImage` | 各主流发行版，64 位（免安装，下载后加可执行权限直接运行） |
 
-與 Windows 版同一套桌面程式碼（版本號獨立，從 1.0.0 起），程序內置 mihomo 核心。系統代理自動設置支援 GNOME 桌面（其他桌面請手動填 127.0.0.1:7890）；TUN 模式透過 pkexec 只把核心以 root 啟動，程序本身不提權。Linux 版內建檢查更新，只認 `linux-v` 開頭的 Linux 發布。
+与 Windows 版同一套桌面代码（版本号独立，从 1.0.0 起），程序内置 mihomo 核心。系统代理自动设置支持 GNOME 桌面（其他桌面请手动填 127.0.0.1:7890）；TUN 模式通过 pkexec 只把核心以 root 启动，程序本身不提权。Linux 版内置检查更新，只认 `linux-v` 开头的 Linux 发布。
 
 ### Mac
 
-| 檔案 | 適合 |
+| 文件 | 适合 |
 | --- | --- |
-| `TuxunDL-<版本>.dmg` | macOS，Apple Silicon（M 系列晶片），64 位元（DMG 磁碟映像） |
+| `TuxunDL-<版本>.dmg` | macOS，Apple Silicon（M 系列芯片），64 位（DMG 磁盘映像） |
 
-與 Windows／Linux 版同一套桌面程式碼（版本號獨立，從 1.0.0 起），程序內置 mihomo 核心。系統代理自動設置走 `networksetup`（當前網絡服務，一般是 Wi-Fi；需要管理員賬號）；TUN 模式本版暫不支持。Mac 版內建檢查更新，只認 `mac-v` 開頭的 Mac 發布。未簽名、未公證，首次打開需右鍵→打開繞過 Gatekeeper；Intel Mac 本版暫不支援。
+与 Windows / Linux 版同一套桌面代码（版本号独立，从 1.0.0 起），程序内置 mihomo 核心。系统代理自动设置走 `networksetup`（当前网络服务，一般是 Wi-Fi；需要管理员账号）；TUN 模式暂不支持。Mac 版内置检查更新，只认 `mac-v` 开头的 Mac 发布。未签名、未公证，首次打开需右键 → 打开绕过 Gatekeeper；Intel Mac 暂不支持。
 
-## 功能總覽 / Features
+## 功能总览
 
 ### Android 版
 
-#### 連接與節點
-- 訂閱連結 / 設定檔匯入，相簿掃碼加訂閱
-- 節點搜尋、收藏置頂、延遲排序（未測沉底）
-- 測速體驗：全部測速時每個節點顯示「測速中…」，超時紅字標示，點延遲數字可單獨重測
-- 分流模式：規則 / 全域 / 直連一鍵切換
-- 分應用代理：搜尋＋只看第三方應用
+#### 连接与节点
+- 订阅链接 / 配置文件导入，相册扫码加订阅
+- 节点搜索、收藏置顶、延迟排序（未测沉底）
+- 测速体验：全部测速时每个节点显示「测速中…」，超时红字标示，点延迟数字可单独重测
+- 分流模式：规则 / 全局 / 直连一键切换
+- 分应用代理：搜索 + 只看第三方应用
 
-#### 流量統計
-- 首頁即時圖表：最近 2 分鐘平滑曲線＋峰值標示
-- 進階模式（點統計卡開啟）：近 24 小時每小時流量、連接時長、連接品質評級（平均延遲 / 抖動 / 失敗率 / 卡頓次數）
-- 每日與每週統計、本次連接收藏（把這次連接的節點、時長、流量、品質存成紀錄卡）
-- 訂閱流量與到期提醒（用量 80% 警示、到期前 3 天提醒）
+#### 流量统计
+- 首页实时图表：最近 2 分钟平滑曲线 + 峰值标示
+- 进阶模式（点统计卡开启）：近 24 小时每小时流量、连接时长、连接质量评级（平均延迟 / 抖动 / 失败率 / 卡顿次数）
+- 每日与每周统计、本次连接收藏（把这次连接的节点、时长、流量、质量存成纪录卡）
+- 订阅流量与到期提醒（用量 80% 警示、到期前 3 天提醒）
 
-#### 個性化
-- 吉祥物小機器人＋連點彩蛋（累計流量 / 連接時長 / 使用天數）
-- 大圓啟停按鈕四態動畫：未連接呼吸、連接中旋轉握手、已連接光環心跳、出錯小晃
-- 全 App 彈簧動畫系統，逐元素專屬調校；外觀頁可切「動畫風格」：彈簧 / 柔和 / 減少動畫
-- 首頁長按拖拽排版：磚塊與卡片位置自己排
-- 自訂主題色：16 個精選色＋HSL 三滑桿任意調色；深色模式；首頁卡片開關
+#### 个性化
+- 吉祥物小机器人 + 连点彩蛋（累计流量 / 连接时长 / 使用天数）
+- 大圆启停按钮四态动画：未连接呼吸、连接中旋转握手、已连接光环心跳、出错小晃
+- 全 App 弹簧动画系统，逐元素专属调校；外观页可切「动画风格」：弹簧 / 柔和 / 减少动画
+- 首页长按拖拽排版：砖块与卡片位置自己排
+- 自定义主题色：16 个精选色 + HSL 三滑杆任意调色；深色模式；首页卡片开关
 
-#### 進階玩法
-- 可視化分流規則編輯器（不用改訂閱檔）
-- 自訂 DNS 覆寫（Nameserver / Fallback，可完整還原）
-- 桌面小組件：一鍵啟停、看目前節點與速率
-- 設定備份還原：設定檔、規則、DNS、收藏、外觀一鍵匯出 / 還原
-- 日誌搜尋與等級篩選
+#### 进阶玩法
+- 可视化分流规则编辑器（不用改订阅文件）
+- 自定义 DNS 覆写（Nameserver / Fallback，可完整还原）
+- 桌面小组件：一键启停、看当前节点与速率
+- 设置备份还原：配置文件、规则、DNS、收藏、外观一键导出 / 还原
+- 日志搜索与等级筛选
 
 ### Windows 版
 
-- 首頁大圓按鈕啟停，連接後即時顯示目前節點與上下行速度
-- 兩種連接模式：系統代理 / TUN，設定頁切換；本地混合端口可改
-- 訂閱管理：添加、更新、切換訂閱，設定保存在本機
-- 節點頁：按分組看節點，點擊切換，每個節點可單獨測延遲
-- 規則頁與日誌頁：查看目前生效的規則、應用與核心日誌
-- 系統匣：關窗口不退出，從系統匣退出會自動恢復系統代理
-- 檢查更新只認 Windows 發布（`win-v` 標籤），不會與 Android 版串擾
+- 首页大圆按钮启停，连接后实时显示当前节点与上下行速度
+- 两种连接模式：系统代理 / TUN，设置页切换；本地混合端口可改
+- 订阅管理：添加、更新、切换订阅，设置保存在本机
+- 节点页：按分组看节点，点击切换，每个节点可单独测延迟
+- 规则页与日志页：查看当前生效的规则、应用与核心日志
+- 系统托盘：关窗口不退出，从系统托盘退出会自动恢复系统代理
+- 检查更新只认 Windows 发布（`win-v` 标签），不会与 Android 版串扰
 
-## 版本一覽 / Editions
+## 版本一览
 
-- **Android 標準版與老機型版**：功能相同，差別只在處理器架構與包名。每個 Android 版本都同時發布，不會有哪一版被漏掉。
-- **Windows 版**：版本號獨立，從 1.0.0 重新開始，發布標籤用 `win-v<版本>`（Android 用 `v<版本>`）。
-- **Linux 版**：版本號獨立，從 1.0.0 開始，發布標籤用 `linux-v<版本>`。
-- **Mac 版**：版本號獨立，從 1.0.0 開始，發布標籤用 `mac-v<版本>`，目前只有 Apple Silicon 版。
-- **四平台同頁**：每個 GitHub 發布頁都會同時附上四個平台的最新安裝包。假如這次只更新了手機端，發布頁裡照樣有電腦端的現行版本；反過來也一樣。發布說明會寫清這次更新的是哪個平台。
+- **Android 标准版与老机型版**：功能相同，差别只在处理器架构与包名。每个 Android 版本都同时发布，不会有哪一版被漏掉。
+- **Windows 版**：版本号独立，从 1.0.0 重新开始，发布标签用 `win-v<版本>`（Android 用 `v<版本>`）。
+- **Linux 版**：版本号独立，从 1.0.0 开始，发布标签用 `linux-v<版本>`。
+- **Mac 版**：版本号独立，从 1.0.0 开始，发布标签用 `mac-v<版本>`，目前只有 Apple Silicon 版。
+- **四平台同页**：每个 GitHub 发布页都会同时附上四个平台的最新安装包。假如这次只更新了手机端，发布页里照样有电脑端的现行版本；反过来也一样。发布说明会写清这次更新的是哪个平台。
 
-## 更新紀錄 / Changelog
+## 更新记录
 
-完整版本歷史見 [CHANGELOG.md](CHANGELOG.md)，每個版本的詳細說明見對應的 [Release 頁面](https://github.com/liyuzhou79-star/TuxunDL/releases)。
+完整版本历史见 [CHANGELOG.md](CHANGELOG.md)，每个版本的详细说明见对应的 [Release 页面](https://github.com/liyuzhou79-star/TuxunDL/releases)。
 
-## 從原始碼編譯 / Build
+## 从源码编译
 
 Android 版：
 
 ```bash
 git clone https://github.com/liyuzhou79-star/TuxunDL.git
 cd TuxunDL
-./gradlew --no-daemon app:assembleAlphaRelease   # 標準版
-./gradlew --no-daemon app:assembleAlphaRelease -PtuxundlLegacy  # 老機型版
+./gradlew --no-daemon app:assembleAlphaRelease   # 标准版
+./gradlew --no-daemon app:assembleAlphaRelease -PtuxundlLegacy  # 老机型版
 ```
 
-需要 JDK 21、Android SDK 35 與 Go（核心編譯）。
+需要 JDK 21、Android SDK 35 与 Go（核心编译）。
 
-Windows 版（獨立的 Gradle 構建，在 `desktop/` 目錄，與 Android 構建互不影響）：
+桌面版（独立的 Gradle 构建，在 `desktop/` 目录，与 Android 构建互不影响）：
 
 ```bash
-./gradlew -p desktop run            # 運行
-./gradlew -p desktop packageMsi     # 打 MSI 安裝包
-./gradlew -p desktop packageExe     # 打 EXE 安裝包
+./gradlew -p desktop run            # 运行
+./gradlew -p desktop packageMsi     # 打 MSI 安装包（Windows）
+./gradlew -p desktop packageExe     # 打 EXE 安装包（Windows）
 ```
 
-需要 JDK 17。打包時會自動下載 mihomo 核心與 wintun 打進安裝包（不入庫）。詳見 [desktop/README.md](desktop/README.md)。
+需要 JDK 17。打包时会自动下载 mihomo 核心与 wintun 打进安装包（不入库）。详见 [desktop/README.md](desktop/README.md)。
 
-本倉庫的每個版本也都由 GitHub Actions 自動編譯。
+本仓库的每个版本也都由 GitHub Actions 自动编译。
 
-## 參與貢獻 / Contributing
+## 参与贡献
 
-歡迎 issue 與 PR，請先看 [CONTRIBUTING.md](CONTRIBUTING.md)。安全問題請看 [SECURITY.md](SECURITY.md)。
+欢迎 issue 与 PR，请先看 [CONTRIBUTING.md](CONTRIBUTING.md)。安全问题请看 [SECURITY.md](SECURITY.md)。
 
-## 貢獻者 / Contributors
+## 贡献者
 
 - [liyuzhou79-star](https://github.com/liyuzhou79-star)
 - museai
 
-## 致謝 / Credits
+## 致谢
 
-- [mihomo](https://github.com/MetaCubeX/mihomo) — 代理核心（Android 與 Windows 版共用）
-- [ClashMetaForAndroid](https://github.com/MetaCubeX/ClashMetaForAndroid) — Android 版基礎工程
-- [Wintun](https://www.wintun.net) — Windows 版 TUN 模式所用的虛擬網卡驅動（© WireGuard LLC）
-- 所有試用並回報問題的使用者
+- [mihomo](https://github.com/MetaCubeX/mihomo) — 代理核心（各平台共用）
+- [ClashMetaForAndroid](https://github.com/MetaCubeX/ClashMetaForAndroid) — Android 版基础工程
+- [Wintun](https://www.wintun.net) — Windows 版 TUN 模式所用的虚拟网卡驱动（© WireGuard LLC）
+- 所有试用并回报问题的使用者
 
-Windows 版的桌面程式碼全部為本專案原創；上游與原創的邊界在 [desktop/README.md](desktop/README.md) 裡有詳細說明。
+桌面版的桌面代码全部为本项目原创；上游与原创的边界在 [desktop/README.md](desktop/README.md) 里有详细说明。
 
-## 授權 / License
+## 授权
 
-GPL-3.0。本專案僅供學習與個人使用，請遵守所在地法律法規。
+GPL-3.0。本项目仅供学习与个人使用，请遵守所在地法律法规。
