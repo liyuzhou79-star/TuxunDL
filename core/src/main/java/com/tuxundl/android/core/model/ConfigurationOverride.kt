@@ -35,6 +35,18 @@ data class ConfigurationOverride(
     @SerialName("mode")
     var mode: TunnelState.Mode? = null,
 
+    /**
+     * Tor egress marker (1.7.3): while present and enabled in the
+     * session override, the native config pipeline rewrites the
+     * parsed profile so the tunnel's only way out is the local Tor
+     * SOCKS listener (mode forced to global, GLOBAL reduced to the
+     * Tor proxy alone). Absent/null = Tor mode off; the field rides
+     * along in the session override so every writer that round-trips
+     * the override (mode switch, scheduler) preserves it.
+     */
+    @SerialName("tuxundl-tor")
+    var tor: TorEgress? = null,
+
     @SerialName("log-level")
     var logLevel: LogMessage.Level? = null,
 
@@ -141,6 +153,16 @@ data class ConfigurationOverride(
     data class App(
         @SerialName("append-system-dns")
         var appendSystemDns: Boolean? = null
+    )
+
+    @Serializable
+    data class TorEgress(
+        @SerialName("enabled")
+        var enabled: Boolean = false,
+
+        /** Local Tor SOCKS port the injected egress proxy points at. */
+        @SerialName("socks-port")
+        var socksPort: Int = 19050,
     )
 
     @Serializable
