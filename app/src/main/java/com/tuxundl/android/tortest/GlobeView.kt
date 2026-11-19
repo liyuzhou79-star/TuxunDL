@@ -161,9 +161,9 @@ fun GlobeCanvas(
                     // point under the finger follows the finger
                     // (drag / radius), which lands at roughly a
                     // third of the old fixed rate — no wild spins.
-                    val radiusPx = size.minDimension / 2f
-                    val sensitivity = if (radiusPx > 0f) {
-                        1f / radiusPx
+                    val diameterPx = minOf(size.width, size.height)
+                    val sensitivity = if (diameterPx > 0) {
+                        2f / diameterPx
                     } else {
                         0.0035f
                     }
