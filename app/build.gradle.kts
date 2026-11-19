@@ -46,11 +46,13 @@ dependencies {
     implementation(libs.androidx.activity.ktx)
     implementation(libs.androidx.biometric)
 
-    // Tor connectivity spike (tor-spike branch only): the tor daemon
-    // binary (Guardian Project tor-android, tor 0.4.9.17) and the
-    // in-process pluggable transports (IPtProxy 5.8.0: lyrebird
-    // obfs4/webtunnel/meek-lite + snowflake + dnstt).
-    implementation("info.guardianproject:tor-android:0.4.9.17")
+    // Tor connectivity spike (tor-spike branch only): in-process
+    // pluggable transports (IPtProxy 5.8.0: lyrebird
+    // obfs4/webtunnel/meek-lite + snowflake + dnstt). The tor daemon
+    // itself ships as jniLibs/libtor.so (extracted from Guardian
+    // Project's tor-android 0.4.9.17 AAR) because that AAR's Java 24
+    // bytecode and compileSdk 37 requirement clash with this
+    // project's toolchain; only its tor binary is used.
     implementation("com.netzarchitekten:IPtProxy:5.8.0")
 
     implementation(platform(libs.androidx.compose.bom))

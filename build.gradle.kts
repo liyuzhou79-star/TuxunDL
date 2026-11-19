@@ -26,9 +26,6 @@ subprojects {
         mavenCentral()
         google()
         maven("https://raw.githubusercontent.com/MetaCubeX/maven-backup/main/releases")
-        // Tor spike (tor-spike branch only): Guardian Project artifacts
-        // (info.guardianproject:tor-android) live in their gpmaven repo.
-        maven("https://raw.githubusercontent.com/guardianproject/gpmaven/master")
     }
 
     val isApp = name == "app"
