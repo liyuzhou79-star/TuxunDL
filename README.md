@@ -12,7 +12,7 @@
 </p>
 
 <p align="center">
-  <a href="https://github.com/liyuzhou79-star/TuxunDL/releases/tag/v1.6.0"><img src="https://img.shields.io/badge/Android-1.6.0-3DDC84" alt="Android 1.6.0"></a>
+  <a href="https://github.com/liyuzhou79-star/TuxunDL/releases/tag/v1.6.1"><img src="https://img.shields.io/badge/Android-1.6.1-3DDC84" alt="Android 1.6.1"></a>
   <a href="https://github.com/liyuzhou79-star/TuxunDL/releases/tag/win-v1.6.11"><img src="https://img.shields.io/badge/Windows-1.6.11-0078D6" alt="Windows 1.6.11"></a>
   <a href="https://github.com/liyuzhou79-star/TuxunDL/releases/tag/linux-v1.1.1"><img src="https://img.shields.io/badge/Linux-1.1.1-FCC624" alt="Linux 1.1.1"></a>
   <a href="https://github.com/liyuzhou79-star/TuxunDL/releases/tag/mac-v1.0.1"><img src="https://img.shields.io/badge/macOS-1.0.1-555555" alt="Mac 1.0.1"></a>
@@ -69,7 +69,7 @@ Android 版界面以 Kotlin + Jetpack Compose + Material 3 打造，吉祥物是
 
 **各平台当前最新版本（直达发布页）：**
 
-- Android：[1.6.0](https://github.com/liyuzhou79-star/TuxunDL/releases/tag/v1.6.0)
+- Android：[1.6.1](https://github.com/liyuzhou79-star/TuxunDL/releases/tag/v1.6.1)
 - Windows：[1.6.11](https://github.com/liyuzhou79-star/TuxunDL/releases/tag/win-v1.6.11)
 - Linux：[1.1.1](https://github.com/liyuzhou79-star/TuxunDL/releases/tag/linux-v1.1.1)
 - Mac：[1.0.1](https://github.com/liyuzhou79-star/TuxunDL/releases/tag/mac-v1.0.1)

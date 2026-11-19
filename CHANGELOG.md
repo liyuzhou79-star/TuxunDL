@@ -2,7 +2,7 @@
 
 每個版本的詳細說明與下載見 [Releases](https://github.com/liyuzhou79-star/TuxunDL/releases)。所有版本都同時發布標準版（arm64）與老機型版（armeabi-v7a），同版本號、同一發布頁。自 Windows 版起，每個發布頁都同時附上 Android 與 Windows 兩個平台的最新安裝包。
 
-## 1.6.1 — App 內直接更新＋流量記錄根治（待發布）
+## 1.6.1 — App 內直接更新＋流量記錄根治（已發布）
 - App 內直接更新（新增 util/SelfUpdate.kt）：更新頁主按鈕改走 App 內下載——按裝置架構選對應 APK、下載帶進度且可取消（下載在獨立作用域進行、離開頁面不中斷）；完成校驗三重：檔案大小與發布資產一致、包名一致、簽名憑證與已安裝 App 的自身簽名一致（PackageManager 動態比對，不寫死指紋）；通過後經 FileProvider 調起系統安裝器，系統安裝確認仍需用戶親手點（安卓硬性要求）；API 26+ 需「允許安裝未知應用」授權，未授權時頁面給引導入口；任何失敗如實顯示原因並保留瀏覽器下載兜底。資產大小與檔名隨 UpdateInfo 經 UpdateCheckCenter 一併落盤（Atom 兜底路徑無資產資訊時主按鈕自動退回瀏覽器路線）；電視版更新檢查本就關閉，不受影響。清單新增 REQUEST_INSTALL_PACKAGES 權限，file_paths 新增 updates 緩存路徑
 - 更新頁 markdown 渲染（新增 ui/Markdown.kt）：輕量行級渲染器（標題／粗體／斜體／刪除線／行內程式碼與連結／無序與有序列表／引用／程式碼塊／分隔線），不加新依賴；未知語法降級為純文字輸出，發布說明不再把原始 # 與 ** 符號直接顯示給用戶
 - 應用鎖指紋解鎖：新增 androidx.biometric 1.1.0；AppLockActivity 改為 FragmentActivity 承載 BiometricPrompt（BIOMETRIC_STRONG）；進鎖屏自動彈指紋並提供「使用指紋」按鈕，成功等同輸入正確密碼，失敗／取消／無硬體一律回落圖案／PIN／密碼；UiStore 新增 appLockBiometric（默認開），設置隱私欄僅在已設定應用鎖且系統已錄入生物識別時顯示開關
