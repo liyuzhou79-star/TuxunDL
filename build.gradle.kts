@@ -44,6 +44,15 @@ subprojects {
     }
 
     extensions.configure<BaseExtension> {
+        // -PreleaseAbis=true (passed by build-release.yaml only) builds
+        // just the two ABIs that ship. Read once here and applied to the
+        // ndk / cmake abiFilters below as well as the app splits further
+        // down — AGP refuses a build whose abiFilters exceed the splits.
+        val releaseAbisOnly =
+            project.findProperty("releaseAbis")?.toString() == "true"
+        val shippedAbis = listOf("arm64-v8a", "armeabi-v7a")
+        val allAbis = listOf("arm64-v8a", "armeabi-v7a", "x86", "x86_64")
+
         buildFeatures.buildConfig = true
         defaultConfig {
             // -PtuxundlLegacy builds the old-device variant: same app name
@@ -77,12 +86,12 @@ subprojects {
             resValue("integer", "release_code", "$versionCode")
 
             ndk {
-                abiFilters += listOf("arm64-v8a", "armeabi-v7a", "x86", "x86_64")
+                abiFilters += if (releaseAbisOnly) shippedAbis else allAbis
             }
 
             externalNativeBuild {
                 cmake {
-                    abiFilters("arm64-v8a", "armeabi-v7a", "x86", "x86_64")
+                    abiFilters(*(if (releaseAbisOnly) shippedAbis else allAbis).toTypedArray())
                 }
             }
 
@@ -216,23 +225,19 @@ subprojects {
         if (isApp) {
             this as AppExtension
 
-            // -PreleaseAbis=true (passed by build-release.yaml only)
-            // trims the splits to the two ABIs that actually ship —
-            // arm64-v8a and armeabi-v7a — and drops the universal APK,
-            // so a release build stops packaging the x86 variants.
-            // Debug and TV builds do not pass it and keep all splits.
-            val releaseAbisOnly =
-                project.findProperty("releaseAbis")?.toString() == "true"
-
+            // With -PreleaseAbis=true the splits shrink to the two
+            // shipped ABIs and the universal APK is dropped, so a
+            // release build stops packaging the x86 variants. Debug
+            // and TV builds do not pass it and keep all splits.
             splits {
                 abi {
                     isEnable = true
                     isUniversalApk = !releaseAbisOnly
                     reset()
                     if (releaseAbisOnly) {
-                        include("arm64-v8a", "armeabi-v7a")
+                        include(*shippedAbis.toTypedArray())
                     } else {
-                        include("arm64-v8a", "armeabi-v7a", "x86", "x86_64")
+                        include(*allAbis.toTypedArray())
                     }
                 }
             }
