@@ -47,10 +47,13 @@ subprojects {
         // -PreleaseAbis=true (passed by build-release.yaml only) builds
         // just the two ABIs that ship. Read once here: the app splits
         // further down shrink to the shipped ABIs and the universal APK
-        // is dropped — and with no universal APK, AGP refuses any
-        // ndk / cmake abiFilters next to abi splits, so under the gate
-        // the abiFilters below are left unset and the splits alone
-        // decide which native libraries get built.
+        // is dropped. With no universal APK, AGP refuses any ndk /
+        // cmake abiFilters on the APP project next to abi splits, so
+        // under the gate the app's abiFilters below are left unset and
+        // the splits alone decide its outputs. Library projects keep
+        // their abiFilters either way: the golang plugin derives its
+        // per-variant Go build tasks from them, and :core's CMake
+        // wiring depends on those tasks existing for every flavor.
         val releaseAbisOnly =
             project.findProperty("releaseAbis")?.toString() == "true"
         val shippedAbis = listOf("arm64-v8a", "armeabi-v7a")
@@ -89,14 +92,14 @@ subprojects {
             resValue("integer", "release_code", "$versionCode")
 
             ndk {
-                if (!releaseAbisOnly) {
+                if (!releaseAbisOnly || !isApp) {
                     abiFilters += allAbis
                 }
             }
 
             externalNativeBuild {
                 cmake {
-                    if (!releaseAbisOnly) {
+                    if (!releaseAbisOnly || !isApp) {
                         abiFilters(*allAbis.toTypedArray())
                     }
                 }
