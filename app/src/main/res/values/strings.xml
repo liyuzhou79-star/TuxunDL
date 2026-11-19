@@ -116,6 +116,8 @@
     <string name="backup_result_dns_no">Custom DNS: not in the backup.</string>
     <string name="backup_result_prefs_yes">Preferences: restored.</string>
     <string name="backup_result_prefs_no">Preferences: not in the backup.</string>
+    <string name="backup_result_service_yes">Network and per-app settings: restored.</string>
+    <string name="backup_result_service_no">Network and per-app settings: not in the backup.</string>
     <string name="backup_auto_title">Automatic Backup</string>
     <string name="backup_auto_summary">When on, launching the app saves a backup into the app\'s private storage whenever the last automatic backup is over 7 days old. The file stays on this device only; use the manual export above to take it elsewhere.</string>
     <string name="backup_auto_switch">Weekly automatic backup</string>

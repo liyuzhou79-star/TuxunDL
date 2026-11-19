@@ -119,6 +119,13 @@ class BackupActivity : BaseActivity<AppSettingsDesign>() {
                             R.string.backup_result_prefs_no
                         },
                     ),
+                    getString(
+                        if (result.serviceRestored) {
+                            R.string.backup_result_service_yes
+                        } else {
+                            R.string.backup_result_service_no
+                        },
+                    ),
                 )
             } catch (e: Exception) {
                 uiState.snackbarHostState.showSnackbar(

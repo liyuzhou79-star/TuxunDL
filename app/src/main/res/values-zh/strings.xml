@@ -116,6 +116,8 @@
     <string name="backup_result_dns_no">自订 DNS：备份中没有。</string>
     <string name="backup_result_prefs_yes">偏好设定：已还原。</string>
     <string name="backup_result_prefs_no">偏好设定：备份中没有。</string>
+    <string name="backup_result_service_yes">网络与分应用设置：已还原。</string>
+    <string name="backup_result_service_no">网络与分应用设置：备份中没有。</string>
     <string name="backup_auto_title">自动备份</string>
     <string name="backup_auto_summary">开启后，每次启动应用时，若距上次自动备份已超过 7 天，就自动把一份备份存到应用的私有目录里。文件只留在这台设备上；要带走请用上面的手动导出。</string>
     <string name="backup_auto_switch">每周自动备份</string>

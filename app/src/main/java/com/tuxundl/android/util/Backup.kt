@@ -6,8 +6,10 @@ import com.tuxundl.android.design.model.AppInfoSort
 import com.tuxundl.android.design.model.DarkMode
 import com.tuxundl.android.design.model.ThemePalette
 import com.tuxundl.android.design.store.UiStore
+import com.tuxundl.android.service.model.AccessControlMode
 import com.tuxundl.android.service.model.Profile
 import com.tuxundl.android.service.remote.IProfileManager
+import com.tuxundl.android.service.store.ServiceStore
 import com.tuxundl.android.service.util.customDnsFile
 import com.tuxundl.android.service.util.customRulesDir
 import com.tuxundl.android.service.util.sendProfileChanged
@@ -37,6 +39,13 @@ import java.util.Locale
  *   a few other UiStore preferences. The disclaimer flag, the running
  *   timer, the dismissed-update version and the widget cache are NOT
  *   exported (they are per-device runtime state, not settings).
+ * - service (1.6.1): the service-level settings from ServiceStore —
+ *   per-app proxy mode + package list, bypass-private-network, DNS
+ *   hijacking, system proxy, allow bypass, IPv6, TUN stack and the
+ *   dynamic-notification switch. Before 1.6.1 these were excluded,
+ *   so changing phones meant re-setting them all by hand. Backups
+ *   written by older versions simply have no "service" section and
+ *   restore exactly as before.
  */
 const val BACKUP_FORMAT_VERSION = 1
 
@@ -47,6 +56,8 @@ data class BackupRestoreResult(
     val rulesRestored: Int,
     val dnsRestored: Boolean,
     val prefsRestored: Boolean,
+    /** True when a "service" section was present and applied (1.6.1). */
+    val serviceRestored: Boolean = false,
 )
 
 fun buildBackupJson(
@@ -109,6 +120,25 @@ fun buildBackupJson(
         favoritesJson.put(key)
     }
 
+    // Service-level settings (1.6.1). The active-profile pointer is
+    // deliberately not part of this: the profiles section already
+    // carries which profile was active, matched by source on restore.
+    val serviceStore = ServiceStore(context)
+    val packagesJson = JSONArray()
+    for (pkg in serviceStore.accessControlPackages.sorted()) {
+        packagesJson.put(pkg)
+    }
+    val serviceJson = JSONObject()
+        .put("bypass_private_network", serviceStore.bypassPrivateNetwork)
+        .put("access_control_mode", serviceStore.accessControlMode.name)
+        .put("access_control_packages", packagesJson)
+        .put("dns_hijacking", serviceStore.dnsHijacking)
+        .put("system_proxy", serviceStore.systemProxy)
+        .put("allow_bypass", serviceStore.allowBypass)
+        .put("allow_ipv6", serviceStore.allowIpv6)
+        .put("tun_stack_mode", serviceStore.tunStackMode)
+        .put("dynamic_notification", serviceStore.dynamicNotification)
+
     return JSONObject()
         .put("tuxundl_backup_version", BACKUP_FORMAT_VERSION)
         .put("app", "TuxunDL")
@@ -119,6 +149,7 @@ fun buildBackupJson(
         .put("custom_dns", dnsJson)
         .put("favorites", favoritesJson)
         .put("prefs", prefsJson)
+        .put("service", serviceJson)
 }
 
 /**
@@ -145,6 +176,7 @@ suspend fun restoreBackupJson(
     var rulesRestored = 0
     var dnsRestored = false
     var prefsRestored = false
+    var serviceRestored = false
 
     val existing = runCatching { profileManager.queryAll() }.getOrNull().orEmpty()
     val existingSources = existing
@@ -260,6 +292,60 @@ suspend fun restoreBackupJson(
         }
     }
 
+    // Service-level settings (1.6.1). Backups from older versions
+    // have no "service" section; skipping it leaves the current
+    // device settings untouched, exactly as restores behaved before.
+    // Like editing these in the settings UI, restored values apply
+    // from the next connection (the running tunnel is not restarted).
+    val serviceJson = root.optJSONObject("service")
+    if (serviceJson != null) {
+        runCatching {
+            val serviceStore = ServiceStore(context)
+
+            if (serviceJson.has("bypass_private_network")) {
+                serviceStore.bypassPrivateNetwork =
+                    serviceJson.optBoolean("bypass_private_network")
+            }
+            serviceJson.optString("access_control_mode", "")
+                .takeIf { it.isNotEmpty() }?.let {
+                    serviceStore.accessControlMode =
+                        enumValueOrNull<AccessControlMode>(it)
+                            ?: serviceStore.accessControlMode
+                }
+            val packagesJson = serviceJson.optJSONArray("access_control_packages")
+            if (packagesJson != null) {
+                val packages = mutableSetOf<String>()
+                for (i in 0 until packagesJson.length()) {
+                    packagesJson.optString(i, "")
+                        .takeIf { it.isNotEmpty() }?.let { packages += it }
+                }
+                serviceStore.accessControlPackages = packages
+            }
+            if (serviceJson.has("dns_hijacking")) {
+                serviceStore.dnsHijacking = serviceJson.optBoolean("dns_hijacking")
+            }
+            if (serviceJson.has("system_proxy")) {
+                serviceStore.systemProxy = serviceJson.optBoolean("system_proxy")
+            }
+            if (serviceJson.has("allow_bypass")) {
+                serviceStore.allowBypass = serviceJson.optBoolean("allow_bypass")
+            }
+            if (serviceJson.has("allow_ipv6")) {
+                serviceStore.allowIpv6 = serviceJson.optBoolean("allow_ipv6")
+            }
+            serviceJson.optString("tun_stack_mode", "")
+                .takeIf { it.isNotEmpty() }?.let {
+                    serviceStore.tunStackMode = it
+                }
+            if (serviceJson.has("dynamic_notification")) {
+                serviceStore.dynamicNotification =
+                    serviceJson.optBoolean("dynamic_notification")
+            }
+
+            serviceRestored = true
+        }
+    }
+
     // Favorites.
     val favoritesJson = root.optJSONArray("favorites")
     if (favoritesJson != null) {
@@ -294,6 +380,7 @@ suspend fun restoreBackupJson(
         rulesRestored = rulesRestored,
         dnsRestored = dnsRestored,
         prefsRestored = prefsRestored,
+        serviceRestored = serviceRestored,
     )
 }
 
