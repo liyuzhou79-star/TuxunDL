@@ -44,6 +44,16 @@ object TorManager {
         CUSTOM("自定义网桥（可粘贴多行，支持 obfs4 / webtunnel / snowflake 等）")
     }
 
+    /** One relay of the current circuit; lat/lon null when unlocated. */
+    data class Hop(val place: String, val lat: Double?, val lon: Double?)
+
+    private data class GeoInfo(
+        val country: String,
+        val display: String,
+        val lat: Double?,
+        val lon: Double?
+    )
+
     data class UiState(
         val running: Boolean = false,
         val bootstrap: Int = -1,
@@ -51,7 +61,9 @@ object TorManager {
         val exitResult: String? = null,
         val exitIp: String? = null,
         val exitLocation: String? = null,
-        val hops: List<String> = emptyList(),
+        val exitLat: Double? = null,
+        val exitLon: Double? = null,
+        val hops: List<Hop> = emptyList(),
         val testing: Boolean = false,
         val logs: List<String> = emptyList()
     )
@@ -146,6 +158,8 @@ object TorManager {
                 exitResult = null,
                 exitIp = null,
                 exitLocation = null,
+                exitLat = null,
+                exitLon = null,
                 hops = emptyList()
             )
         }
@@ -337,6 +351,8 @@ object TorManager {
                     testing = false,
                     exitIp = null,
                     exitLocation = null,
+                    exitLat = null,
+                    exitLon = null,
                     hops = emptyList()
                 )
             }
@@ -366,26 +382,32 @@ object TorManager {
             }
             appendLog("[出口测试] $result")
             _state.update { it.copy(testing = false, exitResult = result, exitIp = exitIp) }
-            // Geolocate the exit (through Tor as well) for the globe
+            // Geolocate the exit (through Tor as well) for the map
             // visual; failure just leaves the location empty and the
             // page shows the bare IP — never a guessed place.
             val ip = exitIp
             if (ip != null) {
-                val location = lookupLocation(ip)
-                if (location != null) {
-                    appendLog("[出口位置] $location")
-                    _state.update { it.copy(exitLocation = location) }
+                val geo = lookupLocation(ip)
+                if (geo != null) {
+                    appendLog("[出口位置] ${geo.display}")
+                    _state.update {
+                        it.copy(
+                            exitLocation = geo.display,
+                            exitLat = geo.lat,
+                            exitLon = geo.lon
+                        )
+                    }
                 }
                 if (isTor) fetchCircuitCountries()
             }
         }
     }
 
-    /** Country/city for an IP, asked through the Tor SOCKS port. */
-    private fun lookupLocation(ip: String): String? = try {
+    /** Country/city + coordinates for an IP, asked through Tor SOCKS. */
+    private fun lookupLocation(ip: String): GeoInfo? = try {
         val proxy = Proxy(Proxy.Type.SOCKS, InetSocketAddress("127.0.0.1", SOCKS_PORT))
         val connection =
-            URL("http://ip-api.com/json/$ip?fields=status,country,city")
+            URL("http://ip-api.com/json/$ip?fields=status,country,city,lat,lon")
                 .openConnection(proxy) as HttpURLConnection
         connection.connectTimeout = 15_000
         connection.readTimeout = 15_000
@@ -394,10 +416,20 @@ object TorManager {
         if (json.optString("status") == "success") {
             val country = json.optString("country")
             val city = json.optString("city")
+            val lat = json.optDouble("lat", Double.NaN)
+            val lon = json.optDouble("lon", Double.NaN)
             when {
                 country.isBlank() -> null
-                city.isNotBlank() && city != country -> "$country · $city"
-                else -> country
+                else -> GeoInfo(
+                    country = country,
+                    display = if (city.isNotBlank() && city != country) {
+                        "$country · $city"
+                    } else {
+                        country
+                    },
+                    lat = if (lat.isNaN()) null else lat,
+                    lon = if (lon.isNaN()) null else lon
+                )
             }
         } else {
             null
@@ -415,7 +447,7 @@ object TorManager {
     private fun fetchCircuitCountries() {
         thread(name = "tor-spike-circuit") {
             try {
-                val places = mutableListOf<String>()
+                val hops = mutableListOf<Hop>()
                 Socket().use { socket ->
                     socket.connect(InetSocketAddress("127.0.0.1", CONTROL_PORT), 3_000)
                     socket.soTimeout = 5_000
@@ -459,17 +491,20 @@ object TorManager {
                             val parts = router?.split(" ")
                             val relayIp = parts?.getOrNull(2)
                             val nickname = parts?.getOrNull(1)
-                            val place = relayIp?.let { lookupLocation(it) }
-                                ?.substringBefore(" ·")
-                            places += place ?: nickname ?: "?"
+                            val geo = relayIp?.let { lookupLocation(it) }
+                            hops += Hop(
+                                place = geo?.country ?: nickname ?: "?",
+                                lat = geo?.lat,
+                                lon = geo?.lon
+                            )
                         }
                     }
                     send("QUIT")
                     readReply()
                 }
-                if (places.isNotEmpty()) {
-                    appendLog("[线路] ${places.joinToString(" → ")}")
-                    _state.update { it.copy(hops = places) }
+                if (hops.isNotEmpty()) {
+                    appendLog("[线路] ${hops.joinToString(" → ") { it.place }}")
+                    _state.update { it.copy(hops = hops) }
                 }
             } catch (e: Exception) {
                 appendLog("[线路] 获取失败: ${e.message}")
