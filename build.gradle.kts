@@ -26,6 +26,9 @@ subprojects {
         mavenCentral()
         google()
         maven("https://raw.githubusercontent.com/MetaCubeX/maven-backup/main/releases")
+        // Tor spike (tor-spike branch only): Guardian Project artifacts
+        // (info.guardianproject:tor-android) live in their gpmaven repo.
+        maven("https://raw.githubusercontent.com/guardianproject/gpmaven/master")
     }
 
     val isApp = name == "app"
@@ -53,10 +56,19 @@ subprojects {
             val isLegacyBuild =
                 legacyProperty != null && legacyProperty.toString() != "false"
 
+            // -PtuxundlTorTest builds the Tor connectivity test package
+            // (tor-spike branch only): its own applicationId so it can
+            // coexist with the release app on the same phone.
+            val torTestProperty = project.findProperty("tuxundlTorTest")
+            val isTorTestBuild =
+                torTestProperty != null && torTestProperty.toString() != "false"
+
             if (isApp) {
                 val customApplicationId = queryConfigProperty("custom.application.id") as? String?
                 applicationId = if (isLegacyBuild) {
                     "com.tuxundl.android.legacy"
+                } else if (isTorTestBuild) {
+                    "com.tuxundl.android.tortest"
                 } else {
                     customApplicationId.takeIf { it?.isNotBlank() == true } ?: "com.tuxundl.android"
                 }
@@ -70,8 +82,8 @@ subprojects {
             minSdk = 21
             targetSdk = 35
 
-            versionName = "1.6.0"
-            versionCode = 106000
+            versionName = if (isTorTestBuild) "0.1.0-test" else "1.6.0"
+            versionCode = if (isTorTestBuild) 1 else 106000
 
             resValue("string", "release_name", "v$versionName")
             resValue("integer", "release_code", "$versionCode")
@@ -91,7 +103,11 @@ subprojects {
             } else {
                 setProperty(
                     "archivesBaseName",
-                    if (isLegacyBuild) "tuxundl-legacy-$versionName" else "tuxundl-$versionName"
+                    when {
+                        isLegacyBuild -> "tuxundl-legacy-$versionName"
+                        isTorTestBuild -> "tuxundl-tortest-$versionName"
+                        else -> "tuxundl-$versionName"
+                    }
                 )
             }
         }
@@ -120,7 +136,13 @@ subprojects {
                 buildConfigField("boolean", "IS_TV", "Boolean.parseBoolean(\"false\")")
 
                 resValue("string", "launch_name", "@string/launch_name_alpha")
-                resValue("string", "application_name", "@string/application_name_alpha")
+                val torTestFlavorProperty = project.findProperty("tuxundlTorTest")
+                val isTorTestFlavor =
+                    torTestFlavorProperty != null && torTestFlavorProperty.toString() != "false"
+                resValue(
+                    "string", "application_name",
+                    if (isTorTestFlavor) "TuxunDL Tor 测试" else "@string/application_name_alpha"
+                )
             }
 
             create("meta") {

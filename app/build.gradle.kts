@@ -13,6 +13,15 @@ android {
     buildFeatures {
         compose = true
     }
+
+    // Tor spike: bundled native binaries (libtor.so) must be extracted
+    // to disk so the app can execute them as a daemon process; with the
+    // modern compressed packaging they would only be mmap-able.
+    packaging {
+        jniLibs {
+            useLegacyPackaging = true
+        }
+    }
 }
 
 dependencies {
@@ -36,6 +45,13 @@ dependencies {
     implementation(libs.zxing.core)
     implementation(libs.androidx.activity.ktx)
     implementation(libs.androidx.biometric)
+
+    // Tor connectivity spike (tor-spike branch only): the tor daemon
+    // binary (Guardian Project tor-android, tor 0.4.9.17) and the
+    // in-process pluggable transports (IPtProxy 5.8.0: lyrebird
+    // obfs4/webtunnel/meek-lite + snowflake + dnstt).
+    implementation("info.guardianproject:tor-android:0.4.9.17")
+    implementation("com.netzarchitekten:IPtProxy:5.8.0")
 
     implementation(platform(libs.androidx.compose.bom))
     implementation(libs.androidx.compose.ui)
