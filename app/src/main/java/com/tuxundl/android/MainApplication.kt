@@ -33,11 +33,16 @@ class MainApplication : Application() {
         if (processName == packageName) {
             Remote.launch()
             AppLockManager.attach(this)
-            // Traffic sampling runs at application scope (1.5.3): it
-            // follows the tunnel, not any activity or visibility.
+            // The UI process only mirrors the sampler's shared
+            // files into the home UI state (1.6.1).
             TrafficSampler.init(this)
         } else {
             sendServiceRecreated()
+            // Traffic sampling runs in the tunnel's own process
+            // (1.6.1; application scope since 1.5.3): it follows
+            // the tunnel, not any activity, visibility — or the UI
+            // process being alive at all.
+            TrafficSampler.init(this)
         }
     }
 

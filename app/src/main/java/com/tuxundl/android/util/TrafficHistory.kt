@@ -116,6 +116,30 @@ class TrafficHistoryRecorder {
         while (disconnects.size > MAX_DISCONNECTS) disconnects.removeAt(0)
     }
 
+    /**
+     * Rebuild the tiers from previously persisted points (1.6.1:
+     * the sampler's writer process restores its session after a
+     * restart from the shared history file). Points arrive oldest
+     * first, already tiered — wide windows go back to the coarse
+     * tier, narrow ones to the fine tier; anything that fell out of
+     * the total span in the meantime is dropped.
+     */
+    fun restore(points: List<TrafficPoint>, disconnectTimes: List<Long>) {
+        clear()
+
+        val cutoff = (points.lastOrNull()?.startMillis ?: return) - TOTAL_SPAN_MS
+        for (point in points) {
+            if (point.startMillis < cutoff) continue
+            if (point.windowMillis >= BUCKET_MS) {
+                coarse.addLast(point)
+            } else {
+                fine.addLast(point)
+            }
+        }
+
+        disconnects += disconnectTimes.takeLast(MAX_DISCONNECTS)
+    }
+
     /** All retained points, oldest first (coarse buckets, then fine points). */
     fun points(): List<TrafficPoint> = coarse + fine
 

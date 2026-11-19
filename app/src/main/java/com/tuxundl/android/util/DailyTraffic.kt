@@ -31,14 +31,14 @@ data class HourTrafficBucket(
  *   "lifetime": {"up": 1, "down": 2, "conn": 3},
  *   "hourly": {"492345": {"up": 1, "down": 2}}}`.
  *
- * Only traffic seen while the app process is alive is counted —
  * TrafficSampler feeds the deltas for as long as the tunnel runs
  * (since 1.5.3; before that a ticker in MainActivity did, and only
- * while the home screen was alive), so traffic forwarded while the
- * app process is dead never reaches this file. The UI says so.
- * Writes are throttled by the sampler (every 60 seconds, once when
- * the tunnel stops, and once when the home activity stops); only
- * the last 14 days and the last 48 hourly buckets are kept.
+ * while the home screen was alive). Since 1.6.1 the sampler lives
+ * in the tunnel's own (:background) process, so traffic forwarded
+ * while the UI process is dead reaches this file too; the UI
+ * process only reads it. Writes are throttled by the sampler
+ * (every 60 seconds and once when the tunnel stops); only the
+ * last 14 days and the last 48 hourly buckets are kept.
  * Lifetime totals never reset. Files written by older versions
  * (days only, no "conn"/"lifetime"/"hourly") load unchanged.
  */
@@ -266,7 +266,11 @@ class DailyTrafficStore(private val file: File) {
             }
 
             file.parentFile?.mkdirs()
-            file.writeText(
+            // Atomic replace (1.6.1): the UI process reads this file
+            // while the sampler's process writes it — a tmp file +
+            // rename means a reader never sees a half-written page.
+            val tmp = File(file.parentFile, file.name + ".tmp")
+            tmp.writeText(
                 JSONObject()
                     .put("days", stored)
                     .put(
@@ -279,6 +283,10 @@ class DailyTrafficStore(private val file: File) {
                     .put("hourly", storedHours)
                     .toString(),
             )
+            if (!tmp.renameTo(file)) {
+                file.writeText(tmp.readText())
+                tmp.delete()
+            }
         } catch (e: Exception) {
             Log.w("Write daily traffic failed: $e", e)
         }
