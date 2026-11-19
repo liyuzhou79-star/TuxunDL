@@ -138,6 +138,7 @@ import com.tuxundl.android.util.Haptics
 import com.tuxundl.android.util.HourTrafficBucket
 import com.tuxundl.android.util.SavedConnection
 import com.tuxundl.android.util.UpdateInfo
+import com.tuxundl.android.util.countryFlagEmoji
 import java.util.Locale
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
@@ -191,6 +192,18 @@ class MainUiState {
     /** Connection duration: runningSince mirrors UiStore, connectedMillis is refreshed per second. */
     var runningSince by mutableStateOf(0L)
     var connectedMillis by mutableStateOf(0L)
+
+    /**
+     * Exit-IP lookup for the exit info brick: filled by MainActivity
+     * once per connection session (and again on every node switch).
+     * exitLookupFailed marks a finished-but-failed lookup so the
+     * brick can say "unknown" instead of querying forever.
+     */
+    var exitIp by mutableStateOf<String?>(null)
+    var exitCountry by mutableStateOf("")
+    var exitCity by mutableStateOf("")
+    var exitCountryCode by mutableStateOf("")
+    var exitLookupFailed by mutableStateOf(false)
 
     /** Non-null while the "new version available" card should be shown. */
     var updateInfo by mutableStateOf<UpdateInfo?>(null)
@@ -2137,9 +2150,13 @@ private fun HomeCards(
     if (state.showProxy) {
         tilesByKey["proxy"] = HomeTile(
             icon = DesignR.drawable.ic_baseline_apps,
-            title = DesignR.string.proxy,
-            lines = listOf(modeText(state.mode)),
-            request = MainDesign.Request.OpenProxy,
+            title = R.string.exit_info,
+            // The lines are filled in by ExitInfoTile when the brick
+            // renders: the connection duration ticks every second and
+            // the exit lookup lands asynchronously, and reading either
+            // here would recompose this whole cards section per tick.
+            lines = emptyList(),
+            request = MainDesign.Request.OpenTrafficAdvanced,
         )
     }
     if (state.showProfile) {
@@ -2307,7 +2324,7 @@ private fun HomeCards(
         val request = when (id) {
             "node" -> MainDesign.Request.OpenProxy
             "traffic" -> MainDesign.Request.OpenTrafficAdvanced
-            "proxy" -> MainDesign.Request.OpenProxy
+            "proxy" -> MainDesign.Request.OpenTrafficAdvanced
             "profile" -> MainDesign.Request.OpenProfiles
             "providers" -> MainDesign.Request.OpenProviders
             "logs" -> MainDesign.Request.OpenLogs
@@ -2506,7 +2523,11 @@ private fun BrickContent(
             tilesByKey[id]?.let {
                 TrafficInfoTile(state = state, tile = it, onRequest = onRequest)
             }
-        "proxy", "profile", "providers" ->
+        "proxy" ->
+            tilesByKey[id]?.let {
+                ExitInfoTile(state = state, tile = it, onRequest = onRequest)
+            }
+        "profile", "providers" ->
             tilesByKey[id]?.let { InfoTile(tile = it, onRequest = onRequest) }
         "logs" -> NavBrick(
             icon = DesignR.drawable.ic_baseline_assignment,
@@ -2525,6 +2546,68 @@ private fun BrickContent(
             title = DesignR.string.about,
         )
     }
+}
+
+/**
+ * The exit info brick (replacing the old node-selection brick,
+ * which duplicated the current-node brick's destination). It keeps
+ * the old brick's "proxy" id and slot, so existing home layouts,
+ * brick orders and the card's visibility toggle carry over.
+ *
+ * Everything time- or lookup-dependent is read here, in the brick's
+ * own scope — the per-second connection duration and the
+ * asynchronous exit lookup — so neither the tick nor a landing
+ * lookup recomposes the whole home cards section.
+ */
+@Composable
+private fun ExitInfoTile(
+    state: MainUiState,
+    tile: HomeTile,
+    onRequest: (MainDesign.Request) -> Unit,
+) {
+    val duration = stringResource(
+        R.string.connected_for,
+        formatDuration(state.connectedMillis),
+    )
+    val ip = state.exitIp
+
+    val lines = when {
+        !state.clashRunning ->
+            listOf(stringResource(R.string.not_connected))
+        ip != null -> {
+            val location = buildString {
+                val flag = countryFlagEmoji(state.exitCountryCode)
+                if (flag.isNotEmpty()) append(flag).append(' ')
+                append(state.exitCountry)
+                if (state.exitCity.isNotEmpty() && state.exitCity != state.exitCountry) {
+                    if (isNotEmpty()) append(" · ")
+                    append(state.exitCity)
+                }
+            }
+
+            if (location.isNotBlank()) {
+                listOf(location, "$ip · $duration")
+            } else {
+                listOf(ip, duration)
+            }
+        }
+        state.exitLookupFailed ->
+            listOf(stringResource(R.string.exit_ip_unknown), duration)
+        else ->
+            listOf(stringResource(R.string.exit_querying), duration)
+    }
+
+    InfoTile(
+        tile = HomeTile(
+            icon = tile.icon,
+            title = tile.title,
+            lines = lines,
+            request = tile.request,
+            testRequest = tile.testRequest,
+            testing = tile.testing,
+        ),
+        onRequest = onRequest,
+    )
 }
 
 /**
@@ -3615,19 +3698,6 @@ private fun NavBrick(
             )
         }
     }
-}
-
-
-@Composable
-private fun modeText(mode: TunnelState.Mode): String {
-    return stringResource(
-        when (mode) {
-            TunnelState.Mode.Direct -> DesignR.string.direct_mode
-            TunnelState.Mode.Global -> DesignR.string.global_mode
-            TunnelState.Mode.Rule -> DesignR.string.rule_mode
-            else -> DesignR.string.rule_mode
-        },
-    )
 }
 
 /**

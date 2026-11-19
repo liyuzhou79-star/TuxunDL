@@ -14,6 +14,10 @@
     <string name="current_node">目前節點</string>
     <string name="test_all">全部測速</string>
     <string name="connected_for">已連接 %1$s</string>
+    <string name="exit_info">出口資訊</string>
+    <string name="not_connected">未連接</string>
+    <string name="exit_querying">正在查詢出口…</string>
+    <string name="exit_ip_unknown">出口 IP 未知</string>
     <string name="favorite">收藏</string>
     <string name="check_update">檢查更新</string>
     <string name="update_available">有新版本 v%1$s</string>
@@ -54,6 +58,7 @@
     <string name="dns_fallback_hint">每行一個，例如 1.1.1.1</string>
     <string name="dns_saved">已儲存，重啟代理後生效。</string>
     <string name="card_traffic_monitor">流量監控卡片</string>
+    <string name="card_proxy">出口資訊卡片</string>
     <string name="traffic_monitor">流量監控</string>
     <string name="subscription">訂閱</string>
     <string name="subscription_expires">到期 %1$s</string>

@@ -43,6 +43,7 @@ import com.tuxundl.android.ui.TrafficSample
 import com.tuxundl.android.ui.theme.TuxunDLTheme
 import com.tuxundl.android.ui.theme.customSeedColor
 import com.tuxundl.android.util.DailyTrafficStore
+import com.tuxundl.android.util.ExitInfoLookup
 import com.tuxundl.android.util.ProxyScheduler
 import com.tuxundl.android.util.DelaySample
 import com.tuxundl.android.util.SavedConnection
@@ -65,6 +66,7 @@ import io.github.g00fy2.quickie.QRResult.QRSuccess
 import io.github.g00fy2.quickie.QRResult.QRUserCanceled
 import io.github.g00fy2.quickie.ScanQRCode
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
@@ -145,6 +147,13 @@ class MainActivity : BaseActivity<MainDesign>() {
     // running): healthCheck + read back the current node's delay.
     private var qualityTickCount = 0
     private var qualityProbing = false
+
+    // Exit-IP lookup for the home exit info card: one lookup per
+    // connection session, re-run when the current node changes. The
+    // key is "runningSince|nodeName"; a result that lands after the
+    // key moved on is dropped.
+    private var exitInfoKey: String? = null
+    private var exitInfoJob: Job? = null
 
     // Traffic-alert cadence: re-read the subscription every 30 ticks
     // and re-evaluate whether the low-traffic notification should fire.
@@ -453,6 +462,8 @@ class MainActivity : BaseActivity<MainDesign>() {
         evaluateTrafficAlert()
 
         fetchCurrentNode()
+
+        refreshExitInfo()
     }
 
     /** Stored order first; any known key missing from it keeps the default tail order. */
@@ -746,6 +757,56 @@ class MainActivity : BaseActivity<MainDesign>() {
     }
 
     /**
+     * Keep the exit info card's lookup in step with the live
+     * session: cleared while stopped, one lookup per (session
+     * start, current node) pair. The request runs from this
+     * process, whose traffic the tunnel always carries (see
+     * [ExitInfoLookup]), so the answer is the node's exit.
+     * Called from fetch() and from the per-second sync; the key
+     * check makes repeat calls free.
+     */
+    private fun refreshExitInfo() {
+        if (!clashRunning) {
+            exitInfoKey = null
+            exitInfoJob?.cancel()
+            exitInfoJob = null
+            uiState.exitIp = null
+            uiState.exitCountry = ""
+            uiState.exitCity = ""
+            uiState.exitCountryCode = ""
+            uiState.exitLookupFailed = false
+            return
+        }
+
+        val key = "${uiStore.runningSince}|${uiState.currentNodeName.orEmpty()}"
+
+        if (key == exitInfoKey) return
+
+        exitInfoKey = key
+        uiState.exitIp = null
+        uiState.exitCountry = ""
+        uiState.exitCity = ""
+        uiState.exitCountryCode = ""
+        uiState.exitLookupFailed = false
+
+        exitInfoJob?.cancel()
+        exitInfoJob = launch {
+            val info = withContext(Dispatchers.IO) { ExitInfoLookup.fetch() }
+
+            if (exitInfoKey != key) return@launch
+
+            if (info != null) {
+                uiState.exitIp = info.ip
+                uiState.exitCountry = info.country
+                uiState.exitCity = info.city
+                uiState.exitCountryCode = info.countryCode
+            } else {
+                uiState.exitLookupFailed = true
+            }
+        }
+    }
+
+    /**
      * One quality probe: run the existing group health check, then read
      * the current node's fresh delay back through [fetchCurrentNode].
      * The core reports a failed/untested node as 65535, which the panel
@@ -812,6 +873,10 @@ class MainActivity : BaseActivity<MainDesign>() {
         uiState.runningSince = since
         uiState.connectedMillis =
             if (since > 0L) System.currentTimeMillis() - since else 0L
+
+        // A node switch mid-session produces no dedicated event;
+        // the per-second sync catches it through the lookup key.
+        refreshExitInfo()
 
         // Quality probe of the current group every 15 seconds.
         qualityTickCount++
