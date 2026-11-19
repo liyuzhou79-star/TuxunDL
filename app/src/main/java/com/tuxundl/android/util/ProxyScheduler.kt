@@ -6,7 +6,10 @@ import android.app.NotificationManager
 import android.app.PendingIntent
 import android.content.Context
 import android.content.Intent
+import android.net.Uri
 import android.os.Build
+import android.os.PowerManager
+import android.provider.Settings
 import androidx.core.app.NotificationCompat
 import com.tuxundl.android.ExternalControlActivity
 import com.tuxundl.android.MainActivity
@@ -84,6 +87,36 @@ object ProxyScheduler {
         val alarmManager = context.getSystemService(AlarmManager::class.java) ?: return false
 
         return alarmManager.canScheduleExactAlarms()
+    }
+
+    /**
+     * Whether the system battery optimization leaves this app alone
+     * (1.6.1). Even an exact alarm can be deferred when the app is
+     * battery-optimized and the device dozes; the schedule panel
+     * guides the user to whitelist the app while it is not.
+     */
+    fun isBatteryWhitelisted(context: Context): Boolean {
+        val powerManager = context.getSystemService(PowerManager::class.java)
+            ?: return false
+
+        return powerManager.isIgnoringBatteryOptimizations(context.packageName)
+    }
+
+    /**
+     * The direct "stop optimizing this app" request dialog intent.
+     * Some devices refuse it; the panel falls back to the battery
+     * optimization settings list when launching it fails.
+     */
+    fun batteryWhitelistIntent(context: Context): Intent {
+        return Intent(
+            Settings.ACTION_REQUEST_IGNORE_BATTERY_OPTIMIZATIONS,
+            Uri.parse("package:" + context.packageName),
+        )
+    }
+
+    /** The battery optimization settings list (fallback target). */
+    fun batterySettingsIntent(): Intent {
+        return Intent(Settings.ACTION_IGNORE_BATTERY_OPTIMIZATION_SETTINGS)
     }
 
     /**

@@ -1448,11 +1448,18 @@ private fun SchedulePanel() {
     var exactAllowed by remember {
         mutableStateOf(ProxyScheduler.canScheduleExact(context))
     }
+    var batteryWhitelisted by remember {
+        mutableStateOf(ProxyScheduler.isBatteryWhitelisted(context))
+    }
     var pickerField by remember { mutableStateOf<ScheduleTimeField?>(null) }
 
     val exactAlarmLauncher = rememberLauncherForActivityResult(
         ActivityResultContracts.StartActivityForResult(),
     ) { exactAllowed = ProxyScheduler.canScheduleExact(context) }
+
+    val batteryLauncher = rememberLauncherForActivityResult(
+        ActivityResultContracts.StartActivityForResult(),
+    ) { batteryWhitelisted = ProxyScheduler.isBatteryWhitelisted(context) }
 
     val chevronAngle by animateFloatAsState(
         targetValue = if (expanded) 180f else 0f,
@@ -1625,6 +1632,50 @@ private fun SchedulePanel() {
                         )
                         Text(
                             text = stringResource(R.string.schedule_exact_alarm_hint),
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.error,
+                            modifier = Modifier.padding(start = 6.dp),
+                        )
+                    }
+                }
+
+                // Battery optimization guidance (1.6.1): an exact
+                // alarm alone does not guarantee punctuality — a
+                // battery-optimized app can still be deferred while
+                // the device dozes. Shown only while a rule is armed
+                // and the app is not whitelisted yet.
+                if (!batteryWhitelisted && (timerEnabled || nightEnabled)) {
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(top = 12.dp)
+                            .clip(RoundedCornerShape(12.dp))
+                            .clickable {
+                                runCatching {
+                                    batteryLauncher.launch(
+                                        ProxyScheduler.batteryWhitelistIntent(
+                                            context,
+                                        ),
+                                    )
+                                }.onFailure {
+                                    runCatching {
+                                        batteryLauncher.launch(
+                                            ProxyScheduler.batterySettingsIntent(),
+                                        )
+                                    }
+                                }
+                            }
+                            .padding(horizontal = 10.dp, vertical = 8.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        Icon(
+                            painter = painterResource(DesignR.drawable.ic_baseline_info),
+                            contentDescription = null,
+                            modifier = Modifier.size(16.dp),
+                            tint = MaterialTheme.colorScheme.error,
+                        )
+                        Text(
+                            text = stringResource(R.string.schedule_battery_hint),
                             style = MaterialTheme.typography.bodySmall,
                             color = MaterialTheme.colorScheme.error,
                             modifier = Modifier.padding(start = 6.dp),

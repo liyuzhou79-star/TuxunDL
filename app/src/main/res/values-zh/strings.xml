@@ -359,6 +359,7 @@
     <string name="schedule_night_action_stop">关闭代理</string>
     <string name="schedule_night_end_note">夜间结束时，如果模式还是全局，会恢复成夜间开始前的模式；半夜手动改过模式的话，按你改的来。</string>
     <string name="schedule_exact_alarm_hint">精确闹钟还没授权，定时可能会晚点，点此去授权</string>
+    <string name="schedule_battery_hint">电池优化还没放行本应用，定时可能会被系统推迟，点此去放行</string>
     <string name="schedule_pick_time">选择时间</string>
     <string name="schedule_channel_name">定时任务</string>
     <string name="schedule_start_failed_title">定时开启代理没成功</string>

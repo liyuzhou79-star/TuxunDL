@@ -27,6 +27,10 @@
          The per-app "install unknown apps" grant is still the user's
          to give; the update page guides them to it when missing. -->
     <uses-permission android:name="android.permission.REQUEST_INSTALL_PACKAGES" />
+    <!-- Lets the schedule panel ask for a battery-optimization
+         exemption directly (1.6.1); without it the request intent
+         is refused and the panel falls back to the settings list. -->
+    <uses-permission android:name="android.permission.REQUEST_IGNORE_BATTERY_OPTIMIZATIONS" />
 
     <!-- Workaround for Android 17+ cross profile loopback networking restrictions.
          This permission allows CMFA to connect to loopback addresses and ports bound

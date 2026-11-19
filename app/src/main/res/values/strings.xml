@@ -359,6 +359,7 @@
     <string name="schedule_night_action_stop">Turn proxy off</string>
     <string name="schedule_night_end_note">When the night window ends, Global is switched back to the mode used before the night — unless you changed the mode by hand during the night.</string>
     <string name="schedule_exact_alarm_hint">Exact alarms are not allowed yet, so timers may fire late. Tap to allow.</string>
+    <string name="schedule_battery_hint">Battery optimization is still on for this app, so scheduled actions may be delayed — tap to allow</string>
     <string name="schedule_pick_time">Pick a time</string>
     <string name="schedule_channel_name">Proxy schedule</string>
     <string name="schedule_start_failed_title">Scheduled start did not run</string>
