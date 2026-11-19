@@ -12,11 +12,51 @@ import com.tuxundl.android.service.store.ServiceStore
 import com.tuxundl.android.service.util.sendOverrideChanged
 import kotlinx.coroutines.*
 import kotlinx.coroutines.channels.ReceiveChannel
+import java.io.File
 
 class ClashManager(private val context: Context) : IClashManager,
     CoroutineScope by CoroutineScope(Dispatchers.IO) {
     private val store = ServiceStore(context)
     private var logReceiver: ReceiveChannel<LogMessage>? = null
+
+    init {
+        launch { torEgressWatchdog() }
+    }
+
+    /**
+     * Tor egress fail-safe (1.7.3): while the session override arms
+     * Tor egress, the tunnel's only way out is the Tor SOCKS port,
+     * whose owner (the Tor engine) lives in the UI process and keeps
+     * a heartbeat file fresh. If the heartbeat goes stale — UI
+     * process killed, Tor gone — disarm the marker here in the
+     * service process so the tunnel falls back to the profile's own
+     * egress instead of aiming at a dead port forever. Failing back
+     * is announced in the core log; it can never silently turn into
+     * a direct connection the user did not choose, because the
+     * restored state is exactly the pre-Tor configuration.
+     */
+    private suspend fun torEgressWatchdog() {
+        val heartbeat = File(context.filesDir, "tor/heartbeat")
+        while (true) {
+            delay(5_000)
+            try {
+                val override = Clash.queryOverride(Clash.OverrideSlot.Session)
+                val tor = override.tor
+                if (tor != null && tor.enabled) {
+                    val stale = !heartbeat.exists() ||
+                        System.currentTimeMillis() - heartbeat.lastModified() > 20_000
+                    if (stale) {
+                        val restored = override.copy()
+                        restored.tor = null
+                        patchOverride(Clash.OverrideSlot.Session, restored)
+                        Log.w("Tor heartbeat lost; Tor egress disarmed, profile egress restored")
+                    }
+                }
+            } catch (e: Exception) {
+                Log.w("Tor egress watchdog: $e")
+            }
+        }
+    }
 
     override fun queryTunnelState(): TunnelState {
         return Clash.queryTunnelState()
